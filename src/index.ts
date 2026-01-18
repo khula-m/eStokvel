@@ -1,40 +1,43 @@
-import express from "express";
-import cors from "cors";
-import helmet from "helmet";
-import dotenv from "dotenv";
-import logger from "./utils/logger";
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import dotenv from 'dotenv';
+import routes from './routes';
 
-// Load environment variables
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(helmet());
 app.use(cors());
+app.use(helmet());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Basic route
-app.get("/", (_req, res) => {
-  res.json({ 
-    message: "eStokvel API is running!",
-    version: "1.0.0",
-    status: "active"
+// API Routes
+app.use('/api', routes);
+
+// Error handling middleware
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Error:', err.stack);
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
   });
 });
 
-// Health check
-app.get("/health", (_req, res) => {
-  res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Endpoint not found'
+  });
 });
 
-// Start server
 app.listen(PORT, () => {
-  logger.info(`🚀 Server running on port ${PORT}`);
-  logger.info(`📡 Health check: http://localhost:${PORT}/health`);
+  console.log(\` Server running on port \${PORT}\`);
+  console.log(\` Environment: \${process.env.NODE_ENV || 'development'}\`);
+  console.log(\` Health check: http://localhost:\${PORT}/api/health\`);
 });
-
-export default app;
-
