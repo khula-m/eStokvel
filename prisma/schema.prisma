@@ -26,6 +26,14 @@ enum MemberRole {
   MEMBER
 }
 
+enum UserRole {
+  MEMBER
+  TREASURER
+  SECRETARY
+  CHAIRPERSON
+  ADMIN
+}
+
 enum PaymentMethod {
   CASH
   BANK_TRANSFER
@@ -51,6 +59,7 @@ model User {
   idNumber      String?
   passwordHash  String
   language      String   @default("en")
+  role          UserRole   @default(MEMBER)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   lastLogin     DateTime?
@@ -125,3 +134,4 @@ model Transaction {
   
   @@map("transactions")
 }
+
