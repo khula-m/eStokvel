@@ -1,0 +1,2 @@
+{"level":"info","message":"🚀 Server running on port 5000","service":"estokvel-backend","timestamp":"2026-01-18 12:07:13"}
+{"level":"info","message":"📡 Health check: http://localhost:5000/health","service":"estokvel-backend","timestamp":"2026-01-18 12:07:13"}
