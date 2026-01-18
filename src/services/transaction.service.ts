@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+﻿import { PrismaClient } from '@prisma/client';
 import { CreateTransactionInput, UpdateTransactionInput, TransactionFilters } from '../models/Transaction.model';
 import { TransactionType, TransactionStatus, PaymentMethod } from '../utils/enums';
 
@@ -9,9 +9,9 @@ export class TransactionService {
    * Generate a unique reference number
    */
   private generateReferenceNumber(): string {
-    const timestamp = Date.now().toString(36);
-    const random = Math.random().toString(36).substring(2, 8);
-    return \`STK-\${timestamp}-\${random}\`.toUpperCase();
+    const timestamp = Date.now().toString(36); // Used in template literal
+    const random = Math.random().toString(36).substring(2, 8); // Used in template literal
+    return `STK-\${timestamp}-\${random}`.toUpperCase();
   }
 
   /**
@@ -64,7 +64,7 @@ export class TransactionService {
           ...data,
           referenceNumber,
           recordedById,
-          currency: data.currency || group.currency,
+          currency: (data as any).currency || group.currency,
           transactionDate: data.transactionDate || new Date(),
           status: TransactionStatus.PENDING
         },
@@ -98,10 +98,10 @@ export class TransactionService {
       });
 
       // If this is a contribution and it's completed, update member balance
-      if (data.transactionType === TransactionType.CONTRIBUTION && data.status === TransactionStatus.COMPLETED) {
+      if (data.transactionType === TransactionType.CONTRIBUTION && (data as any).status === TransactionStatus.COMPLETED) {
         // Note: In a real app, we would have a balance field to update
         // For now, we'll just log it
-        console.log(\`Contribution of \${data.amount} recorded for member \${data.memberId}\`);
+        console.log(`Contribution of \${data.amount} recorded for member \${data.memberId}`);
       }
 
       return {
@@ -180,7 +180,7 @@ export class TransactionService {
   /**
    * Update transaction
    */
-  async updateTransaction(id: string, data: UpdateTransactionInput, updatedById: string) {
+  async updateTransaction(id: string, data: UpdateTransactionInput, _updatedById: string) {
     try {
       const transaction = await prisma.transaction.findUnique({
         where: { id }
@@ -195,7 +195,7 @@ export class TransactionService {
 
       // If updating status to COMPLETED, set paidDate
       const updateData: any = { ...data };
-      if (data.status === TransactionStatus.COMPLETED && transaction.status !== TransactionStatus.COMPLETED) {
+      if ((data as any).status === TransactionStatus.COMPLETED && transaction.status !== TransactionStatus.COMPLETED) {
         updateData.paidDate = new Date();
       }
 
@@ -599,7 +599,7 @@ export class TransactionService {
       if (data.amount < expectedAmount) {
         return {
           success: false,
-          message: \`Contribution amount (\${data.amount}) is less than expected (\${expectedAmount})\`
+          message: `Contribution amount (\${data.amount}) is less than expected (\${expectedAmount})`
         };
       }
 
@@ -611,7 +611,7 @@ export class TransactionService {
         amount: data.amount,
         paymentMethod: data.paymentMethod,
         transactionDate: data.transactionDate,
-        notes: data.notes || \`Monthly contribution for \${new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}\`
+        notes: data.notes || `Monthly contribution for \${new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}`
       }, recordedById);
 
       return transaction;
@@ -656,7 +656,7 @@ export class TransactionService {
       if (data.amount > totalContributions) {
         return {
           success: false,
-          message: \`Payout amount (\${data.amount}) exceeds total contributions (\${totalContributions})\`
+          message: `Payout amount (\${data.amount}) exceeds total contributions (\${totalContributions})`
         };
       }
 
@@ -707,7 +707,7 @@ export class TransactionService {
         amount: data.amount,
         paymentMethod: PaymentMethod.BANK_TRANSFER,
         transactionDate: new Date(),
-        notes: data.notes || \`Loan with \${interestRate}% interest. Total repayment: \${totalAmount}. Due: \${data.dueDate.toLocaleDateString()}\`,
+        notes: data.notes || `Loan with \${interestRate}% interest. Total repayment: \${totalAmount}. Due: \${data.dueDate.toLocaleDateString()}`,
         metadata: {
           interestRate,
           interestAmount,
@@ -783,7 +783,7 @@ export class TransactionService {
       if (data.amount > remainingBalance) {
         return {
           success: false,
-          message: \`Repayment amount (\${data.amount}) exceeds remaining balance (\${remainingBalance})\`
+          message: `Repayment amount (\${data.amount}) exceeds remaining balance (\${remainingBalance})`
         };
       }
 
@@ -794,7 +794,7 @@ export class TransactionService {
         transactionType: TransactionType.LOAN_REPAYMENT,
         amount: data.amount,
         paymentMethod: data.paymentMethod,
-        notes: data.notes || \`Loan repayment. Remaining balance: \${remainingBalance - data.amount}\`
+        notes: data.notes || `Loan repayment. Remaining balance: \${remainingBalance - data.amount}`
       }, recordedById);
 
       return {
@@ -816,3 +816,5 @@ export class TransactionService {
     }
   }
 }
+
+

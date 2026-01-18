@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+﻿import { PrismaClient } from '@prisma/client';
 import { CreateStokvelGroupInput, UpdateStokvelGroupInput } from '../models/StokvelGroup.model';
 import { MemberRole } from '../utils/enums';
 
@@ -471,3 +471,4 @@ export class StokvelGroupService {
     }
   }
 }
+

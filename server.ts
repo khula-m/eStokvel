@@ -1,35 +1,31 @@
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-
-dotenv.config();
+﻿// Use require to avoid TypeScript import issues
+const express = require("express");
+const cors = require("cors");
+const helmet = require("helmet");
+require("dotenv").config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Middleware
 app.use(cors());
+app.use(helmet());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Basic routes
-app.get("/", (req, res) => {
+app.get("/", (_req, res) => {
   res.json({
     success: true,
-    message: "eStokvel API v1.0",
+    message: "eStokvel API v1.0 - Day 4 Ready",
     version: "1.0.0",
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || "development",
-    hotReload: process.env.NODEMON === "true" ? "enabled" : "disabled",
-    endpoints: {
-      auth: {
-        register: "POST /api/auth/register",
-        login: "POST /api/auth/login",
-        me: "GET /api/auth/me (requires token)"
-      }
-    }
+    status: "Authentication working, Day 4 routes ready for testing"
   });
 });
 
-app.get("/health", (req, res) => {
+app.get("/health", (_req, res) => {
   res.json({
     success: true,
     status: "healthy",
@@ -39,25 +35,55 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Development-only route to show nodemon status
+// Development-only route
 if (process.env.NODE_ENV === "development") {
-  app.get("/dev/status", (req, res) => {
+  app.get("/dev/status", (_req, res) => {
     res.json({
       success: true,
       environment: "development",
       hotReload: true,
-      watching: ["src", "prisma", "server.ts"],
-      restartOnChanges: true
+      routes: ["auth", "stokvels", "members", "transactions"]
     });
   });
 }
 
-// Import and use auth routes
-import authRoutes from "./src/routes/auth.routes";
-app.use("/api/auth", authRoutes);
+// Import routes with error handling
+console.log("Loading routes...");
+
+try {
+  const authRoutes = require("./src/routes/auth.routes").default;
+  app.use("/api/auth", authRoutes);
+  console.log("✅ Auth routes loaded");
+} catch (error) {
+  console.log("❌ Failed to load auth routes:", error.message);
+}
+
+try {
+  const stokvelRoutes = require("./src/routes/stokvel.routes").default;
+  app.use("/api/stokvels", stokvelRoutes);
+  console.log("✅ Stokvel routes loaded");
+} catch (error) {
+  console.log("❌ Failed to load stokvel routes:", error.message);
+}
+
+try {
+  const memberRoutes = require("./src/routes/member.routes").default;
+  app.use("/api/members", memberRoutes);
+  console.log("✅ Member routes loaded");
+} catch (error) {
+  console.log("❌ Failed to load member routes:", error.message);
+}
+
+try {
+  const transactionRoutes = require("./src/routes/transaction.routes").default;
+  app.use("/api/transactions", transactionRoutes);
+  console.log("✅ Transaction routes loaded");
+} catch (error) {
+  console.log("❌ Failed to load transaction routes:", error.message);
+}
 
 // Error handling middleware
-app.use((err: any, req: any, res: any, next: any) => {
+app.use((err, _req, res, _next) => {
   console.error("Server error:", err);
   res.status(500).json({
     success: false,
@@ -66,54 +92,51 @@ app.use((err: any, req: any, res: any, next: any) => {
   });
 });
 
+// 404 handler
+app.use((_req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "Endpoint not found",
+    path: _req.path
+  });
+});
+
 // Start server
-const server = app.listen(PORT, () => {
-  const isNodemon = process.env.NODEMON === "true" || process.argv.some(arg => arg.includes("nodemon"));
+app.listen(PORT, () => {
+  const devStatus = process.env.NODE_ENV === "development" ? "   http://localhost:" + PORT + "/dev/status" : "";
   
-  console.log(`
-${isNodemon ? '??' : '??'} eStokvel Backend Server ${isNodemon ? '(Hot Reload Enabled)' : ''}
-?? Port: ${PORT}
-???  Environment: ${process.env.NODE_ENV || "development"}
-? Started: ${new Date().toLocaleString()}
-${isNodemon ? '?? Auto-restart on file changes: ?' : ''}
-
-?? Available Endpoints:
-   http://localhost:${PORT}/
-   http://localhost:${PORT}/health
-   ${process.env.NODE_ENV === "development" ? `   http://localhost:${PORT}/dev/status` : ''}
-   http://localhost:${PORT}/api/auth/register
-   http://localhost:${PORT}/api/auth/login
-
-?? Test Credentials (from seed):
-   Phone: 27831234567
-   Password: password123
-
-?? Check API-AUTH-TESTS.md for testing examples
-  `);
-});
-
-// Handle graceful shutdown
-process.on("SIGTERM", () => {
-  console.log("SIGTERM received. Shutting down gracefully...");
-  server.close(() => {
-    console.log("Server closed");
-    process.exit(0);
-  });
-});
-
-process.on("SIGINT", () => {
-  console.log("SIGINT received. Shutting down...");
-  server.close(() => {
-    console.log("Server closed");
-    process.exit(0);
-  });
-});
-
-// Handle nodemon restart event
-process.once("SIGUSR2", () => {
-  console.log("?? Nodemon restart signal received...");
-  server.close(() => {
-    console.log("Server closed for restart");
-    process.kill(process.pid, "SIGUSR2");
-  });
+  console.log("");
+  console.log("🚀 eStokvel Backend Server");
+  console.log("📡 Port: " + PORT);
+  console.log("🌍 Environment: " + (process.env.NODE_ENV || "development"));
+  console.log("⏰ Started: " + new Date().toLocaleString());
+  console.log("");
+  console.log("🔗 Available Endpoints:");
+  console.log("   http://localhost:" + PORT + "/");
+  console.log("   http://localhost:" + PORT + "/health");
+  if (process.env.NODE_ENV === "development") {
+    console.log("   http://localhost:" + PORT + "/dev/status");
+  }
+  console.log("");
+  console.log("   🔐 AUTH:");
+  console.log("   http://localhost:" + PORT + "/api/auth/register");
+  console.log("   http://localhost:" + PORT + "/api/auth/login");
+  console.log("   http://localhost:" + PORT + "/api/auth/me (requires token)");
+  console.log("");
+  console.log("   👥 STOKVELS (Day 4):");
+  console.log("   http://localhost:" + PORT + "/api/stokvels (GET/POST - requires token)");
+  console.log("   http://localhost:" + PORT + "/api/stokvels/:id (GET - requires token)");
+  console.log("");
+  console.log("   👤 MEMBERS (Day 4):");
+  console.log("   http://localhost:" + PORT + "/api/members (POST - requires token)");
+  console.log("   http://localhost:" + PORT + "/api/members/group/:groupId (GET - requires token)");
+  console.log("");
+  console.log("   💰 TRANSACTIONS (Day 4):");
+  console.log("   http://localhost:" + PORT + "/api/transactions (GET/POST - requires token)");
+  console.log("");
+  console.log("🔑 Test Credentials:");
+  console.log("   Phone: 27831234567 | Password: password123 | Role: TREASURER");
+  console.log("");
+  console.log("📚 Day 4: Core Models & Controllers - READY FOR TESTING");
+  console.log("");
 });

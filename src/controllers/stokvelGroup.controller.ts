@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+﻿import { Request, Response } from 'express';
 import { StokvelGroupService } from '../services/stokvelGroup.service';
 import { CreateStokvelGroupInput, UpdateStokvelGroupInput } from '../models/StokvelGroup.model';
 
@@ -10,7 +10,7 @@ export class StokvelGroupController {
    */
   async createGroup(req: Request, res: Response) {
     try {
-      const userId = (req as any).user?.id;
+      const _userId = (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -52,7 +52,7 @@ export class StokvelGroupController {
   async getGroup(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const userId = (req as any).user?.id;
+      const _userId = (req as any).user?.id;
 
       const result = await stokvelGroupService.getGroupById(id, userId);
       
@@ -103,7 +103,7 @@ export class StokvelGroupController {
   async updateGroup(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const userId = (req as any).user?.id;
+      const _userId = (req as any).user?.id;
       const input: UpdateStokvelGroupInput = req.body;
 
       // Verify user is the creator (in a real app, you'd check permissions)
@@ -138,7 +138,7 @@ export class StokvelGroupController {
    */
   async getUserGroups(req: Request, res: Response) {
     try {
-      const userId = (req as any).user?.id;
+      const _userId = (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -170,7 +170,7 @@ export class StokvelGroupController {
   async deleteGroup(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const userId = (req as any).user?.id;
+      const _userId = (req as any).user?.id;
 
       const result = await stokvelGroupService.deleteGroup(id, userId);
       
@@ -196,7 +196,7 @@ export class StokvelGroupController {
   async getGroupStats(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const userId = (req as any).user?.id;
+      const _userId = (req as any).user?.id;
 
       // Check if user is a member of the group
       const group = await stokvelGroupService.getGroupById(id, userId);
@@ -225,3 +225,5 @@ export class StokvelGroupController {
     }
   }
 }
+
+

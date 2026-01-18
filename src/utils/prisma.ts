@@ -1,12 +1,11 @@
-import { PrismaClient } from "@prisma/client";
+﻿// Correct Prisma setup for 6.19.2
+import { PrismaClient } from '@prisma/client'
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
+// Prevent multiple instances of Prisma Client in development
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined
+}
 
-const prismaClient = globalForPrisma.prisma || new PrismaClient({
-  log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
-});
+export const prisma = globalForPrisma.prisma ?? new PrismaClient()
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prismaClient;
-
-export const prisma = prismaClient;
-export default prismaClient;
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma

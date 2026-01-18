@@ -1,78 +1,40 @@
-import { Request, Response, NextFunction } from "express";
-import { verifyToken, extractTokenFromHeader } from "../utils/jwt";
-import { prisma } from "../utils/prisma";
+﻿import { Request, Response, NextFunction } from "express";
+import jwt from "jsonwebtoken";
 
-export interface AuthenticatedRequest extends Request {
-  user?: any;
+export interface AuthRequest extends Request {
+  user?: {
+    id: string;
+    phoneNumber: string;
+    role: string;
+  };
 }
 
-export async function authenticate(
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const token = extractTokenFromHeader(req.headers.authorization);
-    
-    if (!token) {
-      res.status(401).json({
-        success: false,
-        message: "No authentication token provided"
-      });
-      return;
-    }
-    
-    // Verify token
-    const decoded = verifyToken(token);
-    
-    // Get user from database
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId }
+export const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      message: "Access token required"
     });
-    
-    if (!user) {
-      res.status(401).json({
-        success: false,
-        message: "User not found"
-      });
-      return;
-    }
-    
-    // Attach user to request
-    req.user = user;
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "your-secret-key") as any;
+    req.user = {
+      id: decoded.userId,
+      phoneNumber: decoded.phoneNumber,
+      role: decoded.role
+    };
     next();
-  } catch (error: any) {
-    res.status(401).json({
+  } catch (error) {
+    return res.status(403).json({
       success: false,
       message: "Invalid or expired token"
     });
   }
-}
+};
 
-export async function requireRoles(...roles: string[]) {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    if (!req.user) {
-      res.status(401).json({
-        success: false,
-        message: "Authentication required"
-      });
-      return;
-    }
-    
-    // For now, we'll check if user is admin or treasurer
-    // You can enhance this based on your role system
-    const userRoles = [req.user.role || "MEMBER"];
-    
-    const hasRequiredRole = roles.some(role => userRoles.includes(role));
-    
-    if (!hasRequiredRole) {
-      res.status(403).json({
-        success: false,
-        message: "Insufficient permissions"
-      });
-      return;
-    }
-    
-    next();
-  };
-}
+// Export as authMiddleware for consistency
+export const authMiddleware = authenticateToken;

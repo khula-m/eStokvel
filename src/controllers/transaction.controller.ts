@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+﻿import { Request, Response } from 'express';
 import { TransactionService } from '../services/transaction.service';
 import { CreateTransactionInput, UpdateTransactionInput } from '../models/Transaction.model';
 import { PaymentMethod, TransactionType } from '../utils/enums';
@@ -11,7 +11,7 @@ export class TransactionController {
    */
   async createTransaction(req: Request, res: Response) {
     try {
-      const userId = (req as any).user?.id;
+      const _userId = (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -33,7 +33,7 @@ export class TransactionController {
       if (!Object.values(TransactionType).includes(input.transactionType as TransactionType)) {
         return res.status(400).json({
           success: false,
-          message: \`Invalid transaction type. Valid types: \${Object.values(TransactionType).join(', ')}\`
+          message: `Invalid transaction type. Valid types: \${Object.values(TransactionType).join(', ')}`
         });
       }
 
@@ -41,7 +41,7 @@ export class TransactionController {
       if (!Object.values(PaymentMethod).includes(input.paymentMethod as PaymentMethod)) {
         return res.status(400).json({
           success: false,
-          message: \`Invalid payment method. Valid methods: \${Object.values(PaymentMethod).join(', ')}\`
+          message: `Invalid payment method. Valid methods: \${Object.values(PaymentMethod).join(', ')}`
         });
       }
 
@@ -69,7 +69,7 @@ export class TransactionController {
   async getTransaction(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const userId = (req as any).user?.id;
+      const _userId = (req as any).user?.id;
 
       if (!userId) {
         return res.status(401).json({
@@ -102,7 +102,7 @@ export class TransactionController {
   async updateTransaction(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const userId = (req as any).user?.id;
+      const _userId = (req as any).user?.id;
       const input: UpdateTransactionInput = req.body;
 
       if (!userId) {
@@ -135,7 +135,7 @@ export class TransactionController {
    */
   async getTransactions(req: Request, res: Response) {
     try {
-      const userId = (req as any).user?.id;
+      const _userId = (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -195,7 +195,7 @@ export class TransactionController {
   async getGroupTransactionStats(req: Request, res: Response) {
     try {
       const { groupId } = req.params;
-      const userId = (req as any).user?.id;
+      const _userId = (req as any).user?.id;
       const { period } = req.query;
 
       if (!userId) {
@@ -234,7 +234,7 @@ export class TransactionController {
    */
   async recordContribution(req: Request, res: Response) {
     try {
-      const userId = (req as any).user?.id;
+      const _userId = (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -256,7 +256,7 @@ export class TransactionController {
       if (!Object.values(PaymentMethod).includes(paymentMethod)) {
         return res.status(400).json({
           success: false,
-          message: \`Invalid payment method. Valid methods: \${Object.values(PaymentMethod).join(', ')}\`
+          message: `Invalid payment method. Valid methods: \${Object.values(PaymentMethod).join(', ')}`
         });
       }
 
@@ -290,7 +290,7 @@ export class TransactionController {
    */
   async recordPayout(req: Request, res: Response) {
     try {
-      const userId = (req as any).user?.id;
+      const _userId = (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -312,7 +312,7 @@ export class TransactionController {
       if (!Object.values(PaymentMethod).includes(paymentMethod)) {
         return res.status(400).json({
           success: false,
-          message: \`Invalid payment method. Valid methods: \${Object.values(PaymentMethod).join(', ')}\`
+          message: `Invalid payment method. Valid methods: \${Object.values(PaymentMethod).join(', ')}`
         });
       }
 
@@ -346,7 +346,7 @@ export class TransactionController {
    */
   async recordLoan(req: Request, res: Response) {
     try {
-      const userId = (req as any).user?.id;
+      const _userId = (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -394,7 +394,7 @@ export class TransactionController {
    */
   async recordLoanRepayment(req: Request, res: Response) {
     try {
-      const userId = (req as any).user?.id;
+      const _userId = (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -416,7 +416,7 @@ export class TransactionController {
       if (!Object.values(PaymentMethod).includes(paymentMethod)) {
         return res.status(400).json({
           success: false,
-          message: \`Invalid payment method. Valid methods: \${Object.values(PaymentMethod).join(', ')}\`
+          message: `Invalid payment method. Valid methods: \${Object.values(PaymentMethod).join(', ')}`
         });
       }
 
@@ -448,7 +448,7 @@ export class TransactionController {
    */
   async getMyTransactions(req: Request, res: Response) {
     try {
-      const userId = (req as any).user?.id;
+      const _userId = (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -498,3 +498,6 @@ export class TransactionController {
     }
   }
 }
+
+
+

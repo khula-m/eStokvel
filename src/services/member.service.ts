@@ -1,6 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+﻿import { PrismaClient } from '@prisma/client';
 import { CreateMemberInput, UpdateMemberInput } from '../models/Member.model';
-import { MemberRole, MemberStatus } from '../utils/enums';
+import { MemberRole } from '../utils/enums';
 
 const prisma = new PrismaClient();
 
@@ -56,7 +56,7 @@ export class MemberService {
         data: {
           userId: data.userId,
           stokvelGroupId: data.stokvelGroupId,
-          role: data.role || MemberRole.MEMBER
+          role: (data.role || MemberRole.MEMBER) as any
         },
         include: {
           user: {
@@ -89,7 +89,7 @@ export class MemberService {
           transactionDate: new Date(),
           recordedById: invitedById || data.userId,
           status: 'COMPLETED',
-          notes: \`\${user.fullName} joined the group\`
+          notes: `\${user.fullName} joined the group`
         }
       });
 
@@ -262,7 +262,7 @@ export class MemberService {
           transactionDate: new Date(),
           recordedById: removedById,
           status: 'COMPLETED',
-          notes: \`\${member.user.fullName} was removed from the group\`
+          notes: `\${member.user.fullName} was removed from the group`
         }
       });
 
@@ -560,3 +560,5 @@ export class MemberService {
     }
   }
 }
+
+

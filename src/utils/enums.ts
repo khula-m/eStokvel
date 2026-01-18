@@ -1,4 +1,4 @@
-// These enums match the Prisma schema
+﻿// These enums match the Prisma schema
 export enum UserRole {
   MEMBER = 'MEMBER',
   TREASURER = 'TREASURER',
@@ -65,3 +65,11 @@ export const getMemberRoleLabel = (role: MemberRole): string => {
   };
   return labels[role] || role;
 };
+
+
+export enum MemberStatus {
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+  SUSPENDED = 'SUSPENDED'
+}
+

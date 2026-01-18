@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import authRoutes from './auth.routes';
 import stokvelRoutes from './stokvel.routes';
 import memberRoutes from './member.routes';
@@ -7,7 +7,7 @@ import transactionRoutes from './transaction.routes';
 const router = express.Router();
 
 // Health check
-router.get('/health', (req, res) => {
+router.get('/health', (_req, res) => {
   res.json({
     success: true,
     status: 'healthy',
@@ -24,3 +24,4 @@ router.use('/members', memberRoutes);
 router.use('/transactions', transactionRoutes);
 
 export default router;
+
