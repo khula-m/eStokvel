@@ -1,4 +1,4 @@
-﻿import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { CreateStokvelGroupInput, UpdateStokvelGroupInput } from '../models/StokvelGroup.model';
 import { MemberRole } from '../utils/enums';
 
@@ -213,7 +213,6 @@ export class StokvelGroupService {
         where: { id },
         data: {
           ...data,
-          updatedAt: new Date()
         },
         include: {
           createdBy: {
@@ -353,7 +352,6 @@ export class StokvelGroupService {
         where: { id },
         data: {
           isActive: false,
-          updatedAt: new Date()
         }
       });
 
@@ -470,5 +468,124 @@ export class StokvelGroupService {
       };
     }
   }
+
+  /**
+   * Join a stokvel group
+   */
+  async joinGroup(groupId: string, userId: string) {
+    try {
+      // Check if group exists
+      const group = await prisma.stokvelGroup.findUnique({
+        where: { id: groupId }
+      });
+
+      if (!group) {
+        return {
+          success: false,
+          message: 'Group not found'
+        };
+      }
+
+      if (!group.isActive) {
+        return {
+          success: false,
+          message: 'Group is not active'
+        };
+      }
+
+      // Check if user is already a member
+      const existingMember = await prisma.member.findUnique({
+        where: {
+          userId_stokvelGroupId: {
+            userId,
+            stokvelGroupId: groupId
+          }
+        }
+      });
+
+      if (existingMember) {
+        return {
+          success: false,
+          message: 'User is already a member of this group'
+        };
+      }
+
+      // Add user as member
+      const member = await prisma.member.create({
+        data: {
+          userId,
+          stokvelGroupId: groupId,
+          role: MemberRole.MEMBER
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              phoneNumber: true
+            }
+          },
+          group: {
+            select: {
+              id: true,
+              name: true,
+              code: true
+            }
+          }
+        }
+      });
+
+      return {
+        success: true,
+        data: member,
+        message: 'Successfully joined group'
+      };
+      
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to join group',
+        error: error
+      };
+    }
+  }
+
+  /**
+   * Get all members of a group
+   */
+  async getGroupMembers(groupId: string) {
+    try {
+      const members = await prisma.member.findMany({
+        where: { stokvelGroupId: groupId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              phoneNumber: true,
+              email: true
+            }
+          }
+        },
+        orderBy: {
+          joinedAt: 'desc'
+        }
+      });
+
+      return {
+        success: true,
+        data: members,
+        message: 'Group members retrieved successfully'
+      };
+      
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to retrieve group members',
+        error: error
+      };
+    }
+  }
 }
+
 

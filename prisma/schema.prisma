@@ -7,7 +7,82 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ===== ENUMS =====
+model User {
+  id                   String         @id @default(cuid())
+  phoneNumber          String         @unique
+  email                String?        @unique
+  fullName             String
+  idNumber             String?
+  passwordHash         String
+  language             String         @default("en")
+  role                 UserRole       @default(MEMBER)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  lastLogin            DateTime?
+  members              Member[]
+  createdGroups        StokvelGroup[]
+  recordedTransactions Transaction[]  @relation("TransactionRecordedBy")
+
+  @@map("users")
+}
+
+model StokvelGroup {
+  id                    String        @id @default(cuid())
+  name                  String
+  code                  String        @unique
+  description           String?
+  contributionAmount    Float         @default(0)
+  contributionFrequency String        @default("MONTHLY")
+  payoutDate            DateTime?
+  currency              String        @default("ZAR")
+  meetingSchedule       String?
+  isActive              Boolean       @default(true)
+  createdById           String
+  createdAt             DateTime      @default(now())
+  members               Member[]
+  createdBy             User          @relation(fields: [createdById], references: [id])
+  transactions          Transaction[]
+
+  @@map("stokvel_groups")
+}
+
+model Member {
+  id             String        @id @default(cuid())
+  userId         String
+  stokvelGroupId String
+  role           MemberRole    @default(MEMBER)
+  joinedAt       DateTime      @default(now())
+  group          StokvelGroup  @relation(fields: [stokvelGroupId], references: [id])
+  user           User          @relation(fields: [userId], references: [id])
+  transactions   Transaction[]
+
+  @@unique([userId, stokvelGroupId])
+  @@map("members")
+}
+
+model Transaction {
+  id              String            @id @default(cuid())
+  stokvelGroupId  String
+  memberId        String
+  transactionType TransactionType
+  amount          Float
+  currency        String            @default("ZAR")
+  referenceNumber String?           @unique
+  paymentMethod   PaymentMethod
+  transactionDate DateTime
+  recordDate      DateTime          @default(now())
+  recordedById    String
+  status          TransactionStatus @default(PENDING)
+  notes           String?
+  metadata        Json?
+  receiptUrl      String?
+  member          Member            @relation(fields: [memberId], references: [id])
+  recordedBy      User              @relation("TransactionRecordedBy", fields: [recordedById], references: [id])
+  group           StokvelGroup      @relation(fields: [stokvelGroupId], references: [id])
+
+  @@map("transactions")
+}
+
 enum TransactionType {
   CONTRIBUTION
   PAYOUT
@@ -49,89 +124,3 @@ enum TransactionStatus {
   REVERSED
   CANCELLED
 }
-
-// ===== MODELS =====
-model User {
-  id            String   @id @default(cuid())
-  phoneNumber   String   @unique
-  email         String?  @unique
-  fullName      String
-  idNumber      String?
-  passwordHash  String
-  language      String   @default("en")
-  role          UserRole   @default(MEMBER)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  lastLogin     DateTime?
-  
-  // Relations
-  createdGroups      StokvelGroup[]
-  members           Member[]
-  recordedTransactions Transaction[] @relation("TransactionRecordedBy")
-  
-  @@map("users")
-}
-
-model StokvelGroup {
-  id                    String    @id @default(cuid())
-  name                  String
-  code                  String    @unique
-  description           String?
-  contributionAmount    Float     @default(0)
-  contributionFrequency String    @default("MONTHLY")
-  payoutDate           DateTime?
-  currency             String    @default("ZAR")
-  meetingSchedule      String?
-  isActive             Boolean   @default(true)
-  createdById          String
-  createdAt            DateTime  @default(now())
-  
-  // Relations
-  createdBy     User         @relation(fields: [createdById], references: [id])
-  members       Member[]
-  transactions  Transaction[]
-  
-  @@map("stokvel_groups")
-}
-
-model Member {
-  id             String       @id @default(cuid())
-  userId         String
-  stokvelGroupId String
-  role           MemberRole   @default(MEMBER)
-  joinedAt       DateTime     @default(now())
-  
-  // Relations
-  user          User         @relation(fields: [userId], references: [id])
-  group         StokvelGroup @relation(fields: [stokvelGroupId], references: [id])
-  transactions  Transaction[]
-  
-  @@unique([userId, stokvelGroupId])
-  @@map("members")
-}
-
-model Transaction {
-  id              String           @id @default(cuid())
-  stokvelGroupId  String
-  memberId        String
-  transactionType TransactionType
-  amount          Float
-  currency        String           @default("ZAR")
-  referenceNumber String?          @unique
-  paymentMethod   PaymentMethod
-  transactionDate DateTime
-  recordDate      DateTime         @default(now())
-  recordedById    String
-  status          TransactionStatus @default(PENDING)
-  notes           String?
-  metadata        Json?
-  receiptUrl      String?
-  
-  // Relations
-  group      StokvelGroup @relation(fields: [stokvelGroupId], references: [id])
-  member     Member       @relation(fields: [memberId], references: [id])
-  recordedBy User         @relation("TransactionRecordedBy", fields: [recordedById], references: [id])
-  
-  @@map("transactions")
-}
-

@@ -104,6 +104,40 @@ export class AuthController {
       });
     }
   }
+
+  /**
+   * Verify PIN
+   */
+  async verifyPin(req: Request, res: Response) {
+    try {
+      const { phoneNumber, pin } = req.body;
+
+      if (!phoneNumber || !pin) {
+        return res.status(400).json({
+          success: false,
+          message: "Phone number and PIN are required",
+        });
+      }
+
+      // Ensure authService has the verifyPin method implemented and imported correctly
+      const result = await authService.verifyPin(phoneNumber, pin);
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "PIN verified successfully",
+        data: result.data,
+      });
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || "PIN verification failed",
+      });
+    }
+  }
 }
 
 export const authController = new AuthController();

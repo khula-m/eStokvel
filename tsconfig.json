@@ -29,12 +29,11 @@
   },
   "include": [
     "server.ts",
-    "src/**/*"
+    "src/**/*",
+    "src/__tests__/**/*"
   ],
   "exclude": [
     "node_modules",
-    "dist",
-    "**/*.test.ts",
-    "**/*.spec.ts"
+    "dist"
   ]
 }

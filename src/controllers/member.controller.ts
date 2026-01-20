@@ -10,7 +10,7 @@ export class MemberController {
    */
   async addMember(req: Request, res: Response) {
     try {
-      const _userId = (req as any).user?.id;
+      const userId = (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -54,8 +54,7 @@ export class MemberController {
    */
   async getMember(req: Request, res: Response) {
     try {
-      const { id } = req.params;
-      const _userId = (req as any).user?.id;
+      const id = String(req.params.id);
 
       // In a real app, check if user has permission to view this member
       
@@ -82,8 +81,8 @@ export class MemberController {
    */
   async updateMember(req: Request, res: Response) {
     try {
-      const { id } = req.params;
-      const _userId = (req as any).user?.id;
+      const id = String(req.params.id);
+      const userId = (req as any).user?.id;
       const input: UpdateMemberInput = req.body;
 
       if (!userId) {
@@ -119,8 +118,8 @@ export class MemberController {
    */
   async removeMember(req: Request, res: Response) {
     try {
-      const { id } = req.params;
-      const _userId = (req as any).user?.id;
+      const id = String(req.params.id);
+      const userId = (req as any).user?.id;
 
       if (!userId) {
         return res.status(401).json({
@@ -155,8 +154,8 @@ export class MemberController {
    */
   async getGroupMembers(req: Request, res: Response) {
     try {
-      const { groupId } = req.params;
-      const _userId = (req as any).user?.id;
+      const groupId = String(req.params.groupId);
+      const userId = (req as any).user?.id;
       const { role, search } = req.query;
 
       if (!userId) {
@@ -196,8 +195,8 @@ export class MemberController {
    */
   async getMemberStats(req: Request, res: Response) {
     try {
-      const { id } = req.params;
-      const _userId = (req as any).user?.id;
+      const id = String(req.params.id);
+      const userId = (req as any).user?.id;
 
       if (!userId) {
         return res.status(401).json({
@@ -232,7 +231,7 @@ export class MemberController {
    */
   async joinGroupWithCode(req: Request, res: Response) {
     try {
-      const _userId = (req as any).user?.id;
+      const userId = (req as any).user?.id;
       const { code } = req.body;
 
       if (!userId) {
@@ -272,7 +271,7 @@ export class MemberController {
    */
   async getMyMemberships(req: Request, res: Response) {
     try {
-      const _userId = (req as any).user?.id;
+      const userId = (req as any).user?.id;
 
       if (!userId) {
         return res.status(401).json({

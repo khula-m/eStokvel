@@ -15,4 +15,32 @@ router.get("/", (req, res) => {
   });
 });
 
+// Add route to list group members
+router.get("/", (_req, res) => {
+  // Logic to list group members
+  res.json({
+    success: true,
+    message: "Fetched group members successfully!",
+  });
+});
+
+// Add route to add a member
+router.post("/", (_req, res) => {
+  // Logic to add a member
+  res.json({
+    success: true,
+    message: "Member added successfully!",
+  });
+});
+
+// Add route to update member role
+router.put("/:id/role", (req, res) => {
+  const { id } = req.params;
+  // Logic to update member role
+  res.json({
+    success: true,
+    message: `Updated role for member with ID: ${id}`,
+  });
+});
+
 export default router;
