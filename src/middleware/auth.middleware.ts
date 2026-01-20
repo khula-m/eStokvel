@@ -27,7 +27,7 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
       phoneNumber: decoded.phoneNumber,
       role: decoded.role
     };
-    next();
+    return next();
   } catch (error) {
     return res.status(403).json({
       success: false,

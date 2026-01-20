@@ -9,9 +9,9 @@ export class TransactionService {
    * Generate a unique reference number
    */
   private generateReferenceNumber(): string {
-    const timestamp = Date.now().toString(36); // Used in template literal
-    const random = Math.random().toString(36).substring(2, 8); // Used in template literal
-    return `STK-\${timestamp}-\${random}`.toUpperCase();
+    return `STK-
+      ${Date.now().toString(36)}-
+      ${Math.random().toString(36).substring(2, 8)}`.toUpperCase(); // Removed unused variables
   }
 
   /**
@@ -66,7 +66,9 @@ export class TransactionService {
           recordedById,
           currency: (data as any).currency || group.currency,
           transactionDate: data.transactionDate || new Date(),
-          status: TransactionStatus.PENDING
+          status: TransactionStatus.PENDING,
+          transactionType: Object.values(TransactionType).includes(data.transactionType as TransactionType) ? data.transactionType as TransactionType : TransactionType.CONTRIBUTION, // Validate and cast transactionType
+          paymentMethod: Object.values(PaymentMethod).includes(data.paymentMethod as PaymentMethod) ? data.paymentMethod as PaymentMethod : PaymentMethod.CASH // Validate and cast paymentMethod
         },
         include: {
           group: {
@@ -812,6 +814,65 @@ export class TransactionService {
         success: false,
         message: error.message || 'Failed to record loan repayment',
         error: error
+      };
+    }
+  }
+
+  /**
+   * Get dashboard data for a specific group
+   */
+  async getDashboardData(groupId: string, userId: string) {
+    try {
+      // Validate the group exists
+      const group = await prisma.stokvelGroup.findUnique({
+        where: { id: groupId },
+        include: {
+          members: true,
+          transactions: true,
+        },
+      });
+
+      if (!group) {
+        return {
+          success: false,
+          message: 'Group not found',
+        };
+      }
+
+      // Check if the user is a member of the group
+      const isMember = group.members.some((member) => member.userId === userId);
+
+      if (!isMember) {
+        return {
+          success: false,
+          message: 'You are not a member of this group',
+        };
+      }
+
+      // Calculate dashboard data (example: total contributions, total withdrawals, etc.)
+      const totalContributions = group.transactions
+        .filter((tx) => tx.transactionType === TransactionType.CONTRIBUTION)
+        .reduce((sum, tx) => sum + tx.amount, 0);
+
+      const totalWithdrawals = group.transactions
+        .filter((tx) => tx.transactionType === TransactionType.PAYOUT)
+        .reduce((sum, tx) => sum + tx.amount, 0);
+
+      return {
+        success: true,
+        data: {
+          groupName: group.name,
+          totalMembers: group.members.length,
+          totalContributions,
+          totalWithdrawals,
+        },
+      };
+    } catch (error: any) {
+      console.error('Get dashboard data error:', error);
+      return {
+        success: false,
+        message: 'Internal server error',
+        error: error.message,
       };
     }
   }

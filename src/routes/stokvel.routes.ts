@@ -23,4 +23,14 @@ router.post("/", (req, res) => {
   });
 });
 
+// Add join group route
+router.post("/:id/join", (req, res) => {
+  const { id } = req.params;
+  // Logic to join a group by ID
+  res.json({
+    success: true,
+    message: `Joined group with ID: ${id}`
+  });
+});
+
 export default router;

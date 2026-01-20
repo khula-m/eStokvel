@@ -10,7 +10,7 @@ export class StokvelGroupController {
    */
   async createGroup(req: Request, res: Response) {
     try {
-      const _userId = (req as any).user?.id;
+      const userId = (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -51,8 +51,8 @@ export class StokvelGroupController {
    */
   async getGroup(req: Request, res: Response) {
     try {
-      const { id } = req.params;
-      const _userId = (req as any).user?.id;
+      const id = String(req.params.id);
+      const userId = (req as any).user?.id;
 
       const result = await stokvelGroupService.getGroupById(id, userId);
       
@@ -77,7 +77,7 @@ export class StokvelGroupController {
    */
   async getGroupByCode(req: Request, res: Response) {
     try {
-      const { code } = req.params;
+      const code = String(req.params.code);
 
       const result = await stokvelGroupService.getGroupByCode(code);
       
@@ -102,8 +102,8 @@ export class StokvelGroupController {
    */
   async updateGroup(req: Request, res: Response) {
     try {
-      const { id } = req.params;
-      const _userId = (req as any).user?.id;
+      const id = String(req.params.id);
+      const userId = (req as any).user?.id;
       const input: UpdateStokvelGroupInput = req.body;
 
       // Verify user is the creator (in a real app, you'd check permissions)
@@ -138,7 +138,7 @@ export class StokvelGroupController {
    */
   async getUserGroups(req: Request, res: Response) {
     try {
-      const _userId = (req as any).user?.id;
+      const userId = (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -169,8 +169,8 @@ export class StokvelGroupController {
    */
   async deleteGroup(req: Request, res: Response) {
     try {
-      const { id } = req.params;
-      const _userId = (req as any).user?.id;
+      const id = String(req.params.id);
+      const userId = (req as any).user?.id;
 
       const result = await stokvelGroupService.deleteGroup(id, userId);
       
@@ -195,8 +195,8 @@ export class StokvelGroupController {
    */
   async getGroupStats(req: Request, res: Response) {
     try {
-      const { id } = req.params;
-      const _userId = (req as any).user?.id;
+      const id = String(req.params.id);
+      const userId = (req as any).user?.id;
 
       // Check if user is a member of the group
       const group = await stokvelGroupService.getGroupById(id, userId);
@@ -221,6 +221,64 @@ export class StokvelGroupController {
         success: false,
         message: 'Internal server error',
         error: error.message
+      });
+    }
+  }
+
+  /**
+   * Join a group (membership)
+   */
+  async joinGroup(req: Request, res: Response) {
+    try {
+      const id = String(req.params.id);
+      const userId = (req as any).user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'Authentication required' });
+      }
+
+      const result = await stokvelGroupService.joinGroup(id, userId);
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
+      return res.status(200).json(result);
+    } catch (error: any) {
+      console.error('Join group error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: error.message,
+      });
+    }
+  }
+
+  /**
+   * Get all members of a group
+   */
+  async getGroupMembers(req: Request, res: Response) {
+    try {
+      const id = String(req.params.id);
+      const userId = (req as any).user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'Authentication required' });
+      }
+
+      const result = await stokvelGroupService.getGroupMembers(id);
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
+      return res.status(200).json(result);
+    } catch (error: any) {
+      console.error('Get group members error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: error.message,
       });
     }
   }

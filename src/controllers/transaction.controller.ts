@@ -11,7 +11,7 @@ export class TransactionController {
    */
   async createTransaction(req: Request, res: Response) {
     try {
-      const _userId = (req as any).user?.id;
+      const userId = (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -68,30 +68,29 @@ export class TransactionController {
    */
   async getTransaction(req: Request, res: Response) {
     try {
-      const { id } = req.params;
-      const _userId = (req as any).user?.id;
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const userId = (req as any).user?.id;
 
       if (!userId) {
         return res.status(401).json({
           success: false,
-          message: 'Authentication required'
+          message: 'Authentication required',
         });
       }
 
       const result = await transactionService.getTransactionById(id);
-      
+
       if (result.success) {
         return res.status(200).json(result);
       } else {
-        return res.status(404).json(result);
+        return res.status(400).json(result);
       }
-      
     } catch (error: any) {
       console.error('Get transaction error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
-        error: error.message
+        error: error.message,
       });
     }
   }
@@ -101,14 +100,14 @@ export class TransactionController {
    */
   async updateTransaction(req: Request, res: Response) {
     try {
-      const { id } = req.params;
-      const _userId = (req as any).user?.id;
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const userId = (req as any).user?.id;
       const input: UpdateTransactionInput = req.body;
 
       if (!userId) {
         return res.status(401).json({
           success: false,
-          message: 'Authentication required'
+          message: 'Authentication required',
         });
       }
 
@@ -135,7 +134,7 @@ export class TransactionController {
    */
   async getTransactions(req: Request, res: Response) {
     try {
-      const _userId = (req as any).user?.id;
+      const userId = (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -195,7 +194,7 @@ export class TransactionController {
   async getGroupTransactionStats(req: Request, res: Response) {
     try {
       const { groupId } = req.params;
-      const _userId = (req as any).user?.id;
+      const userId = (req as any).user?.id;
       const { period } = req.query;
 
       if (!userId) {
@@ -209,7 +208,7 @@ export class TransactionController {
       // (In a real app, implement this check)
 
       const result = await transactionService.getGroupTransactionStats(
-        groupId, 
+        String(groupId), 
         period as 'day' | 'week' | 'month' | 'year'
       );
       
@@ -234,7 +233,7 @@ export class TransactionController {
    */
   async recordContribution(req: Request, res: Response) {
     try {
-      const _userId = (req as any).user?.id;
+      const userId = (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -290,7 +289,7 @@ export class TransactionController {
    */
   async recordPayout(req: Request, res: Response) {
     try {
-      const _userId = (req as any).user?.id;
+      const userId = (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -346,7 +345,7 @@ export class TransactionController {
    */
   async recordLoan(req: Request, res: Response) {
     try {
-      const _userId = (req as any).user?.id;
+      const userId = (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -394,7 +393,7 @@ export class TransactionController {
    */
   async recordLoanRepayment(req: Request, res: Response) {
     try {
-      const _userId = (req as any).user?.id;
+      const userId = (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -448,7 +447,7 @@ export class TransactionController {
    */
   async getMyTransactions(req: Request, res: Response) {
     try {
-      const _userId = (req as any).user?.id;
+      const userId = (req as any).user?.id;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -494,6 +493,45 @@ export class TransactionController {
         success: false,
         message: 'Internal server error',
         error: error.message
+      });
+    }
+  }
+
+  /**
+   * Get dashboard data for a specific group
+   */
+  async getDashboardData(req: Request, res: Response) {
+    try {
+      const groupId = String(req.params.groupId);
+      const userId = (req as any).user?.id;
+
+      if (!groupId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Group ID is required',
+        });
+      }
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required',
+        });
+      }
+
+      const dashboardData = await transactionService.getDashboardData(String(groupId), userId);
+
+      if (dashboardData.success) {
+        return res.status(200).json(dashboardData);
+      } else {
+        return res.status(400).json(dashboardData);
+      }
+    } catch (error: any) {
+      console.error('Get dashboard data error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: error.message,
       });
     }
   }
