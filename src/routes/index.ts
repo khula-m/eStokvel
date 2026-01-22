@@ -3,6 +3,7 @@ import authRoutes from './auth.routes';
 import stokvelRoutes from './stokvel.routes';
 import memberRoutes from './member.routes';
 import transactionRoutes from './transaction.routes';
+import userRoutes from './user.routes';
 
 const router = express.Router();
 
@@ -22,6 +23,7 @@ router.use('/auth', authRoutes);
 router.use('/stokvels', stokvelRoutes);
 router.use('/members', memberRoutes);
 router.use('/transactions', transactionRoutes);
+router.use('/users', userRoutes);
 
 export default router;
 

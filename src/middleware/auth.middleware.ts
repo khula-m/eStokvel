@@ -1,6 +1,20 @@
 ﻿import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
+// Extend the Request type to include the user property
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        id: string;
+        phoneNumber: string;
+        role: string;
+      };
+    }
+  }
+}
+
 export interface AuthRequest extends Request {
   user?: {
     id: string;

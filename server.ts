@@ -89,12 +89,19 @@ if (!process.env.JEST_WORKER_ID) {
   }
 
   try {
+    // Import user routes
     const userRoutes = require("./src/routes/user.routes").default;
+
+    // Mount user routes
     app.use("/api/users", userRoutes);
     console.log("✅ User routes loaded");
   } catch (error: any) {
     console.log("❌ Failed to load user routes:", error.message);
   }
+
+  // Move the mounting of index routes to the end
+  const indexRoutes = require("./src/routes/index").default;
+  app.use("/", indexRoutes);
 }
 
 // Error handling middleware
