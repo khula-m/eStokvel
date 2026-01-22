@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
   roleText: {
     color: colors.white,
     fontSize: fontSize.sm,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   statsContainer: {
     flexDirection: 'row',
@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
   },
   menuTitle: {
     fontSize: fontSize.lg,
-    fontWeight: '500',
+    fontWeight: 'normal',
     color: colors.text.primary,
   },
   menuSubtitle: {
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   logoutText: {
     color: colors.white,
     fontSize: fontSize.lg,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   footer: {
     alignItems: 'center',

@@ -174,14 +174,14 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: fontSize.xl,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: colors.text.primary,
     marginBottom: spacing.md,
   },
   seeAll: {
     fontSize: fontSize.md,
     color: colors.primary,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   actionsRow: {
     flexDirection: 'row',
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
   actionText: {
     fontSize: fontSize.sm,
     color: colors.text.primary,
-    fontWeight: '500',
+    fontWeight: 'normal',
   },
   emptyState: {
     backgroundColor: colors.surface,
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     fontSize: fontSize.lg,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: colors.text.primary,
     marginBottom: spacing.xs,
   },
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
   emptyStateButtonText: {
     color: colors.white,
     fontSize: fontSize.md,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
 });
 

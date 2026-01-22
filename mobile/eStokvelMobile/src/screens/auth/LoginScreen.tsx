@@ -75,7 +75,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               keyboardType="phone-pad"
               value={phoneNumber}
               onChangeText={setPhoneNumber}
-              autoCapitalize="none"
               editable={!isLoading}
             />
           </View>
@@ -89,7 +88,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               secureTextEntry
               value={password}
               onChangeText={setPassword}
-              autoCapitalize="none"
               editable={!isLoading}
             />
           </View>
@@ -173,7 +171,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: fontSize.sm,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: colors.text.primary,
     marginBottom: spacing.xs,
   },
@@ -199,7 +197,7 @@ const styles = StyleSheet.create({
   loginButtonText: {
     color: colors.white,
     fontSize: fontSize.lg,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   forgotPassword: {
     alignItems: 'center',
@@ -221,7 +219,7 @@ const styles = StyleSheet.create({
   registerLink: {
     color: colors.primary,
     fontSize: fontSize.md,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
 });
 

@@ -93,7 +93,6 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
               placeholderTextColor={colors.text.disabled}
               value={fullName}
               onChangeText={setFullName}
-              autoCapitalize="words"
               editable={!isLoading}
             />
           </View>
@@ -120,7 +119,6 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
               keyboardType="email-address"
               value={email}
               onChangeText={setEmail}
-              autoCapitalize="none"
               editable={!isLoading}
             />
           </View>
@@ -134,7 +132,6 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
               secureTextEntry
               value={password}
               onChangeText={setPassword}
-              autoCapitalize="none"
               editable={!isLoading}
             />
           </View>
@@ -148,7 +145,6 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
               secureTextEntry
               value={confirmPassword}
               onChangeText={setConfirmPassword}
-              autoCapitalize="none"
               editable={!isLoading}
             />
           </View>
@@ -228,7 +224,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: fontSize.sm,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: colors.text.primary,
     marginBottom: spacing.xs,
   },
@@ -254,7 +250,7 @@ const styles = StyleSheet.create({
   registerButtonText: {
     color: colors.white,
     fontSize: fontSize.lg,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   loginSection: {
     flexDirection: 'row',
@@ -269,7 +265,7 @@ const styles = StyleSheet.create({
   loginLink: {
     color: colors.primary,
     fontSize: fontSize.md,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
 });
 
