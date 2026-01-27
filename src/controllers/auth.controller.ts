@@ -10,7 +10,7 @@ export class AuthController {
    */
   async register(req: Request, res: Response) {
     try {
-      const { phoneNumber, password, fullName, email, role } = req.body;
+      const { phoneNumber, password, fullName, email, role, idNumber, address, occupation } = req.body;
 
       // Validate input
       if (!phoneNumber || !password || !fullName) {
@@ -25,7 +25,10 @@ export class AuthController {
         password, 
         fullName,
         email,
-        role 
+        role,
+        idNumber,
+        address,
+        occupation
       });
 
       if (!result.success) {

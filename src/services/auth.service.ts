@@ -29,7 +29,10 @@ export class AuthService {
         email: data.email,
         fullName: data.fullName,
         passwordHash: hashedPassword,
-        role: roleValue
+        role: roleValue,
+        idNumber: data.idNumber,
+        address: data.address,
+        occupation: data.occupation
       },
       select: {
         id: true,
