@@ -5,6 +5,9 @@ export interface CreateUserInput {
   fullName: string;
   password: string;
   role?: string;
+  idNumber?: string;
+  address?: string;
+  occupation?: string;
 }
 
 export interface LoginInput {
