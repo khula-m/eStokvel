@@ -64,7 +64,7 @@ export class TransactionController {
   }
 
   /**
-   * Get transaction by ID
+   * Get transaction by ID - SECURE: Verifies user has access
    */
   async getTransaction(req: Request, res: Response) {
     try {
@@ -78,12 +78,14 @@ export class TransactionController {
         });
       }
 
-      const result = await transactionService.getTransactionById(id);
+      // Pass userId to verify access
+      const result = await transactionService.getTransactionById(id, userId);
 
       if (result.success) {
         return res.status(200).json(result);
       } else {
-        return res.status(400).json(result);
+        const statusCode = result.message.includes('access') ? 403 : 400;
+        return res.status(statusCode).json(result);
       }
     } catch (error: any) {
       console.error('Get transaction error:', error);
@@ -130,7 +132,7 @@ export class TransactionController {
   }
 
   /**
-   * Get transactions with filters
+   * Get transactions with filters - SECURE: Only returns transactions from user's groups
    */
   async getTransactions(req: Request, res: Response) {
     try {
@@ -170,7 +172,8 @@ export class TransactionController {
       const pageNum = parseInt(page as string, 10);
       const limitNum = parseInt(limit as string, 10);
 
-      const result = await transactionService.getTransactions(filters, pageNum, limitNum);
+      // SECURE: Use getUserTransactions to ensure user only sees their own data
+      const result = await transactionService.getUserTransactions(userId, filters, pageNum, limitNum);
       
       if (result.success) {
         return res.status(200).json(result);
@@ -443,7 +446,7 @@ export class TransactionController {
   }
 
   /**
-   * Get my transactions (transactions for groups I'm a member of)
+   * Get my transactions (transactions for groups I'm a member of) - SECURE
    */
   async getMyTransactions(req: Request, res: Response) {
     try {
@@ -456,6 +459,7 @@ export class TransactionController {
       }
 
       const {
+        stokvelGroupId,
         transactionType,
         status,
         startDate,
@@ -464,22 +468,18 @@ export class TransactionController {
         limit = '20'
       } = req.query;
 
-      // Get all groups where user is a member
-      // (In a real app, you'd query the database for this)
-      // For now, we'll use a simplified approach
-      
       const filters: any = {};
+      if (stokvelGroupId) filters.stokvelGroupId = stokvelGroupId as string;
       if (transactionType) filters.transactionType = transactionType as string;
       if (status) filters.status = status as string;
       if (startDate) filters.startDate = new Date(startDate as string);
       if (endDate) filters.endDate = new Date(endDate as string);
 
-      // Note: In a real implementation, you would filter by groups where user is a member
-      // For now, we'll return all transactions
       const pageNum = parseInt(page as string, 10);
       const limitNum = parseInt(limit as string, 10);
 
-      const result = await transactionService.getTransactions(filters, pageNum, limitNum);
+      // Use secure method that filters by user's groups
+      const result = await transactionService.getUserTransactions(userId, filters, pageNum, limitNum);
       
       if (result.success) {
         return res.status(200).json(result);

@@ -15,7 +15,7 @@ export class TransactionService {
   }
 
   /**
-   * Create a new transaction
+   * Create a new transaction - SECURE: Verifies recorder is a group member with appropriate role
    */
   async createTransaction(data: CreateTransactionInput, recordedById: string) {
     try {
@@ -28,6 +28,29 @@ export class TransactionService {
         return {
           success: false,
           message: 'Group not found'
+        };
+      }
+
+      // SECURITY: Verify the recorder is a member of the group
+      const recorderMembership = await prisma.member.findFirst({
+        where: {
+          userId: recordedById,
+          stokvelGroupId: data.stokvelGroupId
+        }
+      });
+
+      if (!recorderMembership) {
+        return {
+          success: false,
+          message: 'You are not a member of this group'
+        };
+      }
+
+      // SECURITY: Only TREASURER, CHAIRPERSON, or SECRETARY can record transactions
+      if (!['TREASURER', 'CHAIRPERSON', 'SECRETARY'].includes(recorderMembership.role)) {
+        return {
+          success: false,
+          message: 'Only group officers (Treasurer, Chairperson, or Secretary) can record transactions'
         };
       }
 
@@ -122,9 +145,9 @@ export class TransactionService {
   }
 
   /**
-   * Get transaction by ID
+   * Get transaction by ID - SECURE: Verifies user has access
    */
-  async getTransactionById(id: string) {
+  async getTransactionById(id: string, userId?: string) {
     try {
       const transaction = await prisma.transaction.findUnique({
         where: { id },
@@ -164,6 +187,23 @@ export class TransactionService {
         };
       }
 
+      // If userId provided, verify user has access to this transaction
+      if (userId) {
+        const membership = await prisma.member.findFirst({
+          where: {
+            userId,
+            stokvelGroupId: transaction.stokvelGroupId
+          }
+        });
+
+        if (!membership) {
+          return {
+            success: false,
+            message: 'You do not have access to this transaction'
+          };
+        }
+      }
+
       return {
         success: true,
         data: transaction,
@@ -180,9 +220,9 @@ export class TransactionService {
   }
 
   /**
-   * Update transaction
+   * Update transaction - SECURE: Verifies user has access (must be group member or recorder)
    */
-  async updateTransaction(id: string, data: UpdateTransactionInput, _updatedById: string) {
+  async updateTransaction(id: string, data: UpdateTransactionInput, updatedById: string) {
     try {
       const transaction = await prisma.transaction.findUnique({
         where: { id }
@@ -192,6 +232,31 @@ export class TransactionService {
         return {
           success: false,
           message: 'Transaction not found'
+        };
+      }
+
+      // Verify user has access - must be a member of the group or the recorder
+      const membership = await prisma.member.findFirst({
+        where: {
+          userId: updatedById,
+          stokvelGroupId: transaction.stokvelGroupId
+        }
+      });
+
+      const isRecorder = transaction.recordedById === updatedById;
+
+      if (!membership && !isRecorder) {
+        return {
+          success: false,
+          message: 'You do not have permission to update this transaction'
+        };
+      }
+
+      // Only TREASURER, CHAIRPERSON, or SECRETARY can update transactions (or the original recorder)
+      if (membership && !['TREASURER', 'CHAIRPERSON', 'SECRETARY'].includes(membership.role) && !isRecorder) {
+        return {
+          success: false,
+          message: 'Only group officers can update transactions'
         };
       }
 
@@ -813,6 +878,167 @@ export class TransactionService {
       return {
         success: false,
         message: error.message || 'Failed to record loan repayment',
+        error: error
+      };
+    }
+  }
+
+  /**
+   * Get transactions for groups where user is a member (SECURE)
+   * This ensures users can only see transactions from groups they belong to
+   */
+  async getUserTransactions(userId: string, filters: any = {}, page: number = 1, limit: number = 20) {
+    try {
+      // First get all groups where user is a member
+      const userMemberships = await prisma.member.findMany({
+        where: { userId },
+        select: { stokvelGroupId: true, id: true }
+      });
+
+      if (userMemberships.length === 0) {
+        return {
+          success: true,
+          data: {
+            transactions: [],
+            pagination: {
+              page,
+              limit,
+              total: 0,
+              pages: 0,
+              hasNext: false,
+              hasPrev: false
+            },
+            summary: {
+              totalAmount: 0,
+              averageAmount: 0,
+              count: 0
+            }
+          },
+          message: 'No groups found for user'
+        };
+      }
+
+      const groupIds = userMemberships.map(m => m.stokvelGroupId);
+      const memberIds = userMemberships.map(m => m.id);
+
+      // Build where clause - ALWAYS filter by user's groups
+      const whereClause: any = {
+        OR: [
+          { stokvelGroupId: { in: groupIds } }, // Transactions in user's groups
+          { memberId: { in: memberIds } } // Or transactions where user is the member
+        ]
+      };
+
+      // Apply additional filters
+      if (filters.stokvelGroupId) {
+        // Verify user is a member of this group
+        if (!groupIds.includes(filters.stokvelGroupId)) {
+          return {
+            success: false,
+            message: 'You are not a member of this group'
+          };
+        }
+        whereClause.stokvelGroupId = filters.stokvelGroupId;
+        delete whereClause.OR;
+      }
+
+      if (filters.transactionType) {
+        whereClause.transactionType = filters.transactionType;
+      }
+
+      if (filters.status) {
+        whereClause.status = filters.status;
+      }
+
+      if (filters.startDate || filters.endDate) {
+        whereClause.transactionDate = {};
+        if (filters.startDate) {
+          whereClause.transactionDate.gte = filters.startDate;
+        }
+        if (filters.endDate) {
+          whereClause.transactionDate.lte = filters.endDate;
+        }
+      }
+
+      const skip = (page - 1) * limit;
+
+      const [transactions, total] = await Promise.all([
+        prisma.transaction.findMany({
+          where: whereClause,
+          include: {
+            group: {
+              select: {
+                id: true,
+                name: true,
+                currency: true
+              }
+            },
+            member: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    fullName: true,
+                    phoneNumber: true
+                  }
+                }
+              }
+            },
+            recordedBy: {
+              select: {
+                id: true,
+                fullName: true
+              }
+            }
+          },
+          orderBy: {
+            transactionDate: 'desc'
+          },
+          skip,
+          take: limit
+        }),
+        prisma.transaction.count({ where: whereClause })
+      ]);
+
+      // Calculate summary statistics
+      const summary = await prisma.transaction.aggregate({
+        where: whereClause,
+        _sum: {
+          amount: true
+        },
+        _avg: {
+          amount: true
+        },
+        _count: {
+          _all: true
+        }
+      });
+
+      return {
+        success: true,
+        data: {
+          transactions,
+          pagination: {
+            page,
+            limit,
+            total,
+            pages: Math.ceil(total / limit),
+            hasNext: page * limit < total,
+            hasPrev: page > 1
+          },
+          summary: {
+            totalAmount: summary._sum.amount || 0,
+            averageAmount: summary._avg.amount || 0,
+            count: summary._count._all
+          }
+        },
+        message: 'User transactions retrieved successfully'
+      };
+
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to retrieve user transactions',
         error: error
       };
     }

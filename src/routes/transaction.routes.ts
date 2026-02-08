@@ -11,7 +11,8 @@ router.use(authMiddleware);
 // Transaction routes
 router.post("/", transactionController.createTransaction.bind(transactionController));
 router.get("/", transactionController.getTransactions.bind(transactionController));
-router.get("/:id", transactionController.getTransaction.bind(transactionController));
+router.get("/my", transactionController.getMyTransactions.bind(transactionController)); // SECURE: User's transactions only
 router.get("/dashboard/:groupId", transactionController.getDashboardData.bind(transactionController));
+router.get("/:id", transactionController.getTransaction.bind(transactionController));
 
 export default router;
