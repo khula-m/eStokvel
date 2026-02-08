@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,13 +6,55 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
+import axios from 'axios';
 import { useAuthStore } from '../../store/authStore';
 import { colors } from '../../theme/colors';
 import { spacing, borderRadius, fontSize } from '../../theme/spacing';
 
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000';
+
 const ProfileScreen: React.FC = () => {
-  const { user, logout } = useAuthStore();
+  const { user, token, logout } = useAuthStore();
+  const [stats, setStats] = useState({ groups: 0, totalSaved: 0, transactions: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUserStats = async () => {
+      if (!token) return;
+      
+      try {
+        const headers = { Authorization: `Bearer ${token}` };
+        
+        // Fetch user's groups and transactions
+        const [groupsRes, transRes] = await Promise.all([
+          axios.get(`${API_URL}/api/groups`, { headers }).catch(() => ({ data: { data: [] } })),
+          axios.get(`${API_URL}/api/transactions/my`, { headers }).catch(() => ({ data: { data: { transactions: [] } } }))
+        ]);
+
+        const groups = groupsRes.data.data || [];
+        const transData = transRes.data.data;
+        const transactions = Array.isArray(transData) ? transData : (transData?.transactions || []);
+        
+        const totalSaved = transactions
+          .filter((t: any) => t.transactionType === 'CONTRIBUTION' && t.status === 'COMPLETED')
+          .reduce((sum: number, t: any) => sum + t.amount, 0);
+
+        setStats({
+          groups: groups.length,
+          totalSaved,
+          transactions: transactions.length,
+        });
+      } catch (error) {
+        console.error('Failed to fetch user stats:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserStats();
+  }, [token]);
 
   const handleLogout = () => {
     Alert.alert(
@@ -60,17 +102,17 @@ const ProfileScreen: React.FC = () => {
       {/* Stats */}
       <View style={styles.statsContainer}>
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>0</Text>
+          <Text style={styles.statValue}>{loading ? '-' : stats.groups}</Text>
           <Text style={styles.statLabel}>Groups</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>R 0</Text>
+          <Text style={styles.statValue}>{loading ? '-' : `R ${stats.totalSaved.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}`}</Text>
           <Text style={styles.statLabel}>Total Saved</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>0</Text>
+          <Text style={styles.statValue}>{loading ? '-' : stats.transactions}</Text>
           <Text style={styles.statLabel}>Transactions</Text>
         </View>
       </View>

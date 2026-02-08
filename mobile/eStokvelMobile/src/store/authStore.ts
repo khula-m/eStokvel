@@ -5,6 +5,7 @@ import { getAuthToken, removeAuthToken } from '../services/api';
 
 interface AuthState {
   user: User | null;
+  token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -19,6 +20,7 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
+  token: null,
   isAuthenticated: false,
   isLoading: true,
   error: null,
@@ -31,6 +33,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (response.success && response.data?.user) {
       set({
         user: response.data.user,
+        token: response.data.token || null,
         isAuthenticated: true,
         isLoading: false,
         error: null,
@@ -39,6 +42,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } else {
       set({
         user: null,
+        token: null,
         isAuthenticated: false,
         isLoading: false,
         error: response.message || 'Login failed',
@@ -55,6 +59,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (response.success && response.data?.user) {
       set({
         user: response.data.user,
+        token: response.data.token || null,
         isAuthenticated: true,
         isLoading: false,
         error: null,
@@ -63,6 +68,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } else {
       set({
         user: null,
+        token: null,
         isAuthenticated: false,
         isLoading: false,
         error: response.message || 'Registration failed',
@@ -76,6 +82,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await authService.logout();
     set({
       user: null,
+      token: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
@@ -90,6 +97,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!token) {
       set({
         user: null,
+        token: null,
         isAuthenticated: false,
         isLoading: false,
       });
@@ -101,6 +109,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (response.success && response.data) {
       set({
         user: response.data,
+        token: token,
         isAuthenticated: true,
         isLoading: false,
       });
@@ -108,6 +117,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await removeAuthToken();
       set({
         user: null,
+        token: null,
         isAuthenticated: false,
         isLoading: false,
       });

@@ -15,11 +15,30 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import axios from 'axios';
+
+// ============ THEME COLORS ============
+const COLORS = {
+  primary: '#1B5E20',      // Deep Green - Trust, Growth
+  primaryLight: '#4CAF50', // Light Green
+  secondary: '#D4A017',    // Gold - Value, Prosperity  
+  accent: '#E65100',       // Earth Orange - Community, Warmth
+  treasurer: '#1B5E20',    // Green for Treasurer
+  member: '#1565C0',       // Blue for Member
+  background: '#F5F7FA',
+  card: '#FFFFFF',
+  text: '#1A1A1A',
+  textLight: '#666666',
+  success: '#2E7D32',
+  warning: '#F57C00',
+  error: '#D32F2F',
+  border: '#E0E0E0',
+};
 
 // Backend API URL - Uses environment variable or falls back to localhost
 // To use ngrok: Update .env file with your ngrok URL
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000';
 
 // Types
 interface User {
@@ -69,26 +88,50 @@ interface AuthState {
   token: string | null;
 }
 
-// ============ TAB ICONS (Text-based) ============
+// ============ TAB ICONS (Material Icons) ============
 const TabIcon = ({ name, focused }: { name: string; focused: boolean }) => {
-  const icons: Record<string, string> = {
-    dashboard: '📊',
-    groups: '👥',
-    transactions: '💰',
-    profile: '👤',
+  const iconMap: Record<string, keyof typeof MaterialIcons.glyphMap> = {
+    dashboard: 'dashboard',
+    groups: 'groups',
+    transactions: 'account-balance-wallet',
+    profile: 'person',
   };
-  return <Text style={{ fontSize: 24, opacity: focused ? 1 : 0.5 }}>{icons[name] || '•'}</Text>;
+  const iconName = iconMap[name] || 'circle';
+  return (
+    <MaterialIcons 
+      name={iconName as any} 
+      size={26} 
+      color={focused ? COLORS.primary : '#999'} 
+    />
+  );
 };
 
+// ============ ICON COMPONENT ============
+type IconName = 'dashboard' | 'groups' | 'group' | 'person' | 'person-outline' | 'payments' | 'receipt-long' | 'assessment' | 
+  'person-add' | 'event' | 'account-balance-wallet' | 'schedule' | 'leaderboard' | 'whatshot' |
+  'campaign' | 'history' | 'notifications' | 'settings' | 'home' | 'trending-up' | 'trending-down' | 'flash-on' |
+  'download' | 'filter-list' | 'search' | 'chevron-right' | 'add' | 'check-circle' | 'cancel' |
+  'pending' | 'warning' | 'info' | 'logout' | 'phone' | 'email' | 'lock' | 'lock-outline' | 'visibility' | 
+  'visibility-off' | 'arrow-back' | 'close' | 'edit' | 'delete' | 'send' | 'group-add' | 'badge' | 'work' |
+  'location-on' | 'credit-card' | 'attach-money' | 'fingerprint' | 'help-outline' | 'star' | 'language' | 'expand-more' | 'expand-less';
+
+const Icon = ({ name, size = 24, color = COLORS.text }: { name: IconName; size?: number; color?: string }) => (
+  <MaterialIcons name={name as any} size={size} color={color} />
+);
+
 // ============ STATS CARD COMPONENT ============
-const StatsCard = ({ title, value, subtitle, color = '#2E7D32' }: { 
+const StatsCard = ({ title, value, subtitle, color = COLORS.primary, icon }: { 
   title: string; 
   value: string | number; 
   subtitle?: string;
   color?: string;
+  icon?: IconName;
 }) => (
   <View style={[styles.statsCard, { borderLeftColor: color }]}>
-    <Text style={styles.statsTitle}>{title}</Text>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      {icon && <Icon name={icon} size={18} color={color} />}
+      <Text style={styles.statsTitle}>{title}</Text>
+    </View>
     <Text style={[styles.statsValue, { color }]}>{value}</Text>
     {subtitle && <Text style={styles.statsSubtitle}>{subtitle}</Text>}
   </View>
@@ -109,7 +152,7 @@ const LoginScreen = ({ onNavigate, onLogin }: { onNavigate: (screen: string) => 
 
     setLoading(true);
     try {
-      const response = await axios.post(`${API_URL}/auth/login`, {
+      const response = await axios.post(`${API_URL}/api/auth/login`, {
         phoneNumber: phone,
         password: password,
       });
@@ -134,7 +177,7 @@ const LoginScreen = ({ onNavigate, onLogin }: { onNavigate: (screen: string) => 
         {/* Logo Section */}
         <View style={styles.logoContainer}>
           <View style={styles.logoCircle}>
-            <Text style={styles.logoIcon}>💰</Text>
+            <Icon name="account-balance-wallet" size={36} color="#fff" />
           </View>
           <Text style={styles.logoTitle}>eStokvel</Text>
           <Text style={styles.logoTagline}>Your Trusted Stokvel Management Platform</Text>
@@ -146,7 +189,10 @@ const LoginScreen = ({ onNavigate, onLogin }: { onNavigate: (screen: string) => 
           <Text style={styles.authCardSubtitle}>Sign in to access your stokvel groups and manage your savings</Text>
           
           <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>📱 South African Phone Number</Text>
+            <View style={styles.inputLabelRow}>
+              <Icon name="phone" size={16} color={COLORS.primary} />
+              <Text style={styles.inputLabel}>South African Phone Number</Text>
+            </View>
             <TextInput
               style={styles.authInput}
               placeholder="Enter your 10-digit phone number"
@@ -159,7 +205,10 @@ const LoginScreen = ({ onNavigate, onLogin }: { onNavigate: (screen: string) => 
           </View>
 
           <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>🔒 Your Password</Text>
+            <View style={styles.inputLabelRow}>
+              <Icon name="lock" size={16} color={COLORS.primary} />
+              <Text style={styles.inputLabel}>Your Password</Text>
+            </View>
             <View style={styles.passwordInputContainer}>
               <TextInput
                 style={styles.passwordInput}
@@ -173,7 +222,7 @@ const LoginScreen = ({ onNavigate, onLogin }: { onNavigate: (screen: string) => 
                 style={styles.passwordToggle}
                 onPress={() => setShowPassword(!showPassword)}
               >
-                <Text style={styles.passwordToggleText}>{showPassword ? '🙈' : '👁️'}</Text>
+                <Icon name={showPassword ? 'visibility-off' : 'visibility'} size={22} color={COLORS.textLight} />
               </TouchableOpacity>
             </View>
           </View>
@@ -311,15 +360,13 @@ const RegisterScreen = ({ onNavigate }: { onNavigate: (screen: string) => void }
 
     setLoading(true);
     try {
-      const response = await axios.post(`${API_URL}/auth/register`, {
+      const response = await axios.post(`${API_URL}/api/auth/register`, {
         fullName,
         phoneNumber: phone,
         email: email || undefined,
         password,
         role: selectedRole,
         idNumber: idNumber,
-        address: address || undefined,
-        occupation: occupation || undefined,
       });
 
       if (response.data.success) {
@@ -365,7 +412,7 @@ const RegisterScreen = ({ onNavigate }: { onNavigate: (screen: string) => void }
         {/* Step Titles */}
         <View style={styles.stepHeader}>
           <Text style={styles.stepTitle}>
-            {step === 1 ? '👤 Personal Information' : step === 2 ? '🔐 Security & Identity Verification' : '📋 Additional Information'}
+            {step === 1 ? 'Personal Information' : step === 2 ? 'Security & Identity Verification' : 'Additional Information'}
           </Text>
           <Text style={styles.stepSubtitle}>
             {step === 1 ? 'Tell us about yourself to get started' : step === 2 ? 'Create a secure password and verify your identity' : 'Help us serve you better with optional details'}
@@ -378,7 +425,10 @@ const RegisterScreen = ({ onNavigate }: { onNavigate: (screen: string) => void }
           <>
             {/* Role Selection */}
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>👥 I want to register as a...</Text>
+              <View style={styles.inputLabelRow}>
+                <Icon name="group" size={16} color={COLORS.primary} />
+                <Text style={styles.inputLabel}>I want to register as a...</Text>
+              </View>
               <View style={styles.roleSelectionContainer}>
                 <TouchableOpacity
                   style={[
@@ -387,7 +437,9 @@ const RegisterScreen = ({ onNavigate }: { onNavigate: (screen: string) => void }
                   ]}
                   onPress={() => setSelectedRole('TREASURER')}
                 >
-                  <Text style={styles.roleIcon}>💼</Text>
+                  <View style={[styles.roleIconBg, selectedRole === 'TREASURER' && styles.roleIconBgSelected]}>
+                    <Icon name="account-balance-wallet" size={24} color={selectedRole === 'TREASURER' ? '#fff' : COLORS.primary} />
+                  </View>
                   <Text style={[
                     styles.roleTitle,
                     selectedRole === 'TREASURER' && styles.roleTitleSelected,
@@ -404,7 +456,9 @@ const RegisterScreen = ({ onNavigate }: { onNavigate: (screen: string) => void }
                   ]}
                   onPress={() => setSelectedRole('MEMBER')}
                 >
-                  <Text style={styles.roleIcon}>👤</Text>
+                  <View style={[styles.roleIconBg, selectedRole === 'MEMBER' && styles.roleIconBgSelected]}>
+                    <Icon name="person" size={24} color={selectedRole === 'MEMBER' ? '#fff' : COLORS.member} />
+                  </View>
                   <Text style={[
                     styles.roleTitle,
                     selectedRole === 'MEMBER' && styles.roleTitleSelected,
@@ -417,7 +471,10 @@ const RegisterScreen = ({ onNavigate }: { onNavigate: (screen: string) => void }
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>📝 Your Full Name</Text>
+              <View style={styles.inputLabelRow}>
+                <Icon name="person-outline" size={16} color={COLORS.primary} />
+                <Text style={styles.inputLabel}>Your Full Name</Text>
+              </View>
               <TextInput
                 style={styles.authInput}
                 placeholder="Enter your full name as per ID"
@@ -428,7 +485,10 @@ const RegisterScreen = ({ onNavigate }: { onNavigate: (screen: string) => void }
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>📱 South African Phone Number</Text>
+              <View style={styles.inputLabelRow}>
+                <Icon name="phone" size={16} color={COLORS.primary} />
+                <Text style={styles.inputLabel}>South African Phone Number</Text>
+              </View>
               <TextInput
                 style={[styles.authInput, phone && !isValidSAPhone(phone) && styles.inputError]}
                 placeholder="0831234567 (10 digits)"
@@ -446,7 +506,10 @@ const RegisterScreen = ({ onNavigate }: { onNavigate: (screen: string) => void }
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>✉️ Email Address (Optional)</Text>
+              <View style={styles.inputLabelRow}>
+                <Icon name="email" size={16} color={COLORS.primary} />
+                <Text style={styles.inputLabel}>Email Address (Optional)</Text>
+              </View>
               <TextInput
                 style={styles.authInput}
                 placeholder="yourname@example.com"
@@ -463,7 +526,10 @@ const RegisterScreen = ({ onNavigate }: { onNavigate: (screen: string) => void }
         {step === 2 && (
           <>
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>🔒 Create Your Password (minimum 6 characters)</Text>
+              <View style={styles.inputLabelRow}>
+                <Icon name="lock" size={16} color={COLORS.primary} />
+                <Text style={styles.inputLabel}>Create Your Password (minimum 6 characters)</Text>
+              </View>
               <TextInput
                 style={styles.authInput}
                 placeholder="Create a strong, secure password"
@@ -487,7 +553,10 @@ const RegisterScreen = ({ onNavigate }: { onNavigate: (screen: string) => void }
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>🔒 Confirm Your Password</Text>
+              <View style={styles.inputLabelRow}>
+                <Icon name="lock-outline" size={16} color={COLORS.primary} />
+                <Text style={styles.inputLabel}>Confirm Your Password</Text>
+              </View>
               <TextInput
                 style={[styles.authInput, confirmPassword && password !== confirmPassword && styles.inputError]}
                 placeholder="Re-enter your password to confirm"
@@ -504,7 +573,10 @@ const RegisterScreen = ({ onNavigate }: { onNavigate: (screen: string) => void }
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>🪪 South African ID Number (13 digits)</Text>
+              <View style={styles.inputLabelRow}>
+                <Icon name="badge" size={16} color={COLORS.primary} />
+                <Text style={styles.inputLabel}>South African ID Number (13 digits)</Text>
+              </View>
               <TextInput
                 style={[styles.authInput, idNumber && !isValidSAId(idNumber) && idNumber.length === 13 && styles.inputError]}
                 placeholder="Enter your 13-digit SA ID number"
@@ -529,7 +601,10 @@ const RegisterScreen = ({ onNavigate }: { onNavigate: (screen: string) => void }
         {step === 3 && (
           <>
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>🏠 Your Residential Address</Text>
+              <View style={styles.inputLabelRow}>
+                <Icon name="home" size={16} color={COLORS.primary} />
+                <Text style={styles.inputLabel}>Your Residential Address</Text>
+              </View>
               <TextInput
                 style={[styles.authInput, styles.inputMultiline]}
                 placeholder="Enter your full address (e.g., 123 Main Street, Soweto, Gauteng)"
@@ -542,7 +617,10 @@ const RegisterScreen = ({ onNavigate }: { onNavigate: (screen: string) => void }
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>💼 Your Occupation or Profession</Text>
+              <View style={styles.inputLabelRow}>
+                <Icon name="work" size={16} color={COLORS.primary} />
+                <Text style={styles.inputLabel}>Your Occupation or Profession</Text>
+              </View>
               <TextInput
                 style={styles.authInput}
                 placeholder="Enter your occupation (e.g., Teacher, Nurse, Self-employed)"
@@ -621,12 +699,12 @@ const DashboardScreen = ({ auth, onLogout }: { auth: AuthState; onLogout: () => 
       const headers = { Authorization: `Bearer ${auth.token}` };
       
       // Fetch groups count
-      const groupsRes = await axios.get(`${API_URL}/groups`, { headers }).catch(() => ({ data: { data: [] } }));
+      const groupsRes = await axios.get(`${API_URL}/api/groups`, { headers }).catch(() => ({ data: { data: [] } }));
       const groupsList = groupsRes.data.data || [];
       setGroups(groupsList);
       
       // Fetch transactions - API returns { data: { transactions: [...], pagination: {...} } }
-      const transRes = await axios.get(`${API_URL}/transactions`, { headers }).catch(() => ({ data: { data: { transactions: [] } } }));
+      const transRes = await axios.get(`${API_URL}/api/transactions`, { headers }).catch(() => ({ data: { data: { transactions: [] } } }));
       const transData = transRes.data.data;
       const transactions = Array.isArray(transData) ? transData : (transData?.transactions || []);
       
@@ -657,7 +735,7 @@ const DashboardScreen = ({ auth, onLogout }: { auth: AuthState; onLogout: () => 
   const fetchGroupMembers = async (groupId: string) => {
     try {
       const headers = { Authorization: `Bearer ${auth.token}` };
-      const response = await axios.get(`${API_URL}/groups/${groupId}/members`, { headers });
+      const response = await axios.get(`${API_URL}/api/groups/${groupId}/members`, { headers });
       setMembers(response.data.data || []);
     } catch (error) {
       console.error('Members fetch error:', error);
@@ -681,7 +759,7 @@ const DashboardScreen = ({ auth, onLogout }: { auth: AuthState; onLogout: () => 
     setRecording(true);
     try {
       const headers = { Authorization: `Bearer ${auth.token}` };
-      await axios.post(`${API_URL}/transactions`, {
+      await axios.post(`${API_URL}/api/transactions`, {
         stokvelGroupId: newTransaction.stokvelGroupId,
         memberId: newTransaction.memberId,
         transactionType: newTransaction.transactionType,
@@ -741,139 +819,321 @@ const DashboardScreen = ({ auth, onLogout }: { auth: AuthState; onLogout: () => 
     <>
     <ScrollView 
       style={styles.screenContainer}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2E7D32']} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
     >
-      {/* Header with Gradient Effect */}
-      <View style={styles.dashboardHeader}>
+      {/* Header - Different for Treasurer vs Member */}
+      <View style={[styles.dashboardHeader, { backgroundColor: canRecordTransaction ? COLORS.treasurer : COLORS.member }]}>
         <View style={styles.headerContent}>
-          <View>
-            <Text style={styles.greeting}>Welcome back,</Text>
-            <Text style={styles.userName}>{auth.user?.fullName?.split(' ')[0] || 'User'} 👋</Text>
+          <View style={styles.headerLeft}>
+            <View style={styles.headerIconContainer}>
+              <Icon name="person" size={28} color="#fff" />
+            </View>
+            <View>
+              <Text style={styles.greeting}>Welcome back,</Text>
+              <Text style={styles.userName}>{auth.user?.fullName?.split(' ')[0] || 'User'}</Text>
+            </View>
           </View>
           <View style={styles.headerRight}>
-            <View style={styles.roleBadge}>
+            <View style={[styles.roleBadge, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
               <Text style={styles.roleBadgeText}>{userRole}</Text>
             </View>
-          </View>
-        </View>
-      </View>
-
-      {/* Quick Actions - Role Based */}
-      {canRecordTransaction && (
-        <View style={styles.quickActionsCard}>
-          <Text style={styles.quickActionsTitle}>⚡ Quick Actions</Text>
-          <View style={styles.quickActionsRow}>
-            <TouchableOpacity style={styles.quickActionBtn} onPress={() => setShowRecordModal(true)}>
-              <View style={[styles.quickActionIconBg, { backgroundColor: '#E8F5E9' }]}>
-                <Text style={styles.quickActionIcon}>💵</Text>
-              </View>
-              <Text style={styles.quickActionText}>Record{"\n"}Payment</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.quickActionBtn}>
-              <View style={[styles.quickActionIconBg, { backgroundColor: '#E3F2FD' }]}>
-                <Text style={styles.quickActionIcon}>👥</Text>
-              </View>
-              <Text style={styles.quickActionText}>View{"\n"}Members</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.quickActionBtn}>
-              <View style={[styles.quickActionIconBg, { backgroundColor: '#FFF3E0' }]}>
-                <Text style={styles.quickActionIcon}>📊</Text>
-              </View>
-              <Text style={styles.quickActionText}>View{"\n"}Reports</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.quickActionBtn}>
-              <View style={[styles.quickActionIconBg, { backgroundColor: '#F3E5F5' }]}>
-                <Text style={styles.quickActionIcon}>📢</Text>
-              </View>
-              <Text style={styles.quickActionText}>Send{"\n"}Message</Text>
+            <TouchableOpacity style={styles.notificationBtn}>
+              <Icon name="notifications" size={24} color="#fff" />
             </TouchableOpacity>
           </View>
         </View>
-      )}
-
-      {/* Stats Cards */}
-      <View style={styles.statsRow}>
-        <StatsCard 
-          title="My Stokvel Groups" 
-          value={stats.totalGroups} 
-          subtitle="Active memberships"
-        />
-        <StatsCard 
-          title={canViewAllTransactions ? "Total Amount Collected" : "Total Contributions"} 
-          value={formatCurrency(stats.totalContributions)} 
-          subtitle="All time total"
-          color="#1976D2"
-        />
-      </View>
-      
-      <View style={styles.statsRow}>
-        <StatsCard 
-          title="Pending Transactions" 
-          value={stats.pendingPayouts} 
-          subtitle="Awaiting approval"
-          color="#F57C00"
-        />
-        <StatsCard 
-          title="Account Type" 
-          value={auth.user?.role || 'Member'} 
-          subtitle="Your role"
-          color="#7B1FA2"
-        />
-      </View>
-
-      {/* Treasurer/Admin: Pending Approvals Alert */}
-      {canRecordTransaction && stats.pendingPayouts > 0 && (
-        <View style={styles.alertCard}>
-          <Text style={styles.alertIcon}>⚠️</Text>
-          <View style={styles.alertContent}>
-            <Text style={styles.alertTitle}>{stats.pendingPayouts} Pending Transactions</Text>
-            <Text style={styles.alertText}>Tap here to review and approve payments</Text>
+        {/* Group Info for Treasurer */}
+        {canRecordTransaction && groups.length > 0 && (
+          <View style={styles.groupInfoBar}>
+            <Icon name="groups" size={16} color="rgba(255,255,255,0.8)" />
+            <Text style={styles.groupInfoText}>{groups[0]?.name || 'Your Stokvel'}</Text>
           </View>
-          <Text style={styles.alertArrow}>›</Text>
-        </View>
-      )}
-
-      {/* Recent Transactions */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          {canViewAllTransactions ? 'Recent Group Transactions' : 'My Recent Transactions'}
-        </Text>
-        {stats.recentTransactions.length === 0 ? (
-          <Text style={styles.emptyText}>No transactions recorded yet. Your payment history will appear here.</Text>
-        ) : (
-          stats.recentTransactions.map((transaction) => (
-            <View key={transaction.id} style={styles.transactionItem}>
-              <View style={styles.transactionLeft}>
-                <Text style={styles.transactionType}>
-                  {transaction.transactionType === 'CONTRIBUTION' ? '⬆️' : '⬇️'} {transaction.transactionType}
-                </Text>
-                <Text style={styles.transactionDate}>{formatDate(transaction.transactionDate)}</Text>
-              </View>
-              <View style={styles.transactionRight}>
-                <Text style={[
-                  styles.transactionAmount,
-                  { color: transaction.transactionType === 'CONTRIBUTION' ? '#2E7D32' : '#D32F2F' }
-                ]}>
-                  {transaction.transactionType === 'CONTRIBUTION' ? '+' : '-'}{formatCurrency(transaction.amount)}
-                </Text>
-                <Text style={[
-                  styles.transactionStatus,
-                  { color: transaction.status === 'COMPLETED' ? '#2E7D32' : '#F57C00' }
-                ]}>
-                  {transaction.status}
-                </Text>
-              </View>
-            </View>
-          ))
         )}
       </View>
+
+      {/* TREASURER DASHBOARD */}
+      {canRecordTransaction ? (
+        <>
+          {/* Quick Actions for Treasurer */}
+          <View style={styles.quickActionsCard}>
+            <View style={styles.sectionHeaderRow}>
+              <Icon name="flash-on" size={20} color={COLORS.primary} />
+              <Text style={styles.quickActionsTitle}>Quick Actions</Text>
+            </View>
+            <View style={styles.quickActionsRow}>
+              <TouchableOpacity style={styles.quickActionBtn} onPress={() => setShowRecordModal(true)}>
+                <View style={[styles.quickActionIconBg, { backgroundColor: '#E8F5E9' }]}>
+                  <Icon name="payments" size={24} color={COLORS.primary} />
+                </View>
+                <Text style={styles.quickActionText}>Record{"\n"}Payment</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.quickActionBtn}>
+                <View style={[styles.quickActionIconBg, { backgroundColor: '#E3F2FD' }]}>
+                  <Icon name="assessment" size={24} color={COLORS.member} />
+                </View>
+                <Text style={styles.quickActionText}>View{"\n"}Ledger</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.quickActionBtn}>
+                <View style={[styles.quickActionIconBg, { backgroundColor: '#FFF3E0' }]}>
+                  <Icon name="group-add" size={24} color={COLORS.accent} />
+                </View>
+                <Text style={styles.quickActionText}>Add{"\n"}Member</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.quickActionBtn}>
+                <View style={[styles.quickActionIconBg, { backgroundColor: '#F3E5F5' }]}>
+                  <Icon name="event" size={24} color="#7B1FA2" />
+                </View>
+                <Text style={styles.quickActionText}>Schedule{"\n"}Meeting</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Financial Overview for Treasurer */}
+          <View style={styles.financialOverviewCard}>
+            <View style={styles.sectionHeaderRow}>
+              <Icon name="trending-up" size={20} color={COLORS.primary} />
+              <Text style={styles.sectionHeaderTitle}>Financial Overview</Text>
+            </View>
+            <View style={styles.financialGrid}>
+              <View style={styles.financialItem}>
+                <Icon name="account-balance-wallet" size={24} color={COLORS.primary} />
+                <Text style={styles.financialLabel}>Total Collected</Text>
+                <Text style={styles.financialValue}>{formatCurrency(stats.totalContributions)}</Text>
+              </View>
+              <View style={styles.financialItem}>
+                <Icon name="groups" size={24} color={COLORS.member} />
+                <Text style={styles.financialLabel}>Members</Text>
+                <Text style={styles.financialValue}>12/15</Text>
+              </View>
+              <View style={styles.financialItem}>
+                <Icon name="schedule" size={24} color={COLORS.secondary} />
+                <Text style={styles.financialLabel}>Next Payout</Text>
+                <Text style={styles.financialValue}>15 days</Text>
+              </View>
+              <View style={styles.financialItem}>
+                <Icon name="pending" size={24} color={COLORS.warning} />
+                <Text style={styles.financialLabel}>Pending</Text>
+                <Text style={styles.financialValue}>{stats.pendingPayouts}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Pending Alert */}
+          {stats.pendingPayouts > 0 && (
+            <TouchableOpacity style={styles.alertCard}>
+              <Icon name="warning" size={24} color={COLORS.warning} />
+              <View style={styles.alertContent}>
+                <Text style={styles.alertTitle}>{stats.pendingPayouts} Pending Transactions</Text>
+                <Text style={styles.alertText}>Tap to review and approve payments</Text>
+              </View>
+              <Icon name="chevron-right" size={24} color={COLORS.warning} />
+            </TouchableOpacity>
+          )}
+
+          {/* Recent Activity for Treasurer */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Icon name="history" size={20} color={COLORS.text} />
+              <Text style={styles.sectionTitle}>Recent Activity</Text>
+            </View>
+            {stats.recentTransactions.length === 0 ? (
+              <View style={styles.emptyStateCard}>
+                <Icon name="receipt-long" size={48} color="#ccc" />
+                <Text style={styles.emptyText}>No transactions yet</Text>
+              </View>
+            ) : (
+              stats.recentTransactions.map((transaction) => (
+                <View key={transaction.id} style={styles.transactionItem}>
+                  <View style={[styles.transactionIconBg, { 
+                    backgroundColor: transaction.transactionType === 'CONTRIBUTION' ? '#E8F5E9' : '#FFEBEE' 
+                  }]}>
+                    <Icon 
+                      name={transaction.transactionType === 'CONTRIBUTION' ? 'trending-up' : 'trending-up'} 
+                      size={20} 
+                      color={transaction.transactionType === 'CONTRIBUTION' ? COLORS.success : COLORS.error} 
+                    />
+                  </View>
+                  <View style={styles.transactionInfo}>
+                    <Text style={styles.transactionType}>{transaction.member?.user?.fullName || 'Member'}</Text>
+                    <Text style={styles.transactionDate}>{formatDate(transaction.transactionDate)}</Text>
+                  </View>
+                  <View style={styles.transactionRight}>
+                    <Text style={[styles.transactionAmount, { 
+                      color: transaction.transactionType === 'CONTRIBUTION' ? COLORS.success : COLORS.error 
+                    }]}>
+                      {transaction.transactionType === 'CONTRIBUTION' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                    </Text>
+                    <View style={[styles.statusBadge, { 
+                      backgroundColor: transaction.status === 'COMPLETED' ? '#E8F5E9' : '#FFF3E0' 
+                    }]}>
+                      <Text style={[styles.statusText, { 
+                        color: transaction.status === 'COMPLETED' ? COLORS.success : COLORS.warning 
+                      }]}>{transaction.status}</Text>
+                    </View>
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+        </>
+      ) : (
+        /* MEMBER DASHBOARD */
+        <>
+          {/* My Status Card for Members */}
+          <View style={styles.memberStatusCard}>
+            <View style={styles.sectionHeaderRow}>
+              <Icon name="account-balance-wallet" size={20} color={COLORS.member} />
+              <Text style={[styles.sectionHeaderTitle, { color: COLORS.member }]}>My Status</Text>
+            </View>
+            <View style={styles.memberStatsGrid}>
+              <View style={styles.memberStatItem}>
+                <Icon name="account-balance-wallet" size={28} color={COLORS.member} />
+                <Text style={styles.memberStatValue}>{formatCurrency(stats.totalContributions)}</Text>
+                <Text style={styles.memberStatLabel}>My Total</Text>
+              </View>
+              <View style={styles.memberStatItem}>
+                <Icon name="schedule" size={28} color={COLORS.warning} />
+                <Text style={styles.memberStatValue}>R200</Text>
+                <Text style={styles.memberStatLabel}>Next Due</Text>
+              </View>
+              <View style={styles.memberStatItem}>
+                <Icon name="whatshot" size={28} color="#FF5722" />
+                <Text style={styles.memberStatValue}>6</Text>
+                <Text style={styles.memberStatLabel}>Month Streak</Text>
+              </View>
+              <View style={styles.memberStatItem}>
+                <Icon name="leaderboard" size={28} color={COLORS.secondary} />
+                <Text style={styles.memberStatValue}>3rd</Text>
+                <Text style={styles.memberStatLabel}>Ranking</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Quick Actions for Members */}
+          <View style={styles.quickActionsCard}>
+            <View style={styles.sectionHeaderRow}>
+              <Icon name="flash-on" size={20} color={COLORS.member} />
+              <Text style={styles.quickActionsTitle}>Quick Actions</Text>
+            </View>
+            <View style={styles.quickActionsRow}>
+              <TouchableOpacity style={styles.quickActionBtn}>
+                <View style={[styles.quickActionIconBg, { backgroundColor: '#E3F2FD' }]}>
+                  <Icon name="payments" size={24} color={COLORS.member} />
+                </View>
+                <Text style={styles.quickActionText}>Make{"\n"}Payment</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.quickActionBtn}>
+                <View style={[styles.quickActionIconBg, { backgroundColor: '#E8F5E9' }]}>
+                  <Icon name="receipt-long" size={24} color={COLORS.success} />
+                </View>
+                <Text style={styles.quickActionText}>My{"\n"}History</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.quickActionBtn}>
+                <View style={[styles.quickActionIconBg, { backgroundColor: '#FFF3E0' }]}>
+                  <Icon name="event" size={24} color={COLORS.accent} />
+                </View>
+                <Text style={styles.quickActionText}>View{"\n"}Meetings</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Group Updates for Members */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Icon name="campaign" size={20} color={COLORS.text} />
+              <Text style={styles.sectionTitle}>Group Updates</Text>
+            </View>
+            <View style={styles.updateItem}>
+              <View style={styles.updateIconBg}>
+                <Icon name="event" size={20} color={COLORS.member} />
+              </View>
+              <View style={styles.updateContent}>
+                <Text style={styles.updateTitle}>Next meeting: Friday @ 6 PM</Text>
+                <Text style={styles.updateTime}>Upcoming</Text>
+              </View>
+            </View>
+            <View style={styles.updateItem}>
+              <View style={[styles.updateIconBg, { backgroundColor: '#FFF3E0' }]}>
+                <Icon name="schedule" size={20} color={COLORS.warning} />
+              </View>
+              <View style={styles.updateContent}>
+                <Text style={styles.updateTitle}>Payout scheduled: Month end</Text>
+                <Text style={styles.updateTime}>5 days left</Text>
+              </View>
+            </View>
+            <View style={styles.updateItem}>
+              <View style={[styles.updateIconBg, { backgroundColor: '#E8F5E9' }]}>
+                <Icon name="person-add" size={20} color={COLORS.success} />
+              </View>
+              <View style={styles.updateContent}>
+                <Text style={styles.updateTitle}>Welcome Sarah! New member</Text>
+                <Text style={styles.updateTime}>2 days ago</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* My Transactions for Members */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Icon name="receipt-long" size={20} color={COLORS.text} />
+              <Text style={styles.sectionTitle}>My Transactions</Text>
+            </View>
+            {stats.recentTransactions.length === 0 ? (
+              <View style={styles.emptyStateCard}>
+                <Icon name="receipt-long" size={48} color="#ccc" />
+                <Text style={styles.emptyText}>No transactions yet</Text>
+              </View>
+            ) : (
+              stats.recentTransactions.map((transaction) => (
+                <View key={transaction.id} style={styles.transactionItem}>
+                  <View style={[styles.transactionIconBg, { 
+                    backgroundColor: transaction.transactionType === 'CONTRIBUTION' ? '#E8F5E9' : '#FFEBEE' 
+                  }]}>
+                    <Icon 
+                      name={transaction.transactionType === 'CONTRIBUTION' ? 'trending-up' : 'trending-up'} 
+                      size={20} 
+                      color={transaction.transactionType === 'CONTRIBUTION' ? COLORS.success : COLORS.error} 
+                    />
+                  </View>
+                  <View style={styles.transactionInfo}>
+                    <Text style={styles.transactionType}>{transaction.transactionType}</Text>
+                    <Text style={styles.transactionDate}>{formatDate(transaction.transactionDate)}</Text>
+                  </View>
+                  <View style={styles.transactionRight}>
+                    <Text style={[styles.transactionAmount, { 
+                      color: transaction.transactionType === 'CONTRIBUTION' ? COLORS.success : COLORS.error 
+                    }]}>
+                      {transaction.transactionType === 'CONTRIBUTION' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                    </Text>
+                    <View style={[styles.statusBadge, { 
+                      backgroundColor: transaction.status === 'COMPLETED' ? '#E8F5E9' : '#FFF3E0' 
+                    }]}>
+                      <Icon 
+                        name={transaction.status === 'COMPLETED' ? 'check-circle' : 'pending'} 
+                        size={14} 
+                        color={transaction.status === 'COMPLETED' ? COLORS.success : COLORS.warning} 
+                      />
+                    </View>
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+        </>
+      )}
     </ScrollView>
 
       {/* Record Transaction Modal */}
       <Modal visible={showRecordModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Record New Transaction</Text>
+            <View style={styles.modalHeader}>
+              <Icon name="payments" size={24} color={COLORS.primary} />
+              <Text style={styles.modalTitle}>Record Transaction</Text>
+              <TouchableOpacity onPress={() => setShowRecordModal(false)}>
+                <Icon name="close" size={24} color={COLORS.textLight} />
+              </TouchableOpacity>
+            </View>
             
             {/* Transaction Type */}
             <View style={styles.inputContainer}>
@@ -888,11 +1148,16 @@ const DashboardScreen = ({ auth, onLogout }: { auth: AuthState; onLogout: () => 
                     ]}
                     onPress={() => setNewTransaction({ ...newTransaction, transactionType: type })}
                   >
+                    <Icon 
+                      name={type === 'CONTRIBUTION' ? 'payments' : type === 'FINE_PAYMENT' ? 'warning' : 'pending'} 
+                      size={16} 
+                      color={newTransaction.transactionType === type ? '#fff' : COLORS.textLight} 
+                    />
                     <Text style={[
                       styles.typeBtnText,
                       newTransaction.transactionType === type && styles.typeBtnTextActive
                     ]}>
-                      {type === 'CONTRIBUTION' ? '💵 Contribution' : type === 'FINE_PAYMENT' ? '⚠️ Fine Payment' : '🔄 Loan Repayment'}
+                      {type === 'CONTRIBUTION' ? 'Contribution' : type === 'FINE_PAYMENT' ? 'Fine' : 'Loan'}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -982,11 +1247,16 @@ const DashboardScreen = ({ auth, onLogout }: { auth: AuthState; onLogout: () => 
                     ]}
                     onPress={() => setNewTransaction({ ...newTransaction, paymentMethod: method })}
                   >
+                    <MaterialCommunityIcons 
+                      name={method === 'CASH' ? 'cash' : method === 'BANK_TRANSFER' ? 'bank' : 'cellphone'} 
+                      size={16} 
+                      color={newTransaction.paymentMethod === method ? '#fff' : COLORS.textLight} 
+                    />
                     <Text style={[
                       styles.typeBtnText,
                       newTransaction.paymentMethod === method && styles.typeBtnTextActive
                     ]}>
-                      {method === 'CASH' ? '💵 Cash' : method === 'BANK_TRANSFER' ? '🏦 Bank Transfer' : '📱 Mobile Money'}
+                      {method === 'CASH' ? 'Cash' : method === 'BANK_TRANSFER' ? 'Bank' : 'Mobile'}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -998,7 +1268,7 @@ const DashboardScreen = ({ auth, onLogout }: { auth: AuthState; onLogout: () => 
               <Text style={styles.label}>Additional Notes (Optional)</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter any additional notes or comments..."
+                placeholder="Enter any additional notes..."
                 value={newTransaction.notes}
                 onChangeText={(text) => setNewTransaction({ ...newTransaction, notes: text })}
               />
@@ -1073,7 +1343,7 @@ const GroupsScreen = ({ auth }: { auth: AuthState }) => {
   const fetchGroups = useCallback(async () => {
     try {
       const headers = { Authorization: `Bearer ${auth.token}` };
-      const response = await axios.get(`${API_URL}/groups`, { headers });
+      const response = await axios.get(`${API_URL}/api/groups`, { headers });
       setGroups(response.data.data || []);
     } catch (error) {
       console.error('Groups fetch error:', error);
@@ -1087,7 +1357,7 @@ const GroupsScreen = ({ auth }: { auth: AuthState }) => {
     setLoadingMembers(true);
     try {
       const headers = { Authorization: `Bearer ${auth.token}` };
-      const response = await axios.get(`${API_URL}/groups/${groupId}/members`, { headers });
+      const response = await axios.get(`${API_URL}/api/groups/${groupId}/members`, { headers });
       setGroupMembers(response.data.data || []);
     } catch (error) {
       console.error('Members fetch error:', error);
@@ -1109,9 +1379,9 @@ const GroupsScreen = ({ auth }: { auth: AuthState }) => {
 
   const getPaymentStatusIcon = (status: 'PAID' | 'PENDING' | 'OVERDUE') => {
     switch (status) {
-      case 'PAID': return '🟢';
-      case 'PENDING': return '🟡';
-      case 'OVERDUE': return '🔴';
+      case 'PAID': return <Icon name="check-circle" size={16} color={COLORS.success} />;
+      case 'PENDING': return <Icon name="schedule" size={16} color={COLORS.warning} />;
+      case 'OVERDUE': return <Icon name="warning" size={16} color={COLORS.error} />;
     }
   };
 
@@ -1133,7 +1403,7 @@ const GroupsScreen = ({ auth }: { auth: AuthState }) => {
     setCreating(true);
     try {
       const headers = { Authorization: `Bearer ${auth.token}` };
-      await axios.post(`${API_URL}/groups`, {
+      await axios.post(`${API_URL}/api/groups`, {
         name: newGroup.name,
         description: newGroup.description || undefined,
         contributionAmount: parseFloat(newGroup.contributionAmount),
@@ -1184,7 +1454,9 @@ const GroupsScreen = ({ auth }: { auth: AuthState }) => {
         contentContainerStyle={groups.length === 0 ? styles.emptyContainer : undefined}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>👥</Text>
+            <View style={[styles.emptyIcon, { backgroundColor: '#E8F5E9' }]}>
+              <Icon name="groups" size={48} color={COLORS.primary} />
+            </View>
             <Text style={styles.emptyTitle}>No Groups Yet</Text>
             <Text style={styles.emptyText}>
               {canCreateGroup 
@@ -1224,7 +1496,10 @@ const GroupsScreen = ({ auth }: { auth: AuthState }) => {
             {/* Expanded Member List */}
             {expandedGroupId === item.id && (
               <View style={styles.memberListContainer}>
-                <Text style={styles.memberListTitle}>👥 Members</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                <Icon name="groups" size={18} color={COLORS.primary} />
+                <Text style={[styles.memberListTitle, { marginLeft: 8, marginBottom: 0 }]}>Members</Text>
+              </View>
                 {loadingMembers ? (
                   <ActivityIndicator size="small" color="#2E7D32" style={{ padding: 16 }} />
                 ) : groupMembers.length === 0 ? (
@@ -1233,9 +1508,9 @@ const GroupsScreen = ({ auth }: { auth: AuthState }) => {
                   groupMembers.map((member) => (
                     <View key={member.id} style={styles.memberRow}>
                       <View style={styles.memberInfo}>
-                        <Text style={styles.memberStatusIcon}>
+                        <View style={styles.memberStatusIcon}>
                           {getPaymentStatusIcon(member.paymentStatus)}
-                        </Text>
+                        </View>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.memberName}>{member.user.fullName}</Text>
                           <Text style={styles.memberRole}>{member.role}</Text>
@@ -1362,7 +1637,7 @@ const TransactionsScreen = ({ auth }: { auth: AuthState }) => {
   const fetchTransactions = useCallback(async () => {
     try {
       const headers = { Authorization: `Bearer ${auth.token}` };
-      const response = await axios.get(`${API_URL}/transactions`, { headers });
+      const response = await axios.get(`${API_URL}/api/transactions`, { headers });
       // API returns { data: { transactions: [...], pagination: {...} } }
       const transData = response.data.data;
       const txList = Array.isArray(transData) ? transData : (transData?.transactions || []);
@@ -1429,7 +1704,9 @@ const TransactionsScreen = ({ auth }: { auth: AuthState }) => {
         contentContainerStyle={filteredTransactions.length === 0 ? styles.emptyContainer : undefined}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>💰</Text>
+            <View style={[styles.emptyIcon, { backgroundColor: '#E8F5E9' }]}>
+              <Icon name="account-balance-wallet" size={48} color={COLORS.primary} />
+            </View>
             <Text style={styles.emptyTitle}>No Transactions</Text>
             <Text style={styles.emptyText}>Your transactions will appear here</Text>
           </View>
@@ -1440,9 +1717,11 @@ const TransactionsScreen = ({ auth }: { auth: AuthState }) => {
               styles.transactionIcon,
               { backgroundColor: item.transactionType === 'CONTRIBUTION' ? '#E8F5E9' : '#FFEBEE' }
             ]}>
-              <Text style={{ fontSize: 20 }}>
-                {item.transactionType === 'CONTRIBUTION' ? '⬆️' : '⬇️'}
-              </Text>
+              <Icon 
+                name={item.transactionType === 'CONTRIBUTION' ? 'trending-up' : 'trending-down' as IconName} 
+                size={24} 
+                color={item.transactionType === 'CONTRIBUTION' ? COLORS.success : COLORS.error} 
+              />
             </View>
             <View style={styles.transactionInfo}>
               <Text style={styles.transactionType}>{item.transactionType}</Text>
@@ -1485,8 +1764,8 @@ const ProfileScreen = ({ auth, onLogout }: { auth: AuthState; onLogout: () => vo
       try {
         const headers = { Authorization: `Bearer ${auth.token}` };
         const [groupsRes, transactionsRes] = await Promise.all([
-          axios.get(`${API_URL}/groups`, { headers }),
-          axios.get(`${API_URL}/transactions`, { headers })
+          axios.get(`${API_URL}/api/groups`, { headers }),
+          axios.get(`${API_URL}/api/transactions`, { headers })
         ]);
         setMembershipCount((groupsRes.data.data || []).length);
         // API returns data.data.transactions, not data.data
@@ -1549,7 +1828,7 @@ const ProfileScreen = ({ auth, onLogout }: { auth: AuthState; onLogout: () => vo
           </View>
           <View style={styles.profileStatDivider} />
           <View style={styles.profileStatItem}>
-            <Text style={styles.profileStatValue}>✓</Text>
+            <Icon name="check-circle" size={20} color={COLORS.success} />
             <Text style={styles.profileStatLabel}>ID Verified</Text>
           </View>
         </View>
@@ -1557,11 +1836,14 @@ const ProfileScreen = ({ auth, onLogout }: { auth: AuthState; onLogout: () => vo
 
       {/* Contact Information */}
       <View style={styles.profileSection}>
-        <Text style={styles.profileSectionHeader}>📱 Contact Information</Text>
+        <View style={styles.profileSectionHeaderRow}>
+          <Icon name="phone" size={18} color={COLORS.primary} />
+          <Text style={styles.profileSectionHeader}>Contact Information</Text>
+        </View>
         
         <View style={styles.profileInfoRow}>
-          <View style={styles.profileInfoIcon}>
-            <Text>📞</Text>
+          <View style={[styles.profileInfoIcon, { backgroundColor: '#E8F5E9' }]}>
+            <Icon name="phone" size={18} color={COLORS.primary} />
           </View>
           <View style={styles.profileInfoContent}>
             <Text style={styles.profileInfoLabel}>Mobile Phone Number</Text>
@@ -1570,8 +1852,8 @@ const ProfileScreen = ({ auth, onLogout }: { auth: AuthState; onLogout: () => vo
         </View>
         
         <View style={styles.profileInfoRow}>
-          <View style={styles.profileInfoIcon}>
-            <Text>✉️</Text>
+          <View style={[styles.profileInfoIcon, { backgroundColor: '#E3F2FD' }]}>
+            <Icon name="email" size={18} color={COLORS.member} />
           </View>
           <View style={styles.profileInfoContent}>
             <Text style={styles.profileInfoLabel}>Email Address</Text>
@@ -1582,11 +1864,14 @@ const ProfileScreen = ({ auth, onLogout }: { auth: AuthState; onLogout: () => vo
 
       {/* Account Details */}
       <View style={styles.profileSection}>
-        <Text style={styles.profileSectionHeader}>🔐 Account Information</Text>
+        <View style={styles.profileSectionHeaderRow}>
+          <Icon name="lock" size={18} color={COLORS.primary} />
+          <Text style={styles.profileSectionHeader}>Account Information</Text>
+        </View>
         
         <View style={styles.profileInfoRow}>
-          <View style={styles.profileInfoIcon}>
-            <Text>🆔</Text>
+          <View style={[styles.profileInfoIcon, { backgroundColor: '#F3E5F5' }]}>
+            <Icon name="info" size={18} color="#7B1FA2" />
           </View>
           <View style={styles.profileInfoContent}>
             <Text style={styles.profileInfoLabel}>Unique User Identifier</Text>
@@ -1595,8 +1880,8 @@ const ProfileScreen = ({ auth, onLogout }: { auth: AuthState; onLogout: () => vo
         </View>
         
         <View style={styles.profileInfoRow}>
-          <View style={styles.profileInfoIcon}>
-            <Text>👤</Text>
+          <View style={[styles.profileInfoIcon, { backgroundColor: '#FFF3E0' }]}>
+            <Icon name="person" size={18} color={COLORS.accent} />
           </View>
           <View style={styles.profileInfoContent}>
             <Text style={styles.profileInfoLabel}>Account Type</Text>
@@ -1607,56 +1892,69 @@ const ProfileScreen = ({ auth, onLogout }: { auth: AuthState; onLogout: () => vo
 
       {/* Actions */}
       <View style={styles.profileSection}>
-        <Text style={styles.profileSectionHeader}>⚙️ Settings & Preferences</Text>
+        <View style={styles.profileSectionHeaderRow}>
+          <Icon name="settings" size={18} color={COLORS.primary} />
+          <Text style={styles.profileSectionHeader}>Settings & Preferences</Text>
+        </View>
         
         <TouchableOpacity style={styles.profileActionRow}>
           <View style={styles.profileActionLeft}>
-            <Text style={styles.profileActionIcon}>🔔</Text>
+            <View style={[styles.profileActionIconBg, { backgroundColor: '#E3F2FD' }]}>
+              <Icon name="notifications" size={18} color={COLORS.member} />
+            </View>
             <Text style={styles.profileActionText}>Notification Settings</Text>
           </View>
-          <Text style={styles.profileActionArrow}>›</Text>
+          <Icon name="chevron-right" size={20} color={COLORS.textLight} />
         </TouchableOpacity>
         
         <TouchableOpacity style={styles.profileActionRow}>
           <View style={styles.profileActionLeft}>
-            <Text style={styles.profileActionIcon}>🔒</Text>
+            <View style={[styles.profileActionIconBg, { backgroundColor: '#E8F5E9' }]}>
+              <Icon name="lock" size={18} color={COLORS.primary} />
+            </View>
             <Text style={styles.profileActionText}>Change Your Password</Text>
           </View>
-          <Text style={styles.profileActionArrow}>›</Text>
+          <Icon name="chevron-right" size={20} color={COLORS.textLight} />
         </TouchableOpacity>
         
         <TouchableOpacity style={styles.profileActionRow}>
           <View style={styles.profileActionLeft}>
-            <Text style={styles.profileActionIcon}>❓</Text>
+            <View style={[styles.profileActionIconBg, { backgroundColor: '#FFF3E0' }]}>
+              <MaterialCommunityIcons name="help-circle" size={18} color={COLORS.accent} />
+            </View>
             <Text style={styles.profileActionText}>Help & Customer Support</Text>
           </View>
-          <Text style={styles.profileActionArrow}>›</Text>
+          <Icon name="chevron-right" size={20} color={COLORS.textLight} />
         </TouchableOpacity>
         
         <TouchableOpacity style={styles.profileActionRow}>
           <View style={styles.profileActionLeft}>
-            <Text style={styles.profileActionIcon}>📄</Text>
+            <View style={[styles.profileActionIconBg, { backgroundColor: '#F3E5F5' }]}>
+              <MaterialCommunityIcons name="file-document" size={18} color="#7B1FA2" />
+            </View>
             <Text style={styles.profileActionText}>Terms and Conditions</Text>
           </View>
-          <Text style={styles.profileActionArrow}>›</Text>
+          <Icon name="chevron-right" size={20} color={COLORS.textLight} />
         </TouchableOpacity>
         
         <TouchableOpacity style={styles.profileActionRow}>
           <View style={styles.profileActionLeft}>
-            <Text style={styles.profileActionIcon}>🔏</Text>
+            <View style={[styles.profileActionIconBg, { backgroundColor: '#ECEFF1' }]}>
+              <MaterialCommunityIcons name="shield-lock" size={18} color="#607D8B" />
+            </View>
             <Text style={styles.profileActionText}>Privacy Policy</Text>
           </View>
-          <Text style={styles.profileActionArrow}>›</Text>
+          <Icon name="chevron-right" size={20} color={COLORS.textLight} />
         </TouchableOpacity>
       </View>
 
       {/* Logout Button */}
       <TouchableOpacity style={styles.logoutButtonLarge} onPress={onLogout}>
-        <Text style={styles.logoutButtonIcon}>🚪</Text>
+        <Icon name="logout" size={20} color={COLORS.error} />
         <Text style={styles.logoutButtonLargeText}>Sign Out of Your Account</Text>
       </TouchableOpacity>
 
-      <Text style={styles.versionText}>eStokvel Version 1.0.0 • Proudly Made in South Africa 🇿🇦</Text>
+      <Text style={styles.versionText}>eStokvel v1.0.0 • Proudly South African</Text>
     </ScrollView>
   );
 };
@@ -2932,6 +3230,18 @@ const styles = StyleSheet.create({
     fontSize: 32,
     marginBottom: 8,
   },
+  roleIconBg: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  roleIconBgSelected: {
+    backgroundColor: COLORS.primary,
+  },
   roleTitle: {
     fontSize: 16,
     fontWeight: 'bold',
@@ -2946,5 +3256,247 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     lineHeight: 14,
+  },
+  
+  // Input Label with Icon
+  inputLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  
+  // Dashboard Header with Icons
+  headerLeft: {
+    flex: 1,
+  },
+  headerIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationBtn: {
+    padding: 4,
+  },
+  
+  // Group Info Bar
+  groupInfoBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    marginTop: 16,
+    padding: 12,
+    borderRadius: 12,
+  },
+  groupInfoIcon: {
+    marginRight: 10,
+  },
+  groupInfoText: {
+    flex: 1,
+  },
+  groupInfoName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  groupInfoMembers: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
+  },
+  
+  // Financial Overview Card
+  financialOverviewCard: {
+    backgroundColor: '#fff',
+    margin: 16,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  financialGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 8,
+  },
+  financialItem: {
+    width: '50%',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+  },
+  financialLabel: {
+    fontSize: 12,
+    color: '#888',
+    marginBottom: 4,
+  },
+  financialValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+  },
+  
+  // Member Status Card
+  memberStatusCard: {
+    backgroundColor: '#fff',
+    margin: 16,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  memberStatsGrid: {
+    flexDirection: 'row',
+    marginTop: 12,
+  },
+  memberStatItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  memberStatValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#333',
+  },
+  memberStatLabel: {
+    fontSize: 11,
+    color: '#888',
+    marginTop: 4,
+  },
+  
+  // Section Header Row
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+  },
+  sectionHeaderLink: {
+    fontSize: 13,
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  
+  // Update Item (Group Updates)
+  updateItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  updateIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E8F5E9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  updateContent: {
+    flex: 1,
+  },
+  updateTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  updateTime: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 2,
+  },
+  
+  // Transaction Icon Background
+  transactionIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  
+  // Empty State Card
+  emptyStateCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+    margin: 16,
+  },
+  emptyStateIcon: {
+    marginBottom: 12,
+  },
+  emptyStateTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 4,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: '#888',
+    textAlign: 'center',
+  },
+  
+  // Modal Header
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  modalHeaderIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E8F5E9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  modalCloseBtn: {
+    padding: 8,
+  },
+  
+  // Profile Section Header Row
+  profileSectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  profileSectionIcon: {
+    marginRight: 8,
+  },
+  
+  // Profile Action Icon Background
+  profileActionIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
 });

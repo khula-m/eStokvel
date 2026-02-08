@@ -1,10 +1,8 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
-// API Base URL - Update this for production
-const API_BASE_URL = __DEV__ 
-  ? 'http://192.168.1.100:5000' // Replace with your local IP
-  : 'https://api.estokvel.co.za';
+// API Base URL - Uses environment variable, falls back to localhost for development
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000';
 
 // Create axios instance
 const api: AxiosInstance = axios.create({

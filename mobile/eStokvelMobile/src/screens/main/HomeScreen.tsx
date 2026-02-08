@@ -1,121 +1,233 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
-} from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, Alert } from 'react-native';
+import axios from 'axios';
 import { useAuthStore } from '../../store/authStore';
+import { TreasurerDashboard } from '../../components/dashboards/TreasurerDashboard';
+import { MemberDashboard } from '../../components/dashboards/MemberDashboard';
+import GetStartedScreen from '../groups/GetStartedScreen';
+import CreateGroupScreen from '../groups/CreateGroupScreen';
+import JoinGroupScreen from '../groups/JoinGroupScreen';
+import AddMemberScreen from '../groups/AddMemberScreen';
+import RecordTransactionScreen from '../groups/RecordTransactionScreen';
+import { TreasurerLedger } from '../../components/ledger/TreasurerLedger';
+import { MemberLedger } from '../../components/ledger/MemberLedger';
 import { colors } from '../../theme/colors';
-import { spacing, borderRadius, fontSize } from '../../theme/spacing';
 
-const HomeScreen: React.FC = () => {
-  const { user } = useAuthStore();
-  const [refreshing, setRefreshing] = React.useState(false);
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000';
 
-  const onRefresh = React.useCallback(async () => {
-    setRefreshing(true);
-    // Refresh data here
-    setTimeout(() => setRefreshing(false), 1000);
-  }, []);
+type ScreenType = 'dashboard' | 'getStarted' | 'createGroup' | 'joinGroup' | 'addMember' | 'recordTransaction' | 'ledger';
 
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return `R ${amount.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}`;
+const HomeScreen: React.FC<{ onNavigate?: (screen: string) => void }> = ({ onNavigate }) => {
+  const { user, token } = useAuthStore();
+  const [groupId, setGroupId] = useState<string | undefined>();
+  const [groupName, setGroupName] = useState('Loading...');
+  const [groupCode, setGroupCode] = useState('ABC123');
+  const [groupRole, setGroupRole] = useState<string | undefined>(); // User's role in the group
+  const [loading, setLoading] = useState(true);
+  const [hasGroup, setHasGroup] = useState(false);
+  const [currentScreen, setCurrentScreen] = useState<ScreenType>('dashboard');
+
+  // Fetch user's primary group on mount
+  useEffect(() => {
+    const fetchUserGroup = async () => {
+      try {
+        setLoading(true);
+        const headers = { Authorization: `Bearer ${token}` };
+        const response = await axios.get(`${API_URL}/api/groups`, { headers });
+        const groups = response.data.data || [];
+        
+        if (groups.length > 0) {
+          const primaryGroup = groups[0]; // Use first group as primary
+          setGroupId(primaryGroup.id);
+          setGroupName(primaryGroup.name || 'Your Group');
+          setGroupCode(primaryGroup.code || primaryGroup.inviteCode || 'N/A');
+          // Store the user's role in this group (CHAIRPERSON, TREASURER, MEMBER, etc.)
+          setGroupRole(primaryGroup.userRole || primaryGroup.role);
+          setHasGroup(true);
+          setCurrentScreen('dashboard');
+        } else {
+          setHasGroup(false);
+          setCurrentScreen('getStarted');
+        }
+      } catch (error) {
+        console.error('Failed to fetch group:', error);
+        setHasGroup(false);
+        setCurrentScreen('getStarted');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (token) {
+      fetchUserGroup();
+    }
+  }, [token]);
+
+  const handleNavigation = (screen: string, params?: any) => {
+    // Handle internal navigation for group flows
+    switch (screen) {
+      case 'createGroup':
+        setCurrentScreen('createGroup');
+        break;
+      case 'joinGroup':
+        setCurrentScreen('joinGroup');
+        break;
+      case 'getStarted':
+        setCurrentScreen('getStarted');
+        break;
+      case 'addMember':
+        if (!groupId) {
+          Alert.alert('No Group', 'You need to create or join a group first');
+          return;
+        }
+        setCurrentScreen('addMember');
+        break;
+      case 'recordTransaction':
+        if (!groupId) {
+          Alert.alert('No Group', 'You need to create or join a group first');
+          return;
+        }
+        setCurrentScreen('recordTransaction');
+        break;
+      case 'ledger':
+      case 'history':  // Member dashboard calls this 'history'
+        if (!groupId) {
+          Alert.alert('No Group', 'You need to create or join a group first');
+          return;
+        }
+        setCurrentScreen('ledger');
+        break;
+      case 'makePayment':
+        Alert.alert('Coming Soon', 'Online payment feature is coming soon! For now, please pay in person and your treasurer will record it.');
+        break;
+      case 'meetings':
+        Alert.alert('Coming Soon', 'Meeting scheduling feature is coming soon!');
+        break;
+      case 'home':
+        // Refresh groups and go to dashboard
+        setCurrentScreen('dashboard');
+        refreshGroups();
+        break;
+      case 'browseGroups':
+        Alert.alert('Coming Soon', 'Browse public groups feature is coming soon!');
+        break;
+      default:
+        if (onNavigate) {
+          onNavigate(screen);
+        } else {
+          Alert.alert('Navigation', `Navigate to: ${screen}`);
+        }
+    }
   };
 
+  const refreshGroups = () => {
+    if (token) {
+      axios.get(`${API_URL}/api/groups`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(response => {
+          const groups = response.data.data || [];
+          if (groups.length > 0) {
+            const primaryGroup = groups[0];
+            setGroupId(primaryGroup.id);
+            setGroupName(primaryGroup.name || 'Your Group');
+            setGroupCode(primaryGroup.code || primaryGroup.inviteCode || 'N/A');
+            setGroupRole(primaryGroup.userRole || primaryGroup.role);
+            setHasGroup(true);
+          }
+        })
+        .catch(console.error);
+    }
+  };
+
+  const handleBack = () => {
+    if (hasGroup) {
+      setCurrentScreen('dashboard');
+    } else {
+      setCurrentScreen('getStarted');
+    }
+  };
+
+  // Determine which dashboard to show based on user's role in the group
+  // CHAIRPERSON, TREASURER, SECRETARY, ADMIN can see treasurer dashboard
+  const isTreasurer = groupRole === 'CHAIRPERSON' || groupRole === 'TREASURER' || 
+                      groupRole === 'SECRETARY' || groupRole === 'ADMIN' ||
+                      user?.role === 'TREASURER' || user?.role === 'ADMIN';
+
+  // Show appropriate screen based on current state
+  if (currentScreen === 'createGroup') {
+    return <CreateGroupScreen onNavigate={handleNavigation} onBack={handleBack} />;
+  }
+
+  if (currentScreen === 'joinGroup') {
+    return <JoinGroupScreen onNavigate={handleNavigation} onBack={handleBack} />;
+  }
+
+  if (currentScreen === 'addMember') {
+    return (
+      <AddMemberScreen
+        token={token || ''}
+        groupId={groupId || ''}
+        groupName={groupName}
+        groupCode={groupCode}
+        onBack={handleBack}
+      />
+    );
+  }
+
+  if (currentScreen === 'recordTransaction') {
+    return (
+      <RecordTransactionScreen
+        token={token || ''}
+        groupId={groupId || ''}
+        groupName={groupName}
+        onBack={handleBack}
+        onSuccess={refreshGroups}
+      />
+    );
+  }
+
+  if (currentScreen === 'ledger') {
+    return isTreasurer ? (
+      <TreasurerLedger
+        token={token || ''}
+        groupId={groupId || ''}
+        groupName={groupName}
+        onBack={handleBack}
+      />
+    ) : (
+      <MemberLedger
+        token={token || ''}
+        groupId={groupId || ''}
+        groupName={groupName}
+        onBack={handleBack}
+      />
+    );
+  }
+
+  if (currentScreen === 'getStarted' || (!loading && !hasGroup)) {
+    return <GetStartedScreen onNavigate={handleNavigation} />;
+  }
+
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      {/* Welcome Header */}
-      <View style={styles.header}>
-        <Text style={styles.greeting}>Hello, {user?.fullName?.split(' ')[0] || 'Member'}!</Text>
-        <Text style={styles.date}>
-          {new Date().toLocaleDateString('en-ZA', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-          })}
-        </Text>
-      </View>
-
-      {/* Total Balance Card */}
-      <View style={styles.balanceCard}>
-        <Text style={styles.balanceLabel}>Total Savings</Text>
-        <Text style={styles.balanceAmount}>{formatCurrency(0)}</Text>
-        <Text style={styles.balanceSubtext}>Across all stokvel groups</Text>
-      </View>
-
-      {/* Quick Actions */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <View style={styles.actionsRow}>
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionIcon}>💰</Text>
-            <Text style={styles.actionText}>Contribute</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionIcon}>📊</Text>
-            <Text style={styles.actionText}>History</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionIcon}>👥</Text>
-            <Text style={styles.actionText}>Groups</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionIcon}>➕</Text>
-            <Text style={styles.actionText}>Join</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* My Groups */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>My Groups</Text>
-          <TouchableOpacity>
-            <Text style={styles.seeAll}>See All</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Empty state */}
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyStateIcon}>👥</Text>
-          <Text style={styles.emptyStateText}>No groups yet</Text>
-          <Text style={styles.emptyStateSubtext}>
-            Join or create a stokvel group to start saving
-          </Text>
-          <TouchableOpacity style={styles.emptyStateButton}>
-            <Text style={styles.emptyStateButtonText}>Browse Groups</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Recent Transactions */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Recent Activity</Text>
-          <TouchableOpacity>
-            <Text style={styles.seeAll}>See All</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Empty state */}
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyStateIcon}>📋</Text>
-          <Text style={styles.emptyStateText}>No transactions yet</Text>
-          <Text style={styles.emptyStateSubtext}>
-            Your contribution and payout history will appear here
-          </Text>
-        </View>
-      </View>
-    </ScrollView>
+    <View style={styles.container}>
+      {isTreasurer ? (
+        <TreasurerDashboard 
+          user={user} 
+          token={token || ''}
+          groupId={groupId}
+          groupName={groupName} 
+          groupCode={groupCode}
+          onNavigate={handleNavigation}
+        />
+      ) : (
+        <MemberDashboard 
+          user={user} 
+          token={token || ''}
+          groupId={groupId}
+          groupName={groupName}
+          onNavigate={handleNavigation}
+        />
+      )}
+    </View>
   );
 };
 
@@ -124,124 +236,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  header: {
-    padding: spacing.lg,
-    paddingTop: spacing.xl,
-  },
-  greeting: {
-    fontSize: fontSize.xxl,
-    fontWeight: 'bold',
-    color: colors.text.primary,
-  },
-  date: {
-    fontSize: fontSize.md,
-    color: colors.text.secondary,
-    marginTop: spacing.xs,
-  },
-  balanceCard: {
-    backgroundColor: colors.primary,
-    margin: spacing.lg,
-    marginTop: 0,
-    borderRadius: borderRadius.lg,
-    padding: spacing.xl,
-    alignItems: 'center',
-  },
-  balanceLabel: {
-    color: colors.white,
-    fontSize: fontSize.md,
-    opacity: 0.9,
-  },
-  balanceAmount: {
-    color: colors.white,
-    fontSize: 36,
-    fontWeight: 'bold',
-    marginVertical: spacing.sm,
-  },
-  balanceSubtext: {
-    color: colors.white,
-    fontSize: fontSize.sm,
-    opacity: 0.8,
-  },
-  section: {
-    padding: spacing.lg,
-    paddingTop: 0,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  sectionTitle: {
-    fontSize: fontSize.xl,
-    fontWeight: 'bold',
-    color: colors.text.primary,
-    marginBottom: spacing.md,
-  },
-  seeAll: {
-    fontSize: fontSize.md,
-    color: colors.primary,
-    fontWeight: 'bold',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  actionButton: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    alignItems: 'center',
-    flex: 1,
-    marginHorizontal: spacing.xs,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  actionIcon: {
-    fontSize: 24,
-    marginBottom: spacing.xs,
-  },
-  actionText: {
-    fontSize: fontSize.sm,
-    color: colors.text.primary,
-    fontWeight: 'normal',
-  },
-  emptyState: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    padding: spacing.xl,
-    alignItems: 'center',
-  },
-  emptyStateIcon: {
-    fontSize: 48,
-    marginBottom: spacing.md,
-  },
-  emptyStateText: {
-    fontSize: fontSize.lg,
-    fontWeight: 'bold',
-    color: colors.text.primary,
-    marginBottom: spacing.xs,
-  },
-  emptyStateSubtext: {
-    fontSize: fontSize.md,
-    color: colors.text.secondary,
-    textAlign: 'center',
-    marginBottom: spacing.md,
-  },
-  emptyStateButton: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-  },
-  emptyStateButtonText: {
-    color: colors.white,
-    fontSize: fontSize.md,
-    fontWeight: 'bold',
-  },
 });
 
 export default HomeScreen;
+
