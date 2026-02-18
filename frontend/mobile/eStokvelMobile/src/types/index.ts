@@ -3,6 +3,7 @@ export interface User {
   id: string;
   phoneNumber: string;
   email?: string;
+  idNumber?: string;
   fullName: string;
   role: UserRole;
   language: 'en' | 'zu' | 'xh' | 'af' | 'st';
@@ -48,6 +49,7 @@ export interface RegisterData {
   password: string;
   fullName: string;
   email?: string;
+  idNumber?: string;
   language?: string;
 }
 

@@ -12,7 +12,7 @@ interface AuthState {
   
   // Actions
   login: (phoneNumber: string, password: string) => Promise<boolean>;
-  register: (data: { phoneNumber: string; password: string; fullName: string; email?: string }) => Promise<boolean>;
+  register: (data: { phoneNumber: string; password: string; fullName: string; email?: string; idNumber?: string }) => Promise<boolean>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   clearError: () => void;

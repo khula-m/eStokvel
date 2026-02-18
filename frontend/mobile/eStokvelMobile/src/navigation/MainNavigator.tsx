@@ -3,18 +3,11 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text, StyleSheet } from 'react-native';
 import HomeScreen from '../screens/main/HomeScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
+import GroupsScreen from '../screens/main/GroupsScreen';
+import TransactionsScreen from '../screens/main/TransactionsScreen';
 import { colors } from '../theme/colors';
 
 const Tab = createBottomTabNavigator();
-
-// Placeholder screens
-const GroupsScreen = () => (
-  <Text style={styles.placeholder}>Groups Screen - Coming Soon</Text>
-);
-
-const TransactionsScreen = () => (
-  <Text style={styles.placeholder}>Transactions Screen - Coming Soon</Text>
-);
 
 const MainNavigator: React.FC = () => {
   return (

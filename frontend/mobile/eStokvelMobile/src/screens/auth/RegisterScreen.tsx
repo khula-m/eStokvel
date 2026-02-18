@@ -24,6 +24,7 @@ type RegisterScreenProps = {
 const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [idNumber, setIdNumber] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -46,10 +47,33 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
       return;
     }
 
-    // Format phone number
-    let formattedPhone = phoneNumber.replace(/\s/g, '');
-    if (formattedPhone.startsWith('0')) {
-      formattedPhone = '27' + formattedPhone.slice(1);
+    // Format phone number to 10-digit format (0XXXXXXXXX)
+    let formattedPhone = phoneNumber.replace(/[\s\-\(\)\+]/g, ''); // Remove spaces, dashes, parentheses, plus sign
+    
+    // Handle international format (27XXXXXXXXX -> 0XXXXXXXXX)
+    if (formattedPhone.startsWith('27') && formattedPhone.length === 11) {
+      formattedPhone = '0' + formattedPhone.slice(2);
+    }
+    
+    // Ensure it starts with 0 (for cases like 831234567)
+    if (!formattedPhone.startsWith('0') && formattedPhone.length === 9) {
+      formattedPhone = '0' + formattedPhone;
+    }
+
+    // Validate: must be exactly 10 digits starting with 0
+    if (!/^0\d{9}$/.test(formattedPhone)) {
+      Alert.alert(
+        'Invalid Phone Number', 
+        `Please enter a valid SA phone number.\n\nExamples:\n• 083 123 4567\n• 0831234567\n• 27831234567\n\nYou entered: ${phoneNumber}`
+      );
+      return;
+    }
+
+    // Validate ID number if provided (SA ID: 13 digits)
+    const cleanIdNumber = idNumber.replace(/\s/g, '');
+    if (cleanIdNumber && !/^\d{13}$/.test(cleanIdNumber)) {
+      Alert.alert('Validation Error', 'ID number must be 13 digits');
+      return;
     }
 
     const success = await register({
@@ -57,6 +81,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
       phoneNumber: formattedPhone,
       password,
       email: email.trim() || undefined,
+      idNumber: cleanIdNumber || undefined,
     });
 
     if (!success && error) {
@@ -106,6 +131,20 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
               keyboardType="phone-pad"
               value={phoneNumber}
               onChangeText={setPhoneNumber}
+              editable={!isLoading}
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>SA ID Number (Optional)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="13 digit ID number"
+              placeholderTextColor={colors.text.disabled}
+              keyboardType="numeric"
+              maxLength={13}
+              value={idNumber}
+              onChangeText={setIdNumber}
               editable={!isLoading}
             />
           </View>

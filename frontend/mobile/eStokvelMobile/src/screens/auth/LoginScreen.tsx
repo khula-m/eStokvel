@@ -32,10 +32,26 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       return;
     }
 
-    // Format phone number (ensure it starts with 27 for SA)
-    let formattedPhone = phoneNumber.replace(/\s/g, '');
-    if (formattedPhone.startsWith('0')) {
-      formattedPhone = '27' + formattedPhone.slice(1);
+    // Format phone number to 10-digit format (0XXXXXXXXX)
+    let formattedPhone = phoneNumber.replace(/[\s\-\(\)\+]/g, ''); // Remove spaces, dashes, parentheses, plus sign
+    
+    // Handle international format (27XXXXXXXXX -> 0XXXXXXXXX)
+    if (formattedPhone.startsWith('27') && formattedPhone.length === 11) {
+      formattedPhone = '0' + formattedPhone.slice(2);
+    }
+    
+    // Ensure it starts with 0 (for cases like 831234567)
+    if (!formattedPhone.startsWith('0') && formattedPhone.length === 9) {
+      formattedPhone = '0' + formattedPhone;
+    }
+
+    // Validate: must be exactly 10 digits starting with 0
+    if (!/^0\d{9}$/.test(formattedPhone)) {
+      Alert.alert(
+        'Invalid Phone Number', 
+        `Please enter a valid SA phone number.\n\nExamples:\n• 083 123 4567\n• 0831234567\n• 27831234567\n\nYou entered: ${phoneNumber}`
+      );
+      return;
     }
 
     const success = await login(formattedPhone, password);
