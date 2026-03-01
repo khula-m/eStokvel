@@ -1,84 +1,96 @@
-// User types matching backend
 export interface User {
   id: string;
+  fullName: string;
   phoneNumber: string;
   email?: string;
-  idNumber?: string;
-  fullName: string;
-  role: UserRole;
-  language: 'en' | 'zu' | 'xh' | 'af' | 'st';
-  createdAt: string;
-  lastLogin?: string;
+  role: string;
+  mustChangePin?: boolean;
 }
 
-export type UserRole = 'MEMBER' | 'TREASURER' | 'CHAIRPERSON' | 'SECRETARY' | 'ADMIN';
-
-// Stokvel Group types
-export interface StokvelGroup {
+export interface Group {
   id: string;
   name: string;
   description?: string;
   contributionAmount: number;
-  contributionFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
-  payoutDay: number;
-  totalBalance: number;
-  memberCount: number;
+  contributionFrequency: string;
+  durationMonths?: number;
+  startDate?: string;
+  endDate?: string;
+  memberCount?: number;
+  _count?: { members: number; transactions: number };
+  totalBalance?: number;
   createdAt: string;
 }
 
-// Transaction types
 export interface Transaction {
   id: string;
-  type: 'CONTRIBUTION' | 'PAYOUT' | 'PENALTY' | 'INTEREST';
+  transactionType: string;
   amount: number;
-  status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+  status: string;
   description?: string;
-  createdAt: string;
+  transactionDate: string;
+  paymentMethod?: string;
+  referenceNumber?: string;
+  member?: { user: { fullName: string } };
+  group?: { name: string };
+}
+
+export interface Member {
+  id: string;
   userId: string;
   groupId: string;
+  role: string;
+  joinedAt: string;
+  user: { fullName: string; phoneNumber: string };
+  group?: { name: string };
 }
 
-// Auth types
-export interface LoginCredentials {
-  phoneNumber: string;
-  password: string;
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  pinned: boolean;
+  createdAt: string;
+  createdByUser?: { fullName: string };
+  isRead?: boolean;
+  readCount?: number;
 }
 
-export interface RegisterData {
-  phoneNumber: string;
-  password: string;
-  fullName: string;
-  email?: string;
-  idNumber?: string;
-  language?: string;
+export interface Meeting {
+  id: string;
+  title: string;
+  description?: string;
+  date: string;
+  location?: string;
+  createdAt: string;
+  createdByUser?: { fullName: string };
+  goingCount?: number;
+  maybeCount?: number;
+  myStatus?: string | null;
+  attendees?: { name: string; status: string }[];
 }
 
-export interface AuthResponse {
-  success: boolean;
-  data?: {
-    user: User;
-    token: string;
-  };
-  message?: string;
+export interface ChatMsg {
+  id: string;
+  message: string;
+  content?: string;
+  createdAt: string;
+  sender: { id: string; fullName: string };
+  pinned?: boolean;
 }
 
-// API Response types
-export interface ApiResponse<T> {
-  success: boolean;
-  data?: T;
-  message?: string;
-  error?: string;
+export interface GroupMember {
+  id: string;
+  role: string;
+  joinedAt: string;
+  user: { id: string; fullName: string; phoneNumber: string };
+  paymentStatus: 'PAID' | 'PENDING' | 'OVERDUE';
+  lastContributionDate: string | null;
+  lastContributionAmount: number | null;
+  daysSincePayment: number | null;
 }
 
-// Navigation types
-export type RootStackParamList = {
-  Auth: undefined;
-  Main: undefined;
-  Login: undefined;
-  Register: undefined;
-  Home: undefined;
-  Groups: undefined;
-  GroupDetails: { groupId: string };
-  Transactions: undefined;
-  Profile: undefined;
-};
+export interface AuthState {
+  user: User | null;
+  token: string | null;
+}

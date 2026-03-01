@@ -104,7 +104,7 @@ ${mainMenu(state)}`;
         return this.handlePaymentStatusFlow(state, inputs);
       case '4': // Group Info
         return this.handleGroupInfoFlow(state, inputs);
-      case '5': // Contact Treasurer
+      case '5': // Contact Admin
         return this.handleContactFlow(state, inputs);
       default:
         return mainMenu(state);
@@ -118,7 +118,7 @@ ${mainMenu(state)}`;
     try {
       const response = await axios.post(`${BACKEND_URL}/api/auth/login`, {
         phoneNumber,
-        password: pin,
+        pin,
       });
       
       if (response.data.success) {
@@ -168,7 +168,7 @@ ${mainMenu(state)}`;
   private async handleBalanceFlow(state: MenuState, inputs: string[]): Promise<string> {
     // Ask for PIN if not authenticated
     if (!state.authenticated && inputs.length === 1) {
-      return 'CON Enter your 4-digit PIN:';
+      return 'CON Enter your 5-digit PIN:';
     }
     
     // Authenticate
@@ -205,7 +205,7 @@ ${mainMenu(state)}`;
   
   private async handleTransactionsFlow(state: MenuState, inputs: string[]): Promise<string> {
     if (!state.authenticated && inputs.length === 1) {
-      return 'CON Enter your 4-digit PIN:';
+      return 'CON Enter your 5-digit PIN:';
     }
     
     if (!state.authenticated && inputs.length === 2) {
@@ -241,7 +241,7 @@ ${mainMenu(state)}`;
   
   private async handlePaymentStatusFlow(state: MenuState, inputs: string[]): Promise<string> {
     if (!state.authenticated && inputs.length === 1) {
-      return 'CON Enter your 4-digit PIN:';
+      return 'CON Enter your 5-digit PIN:';
     }
     
     if (!state.authenticated && inputs.length === 2) {
@@ -277,7 +277,7 @@ ${mainMenu(state)}`;
   
   private async handleGroupInfoFlow(state: MenuState, inputs: string[]): Promise<string> {
     if (!state.authenticated && inputs.length === 1) {
-      return 'CON Enter your 4-digit PIN:';
+      return 'CON Enter your 5-digit PIN:';
     }
     
     if (!state.authenticated && inputs.length === 2) {
@@ -313,7 +313,7 @@ ${mainMenu(state)}`;
   
   private async handleContactFlow(state: MenuState, inputs: string[]): Promise<string> {
     if (!state.authenticated && inputs.length === 1) {
-      return 'CON Enter your 4-digit PIN:';
+      return 'CON Enter your 5-digit PIN:';
     }
     
     if (!state.authenticated && inputs.length === 2) {
@@ -333,11 +333,11 @@ ${mainMenu(state)}`;
         return 'END You are not in any stokvel group.';
       }
       
-      let info = 'END Treasurer Contacts:\n\n';
+      let info = 'END Admin Contacts:\n\n';
       groups.forEach((group) => {
-        const treasurer = group.createdBy?.phoneNumber || 'Contact via app';
+        const admin = group.createdBy?.phoneNumber || 'Contact via app';
         info += `${group.name}:\n`;
-        info += `${treasurer}\n\n`;
+        info += `${admin}\n\n`;
       });
       
       return info;

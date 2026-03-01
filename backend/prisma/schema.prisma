@@ -1,0 +1,259 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   String         @id @default(cuid())
+  phoneNumber          String         @unique
+  fullName             String
+  pin                  String?        // 5-digit PIN (hashed) - for ADMIN/MEMBER
+  password             String?        // Complex password (hashed) - for SUPERADMIN
+  role                 UserRole       @default(MEMBER)
+  mustChangePin        Boolean        @default(true)
+  isVerified           Boolean        @default(false)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  email                String?        @unique
+  idNumber             String?
+  language             String         @default("en")
+  lastLogin            DateTime?
+  lastLoginIp          String?        // Track login IP for audit
+  failedAttempts       Int            @default(0)    // Failed login counter
+  lockedUntil          DateTime?      // Account lockout timestamp
+  createdById          String?        // Who created this account (SUPERADMIN/ADMIN)
+  createdByUser        User?          @relation("CreatedByUser", fields: [createdById], references: [id])
+  createdUsers         User[]         @relation("CreatedByUser")
+  members              Member[]
+  createdGroups        StokvelGroup[] @relation("GroupCreator")
+  managedGroups        StokvelGroup[] @relation("GroupAdmin")
+  recordedTransactions Transaction[]  @relation("TransactionRecordedBy")
+  chatMessages         ChatMessage[]
+  chatReplies          ChatReply[]
+  announcements        Announcement[]  @relation("AnnouncementAuthor")
+  announcementReads    AnnouncementRead[]
+  meetings             Meeting[]       @relation("MeetingAuthor")
+  meetingAttendance    MeetingAttendance[]
+}
+
+model StokvelGroup {
+  id                    String        @id @default(cuid())
+  name                  String
+  code                  String        @unique
+  description           String?
+  contributionAmount    Decimal       @default(0) @db.Decimal(12, 2)
+  contributionFrequency String        @default("MONTHLY")
+  durationMonths        Int           @default(12)  // 6, 12, 24, 36
+  startDate             DateTime      @default(now())
+  endDate               DateTime?     // Calculated: startDate + durationMonths
+  payoutDate            DateTime?
+  currency              String        @default("ZAR")
+  meetingSchedule       String?
+  isActive              Boolean       @default(true)
+  createdById           String
+  adminId               String?       // Admin who manages this group
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  // Bank details for the group
+  bankName              String?
+  accountNumber         String?
+  accountHolder         String?
+  branchCode            String?
+  members               Member[]
+  createdBy             User          @relation("GroupCreator", fields: [createdById], references: [id])
+  admin                 User?         @relation("GroupAdmin", fields: [adminId], references: [id])
+  transactions          Transaction[]
+  chatMessages          ChatMessage[]
+  announcements         Announcement[]
+  meetings              Meeting[]
+
+  @@map("stokvel_groups")
+}
+
+model Member {
+  id             String        @id @default(cuid())
+  userId         String
+  stokvelGroupId String
+  role           MemberRole    @default(MEMBER)
+  joinedAt       DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  group          StokvelGroup  @relation(fields: [stokvelGroupId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions   Transaction[]
+
+  @@unique([userId, stokvelGroupId])
+  @@index([stokvelGroupId])
+  @@index([userId])
+  @@map("members")
+}
+
+model Transaction {
+  id              String            @id @default(cuid())
+  stokvelGroupId  String
+  memberId        String
+  transactionType TransactionType
+  amount          Decimal           @db.Decimal(12, 2)
+  currency        String            @default("ZAR")
+  referenceNumber String?           @unique
+  paymentMethod   PaymentMethod
+  transactionDate DateTime
+  recordDate      DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  recordedById    String
+  status          TransactionStatus @default(PENDING)
+  notes           String?
+  metadata        Json?
+  receiptUrl      String?
+  member          Member            @relation(fields: [memberId], references: [id])
+  recordedBy      User              @relation("TransactionRecordedBy", fields: [recordedById], references: [id])
+  group           StokvelGroup      @relation(fields: [stokvelGroupId], references: [id])
+
+  @@map("transactions")
+  @@index([stokvelGroupId])
+  @@index([memberId])
+  @@index([transactionDate])
+  @@index([stokvelGroupId, transactionDate])
+  @@index([status])
+}
+
+enum TransactionType {
+  CONTRIBUTION
+  PAYOUT
+  EXPENSE
+  ADJUSTMENT
+}
+
+enum UserRole {
+  SUPERADMIN
+  ADMIN
+  MEMBER
+}
+
+enum MemberRole {
+  ADMIN
+  MEMBER
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  MOBILE_MONEY
+  CARD
+  VOUCHER
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REVERSED
+  CANCELLED
+}
+
+model ChatMessage {
+  id             String       @id @default(cuid())
+  stokvelGroupId String
+  senderId       String
+  message        String
+  messageType    MessageType  @default(TEXT)
+  createdAt      DateTime     @default(now())
+  isRead         Boolean      @default(false)
+  pinned         Boolean      @default(false)
+  group          StokvelGroup @relation(fields: [stokvelGroupId], references: [id], onDelete: Cascade)
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  replies        ChatReply[]
+
+  @@map("chat_messages")
+  @@index([stokvelGroupId, createdAt])
+  @@index([senderId])
+}
+
+model ChatReply {
+  id        String      @id @default(cuid())
+  content   String
+  messageId String
+  senderId  String
+  createdAt DateTime    @default(now())
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  sender    User        @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@map("chat_replies")
+  @@index([messageId])
+}
+
+model Announcement {
+  id        String             @id @default(cuid())
+  title     String
+  content   String
+  groupId   String
+  createdBy String
+  pinned    Boolean            @default(false)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  expiresAt DateTime?
+  group     StokvelGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  author    User               @relation("AnnouncementAuthor", fields: [createdBy], references: [id])
+  readBy    AnnouncementRead[]
+
+  @@map("announcements")
+  @@index([groupId, createdAt])
+}
+
+model AnnouncementRead {
+  id             String       @id @default(cuid())
+  announcementId String
+  userId         String
+  readAt         DateTime     @default(now())
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@map("announcement_reads")
+}
+
+model Meeting {
+  id          String              @id @default(cuid())
+  title       String
+  description String?
+  date        DateTime
+  location    String
+  groupId     String
+  createdBy   String
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  group       StokvelGroup        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  author      User                @relation("MeetingAuthor", fields: [createdBy], references: [id])
+  attendance  MeetingAttendance[]
+
+  @@map("meetings")
+  @@index([groupId, date])
+}
+
+model MeetingAttendance {
+  id        String           @id @default(cuid())
+  meetingId String
+  userId    String
+  status    AttendanceStatus @default(MAYBE)
+  updatedAt DateTime         @updatedAt
+  meeting   Meeting          @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([meetingId, userId])
+  @@map("meeting_attendance")
+}
+
+enum AttendanceStatus {
+  GOING
+  MAYBE
+  NOT_GOING
+}
+
+enum MessageType {
+  TEXT
+  ANNOUNCEMENT
+  SYSTEM
+}

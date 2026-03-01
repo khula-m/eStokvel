@@ -3,10 +3,6 @@
   "version": "1.0.0",
   "description": "eStokvel - Digital Stokvel Management Platform",
   "private": true,
-  "workspaces": [
-    "backend",
-    "frontend/mobile/eStokvelMobile"
-  ],
   "scripts": {
     "backend:dev": "cd backend && npm run dev",
     "backend:start": "cd backend && npm start",

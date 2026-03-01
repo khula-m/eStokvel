@@ -1,0 +1,38 @@
+import React, { useState } from 'react';
+import { View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { DashboardScreen } from '../screens/DashboardScreen';
+import { LedgerScreen } from '../screens/LedgerScreen';
+import { ChatScreen } from '../screens/ChatScreen';
+import { ProfileScreen } from '../screens/ProfileScreen';
+import { BottomTabBar } from '../components/BottomTabBar';
+import { styles } from '../styles';
+import { AuthState } from '../types';
+
+interface MainTabNavigatorProps {
+  auth: AuthState;
+  onLogout: () => void;
+  onNavigate: (screen: string) => void;
+}
+
+export const MainTabNavigator = ({ auth, onLogout, onNavigate }: MainTabNavigatorProps) => {
+  const [currentTab, setCurrentTab] = useState('dashboard');
+  const [chatGroupId, setChatGroupId] = useState<string | null>(null);
+
+  const navigateTab = (tab: string, groupId?: string) => {
+    if (groupId) setChatGroupId(groupId);
+    setCurrentTab(tab);
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.tabContent}>
+        {currentTab === 'dashboard' && <DashboardScreen auth={auth} onLogout={onLogout} onNavigateTab={navigateTab} />}
+        {currentTab === 'ledger' && <LedgerScreen auth={auth} />}
+        {currentTab === 'chat' && <ChatScreen auth={auth} initialGroupId={chatGroupId} />}
+        {currentTab === 'profile' && <ProfileScreen auth={auth} onLogout={onLogout} onNavigate={onNavigate} />}
+      </View>
+      <BottomTabBar currentTab={currentTab} onTabChange={setCurrentTab} userRole={auth.user?.role || 'MEMBER'} />
+    </SafeAreaView>
+  );
+};

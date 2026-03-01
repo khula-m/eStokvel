@@ -24,7 +24,7 @@ Your Digital Savings Partner
 2. My Transactions
 3. Payment Status
 4. Group Info
-5. Contact Treasurer
+5. Contact Admin
 0. Exit`;
 }
 
@@ -34,11 +34,11 @@ Your Digital Savings Partner
 export const menuHandlers: Record<string, (state: MenuState, service: USSDService) => string | Promise<string>> = {
   '0': () => 'END Thank you for using eStokvel.\nGoodbye!',
   
-  '1': () => 'CON Enter your 4-digit PIN:',
-  '2': () => 'CON Enter your 4-digit PIN:',
-  '3': () => 'CON Enter your 4-digit PIN:',
-  '4': () => 'CON Enter your 4-digit PIN:',
-  '5': () => 'CON Enter your 4-digit PIN:',
+  '1': () => 'CON Enter your 5-digit PIN:',
+  '2': () => 'CON Enter your 5-digit PIN:',
+  '3': () => 'CON Enter your 5-digit PIN:',
+  '4': () => 'CON Enter your 5-digit PIN:',
+  '5': () => 'CON Enter your 5-digit PIN:',
 };
 
 /**
@@ -54,7 +54,7 @@ Please try again later.`;
  */
 export function notFoundMenu(): string {
   return `END No data found.
-Please contact your treasurer for assistance.`;
+Please contact your group admin for assistance.`;
 }
 
 export default mainMenu;

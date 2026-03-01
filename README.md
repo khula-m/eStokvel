@@ -71,10 +71,22 @@ npx expo start
 
 ## 🔐 Security Features
 
-- JWT authentication
-- User data isolation (users only see their own groups/transactions)
-- Role-based access control (Chairperson, Treasurer, Secretary, Member)
-- Transaction permissions (only officers can create/update)
+- **JWT Authentication** - Secure token-based auth with configurable expiration
+- **Rate Limiting** - Auth: 5 req/hour, API: 100 req/15min per IP
+- **Helmet Security Headers** - CSP, HSTS, XSS protection, clickjacking prevention
+- **CORS** - Configurable whitelist via `ALLOWED_ORIGINS` env var
+- **Body Parser Limits** - 10KB max payload to prevent DoS
+- **User Data Isolation** - Users only see their own groups/transactions
+- **Role-Based Access** - Chairperson, Treasurer, Secretary, Member
+
+## 🧪 Test Credentials
+
+After running `npm run prisma:seed`:
+
+| Role      | Phone       | Password    |
+| --------- | ----------- | ----------- |
+| Treasurer | 27831234567 | password123 |
+| Member    | 27821234568 | password123 |
 
 ## 📱 Features
 
@@ -90,6 +102,36 @@ npx expo start
 - **Database**: PostgreSQL (Docker)
 - **Cache**: Redis (Docker)
 
-## 📄 License
+## � API Endpoints
+
+| Method | Endpoint                     | Description                | Auth |
+| ------ | ---------------------------- | -------------------------- | ---- |
+| POST   | /api/auth/register           | Create new user            | No   |
+| POST   | /api/auth/login              | Login with phone/password  | No   |
+| GET    | /api/auth/me                 | Get current user           | Yes  |
+| GET    | /api/groups                  | List user's groups         | Yes  |
+| POST   | /api/groups                  | Create new group           | Yes  |
+| GET    | /api/groups/:id              | Get group details          | Yes  |
+| GET    | /api/transactions            | List transactions          | Yes  |
+| POST   | /api/transactions            | Create transaction         | Yes  |
+| PUT    | /api/transactions/:id/verify | Verify payment (Treasurer) | Yes  |
+| GET    | /api/members                 | List members               | Yes  |
+| POST   | /api/members/invite          | Invite member to group     | Yes  |
+
+## ⚙️ Environment Variables
+
+Copy `.env.example` to `.env` and configure:
+
+```env
+# Required
+DATABASE_URL=postgresql://user:pass@localhost:5432/estokvel
+JWT_SECRET=your-secure-random-string
+
+# Production
+NODE_ENV=production
+ALLOWED_ORIGINS=https://your-domain.com
+```
+
+## �📄 License
 
 MIT
