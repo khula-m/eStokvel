@@ -12,8 +12,7 @@ describe('Groups API', () => {
       const response = await request(app)
         .get('/api/groups')
         .set('Authorization', 'Bearer invalid-token');
-      // 403 is returned for invalid tokens (unauthorized = forbidden)
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(401);
     });
   });
 
@@ -24,7 +23,7 @@ describe('Groups API', () => {
         .send({
           name: 'Test Group',
           contributionAmount: 500,
-          payoutFrequency: 'MONTHLY',
+          contributionFrequency: 'MONTHLY',
         });
       expect(response.status).toBe(401);
     });
@@ -41,6 +40,36 @@ describe('Groups API', () => {
   describe('GET /api/groups/:id', () => {
     it('should require authentication', async () => {
       const response = await request(app).get('/api/groups/test-id');
+      expect(response.status).toBe(401);
+    });
+  });
+
+  describe('GET /api/groups/:id/stats', () => {
+    it('should require authentication', async () => {
+      const response = await request(app).get('/api/groups/test-id/stats');
+      expect(response.status).toBe(401);
+    });
+  });
+
+  describe('GET /api/groups/:id/members', () => {
+    it('should require authentication', async () => {
+      const response = await request(app).get('/api/groups/test-id/members');
+      expect(response.status).toBe(401);
+    });
+  });
+
+  describe('POST /api/groups/:id/join', () => {
+    it('should require authentication', async () => {
+      const response = await request(app)
+        .post('/api/groups/test-id/join')
+        .send({ code: 'TEST123' });
+      expect(response.status).toBe(401);
+    });
+  });
+
+  describe('GET /api/groups/code/:code', () => {
+    it('should require authentication', async () => {
+      const response = await request(app).get('/api/groups/code/MDIC2024');
       expect(response.status).toBe(401);
     });
   });

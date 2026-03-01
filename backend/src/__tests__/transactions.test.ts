@@ -12,8 +12,7 @@ describe('Transactions API', () => {
       const response = await request(app)
         .get('/api/transactions')
         .set('Authorization', 'Bearer invalid-token');
-      // 403 is returned for invalid tokens (unauthorized = forbidden)
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(401);
     });
   });
 
@@ -24,7 +23,7 @@ describe('Transactions API', () => {
         .send({
           groupId: 'test-group-id',
           amount: 500,
-          type: 'CONTRIBUTION',
+          transactionType: 'CONTRIBUTION',
         });
       expect(response.status).toBe(401);
     });
@@ -38,19 +37,33 @@ describe('Transactions API', () => {
     });
   });
 
-  describe('PUT /api/transactions/:id/verify', () => {
+  describe('POST /api/transactions/contribute', () => {
     it('should require authentication', async () => {
       const response = await request(app)
-        .put('/api/transactions/test-id/verify')
-        .send({ status: 'VERIFIED' });
+        .post('/api/transactions/contribute')
+        .send({ groupId: 'test-id', amount: 1000 });
       expect(response.status).toBe(401);
     });
   });
 
-  describe('GET /api/transactions/group/:groupId', () => {
+  describe('GET /api/transactions/my', () => {
+    it('should require authentication', async () => {
+      const response = await request(app).get('/api/transactions/my');
+      expect(response.status).toBe(401);
+    });
+  });
+
+  describe('GET /api/transactions/dashboard/:groupId', () => {
     it('should require authentication', async () => {
       const response = await request(app)
-        .get('/api/transactions/group/test-group-id');
+        .get('/api/transactions/dashboard/test-group-id');
+      expect(response.status).toBe(401);
+    });
+  });
+
+  describe('GET /api/transactions/:id', () => {
+    it('should require authentication', async () => {
+      const response = await request(app).get('/api/transactions/test-id');
       expect(response.status).toBe(401);
     });
   });

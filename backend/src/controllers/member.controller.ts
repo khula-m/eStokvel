@@ -92,8 +92,7 @@ export class MemberController {
         });
       }
 
-      // In a real app, check if user has permission to update this member
-      // Only group admins/chairperson should be able to update roles
+      // Only group ADMINs should be able to update member roles
       
       const result = await memberService.updateMember(id, input);
       
@@ -128,8 +127,7 @@ export class MemberController {
         });
       }
 
-      // In a real app, check if user has permission to remove this member
-      // Only group admins/chairperson should be able to remove members
+      // Only group ADMINs should be able to remove members
       
       const result = await memberService.removeMember(id, userId);
       

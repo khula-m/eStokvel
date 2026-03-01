@@ -24,8 +24,8 @@ export const generalLimiter = rateLimit({
 
 /**
  * Auth routes rate limiter (stricter)
- * 5 requests per hour per IP for login/register
- * Prevents brute force attacks
+ * 5 requests per hour per IP for login endpoints
+ * Prevents brute force attacks on PIN and password login
  */
 export const authLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour

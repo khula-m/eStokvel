@@ -153,9 +153,9 @@ if (!process.env.JEST_WORKER_ID) {
     console.log("\n   💰 TRANSACTIONS:");
     console.log("   http://localhost:" + PORT + "/api/transactions (GET/POST - requires token)");
     console.log("\n🔑 Test Credentials (after seed):");
-    console.log("   SUPERADMIN: 0800000000 / PIN: 1234");
-    console.log("   ADMIN:      0831234567 / PIN: 5678");
-    console.log("   MEMBERS:    0831234568-72 / PIN: 1234");
+    console.log("   SUPERADMIN: admin@estokvel.co.za / Password: Admin@2026!");
+    console.log("   ADMIN:      0831234567 / PIN: 56789 (must change)");
+    console.log("   MEMBERS:    0831234568-72 / PIN: 94716 (must change)");
     console.log("\n📚 eStokvel MVP - PIN-based Auth | Role: SUPERADMIN > ADMIN > MEMBER");
     console.log("");
   });

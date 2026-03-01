@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "eStokvel API",
-    "description": "API collection for eStokvel digital stokvel management platform",
+    "description": "Complete API collection for eStokvel digital stokvel management platform.\n\nRole Hierarchy: SUPERADMIN > ADMIN > MEMBER\n\nAuth Methods:\n- SUPERADMIN: email + password (2h JWT)\n- ADMIN/MEMBER: phone + 5-digit PIN (7d JWT)\n\nSeed Credentials:\n- SUPERADMIN: admin@estokvel.co.za / Admin@2026!\n- ADMIN: 0831234567 / PIN: 56789 (must change)\n- MEMBER: 0831234568 / PIN: 94716 (must change)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -13,6 +13,35 @@
     {
       "key": "token",
       "value": "",
+      "type": "string",
+      "description": "Current active JWT token (set by login requests)"
+    },
+    {
+      "key": "superadminToken",
+      "value": "",
+      "type": "string",
+      "description": "SUPERADMIN JWT token"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string",
+      "description": "ADMIN JWT token"
+    },
+    {
+      "key": "memberToken",
+      "value": "",
+      "type": "string",
+      "description": "MEMBER JWT token"
+    },
+    {
+      "key": "groupId",
+      "value": "your-group-id-here",
+      "type": "string"
+    },
+    {
+      "key": "transactionId",
+      "value": "your-transaction-id-here",
       "type": "string"
     }
   ],
@@ -33,6 +62,18 @@
           }
         },
         {
+          "name": "API Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health"]
+            }
+          }
+        },
+        {
           "name": "Root",
           "request": {
             "method": "GET",
@@ -47,47 +88,11 @@
       ]
     },
     {
-      "name": "Auth",
+      "name": "Auth - Public",
+      "description": "Public authentication endpoints (no token required)",
       "item": [
         {
-          "name": "Register",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 201) {",
-                  "    var jsonData = pm.response.json();",
-                  "    if (jsonData.data && jsonData.data.token) {",
-                  "        pm.collectionVariables.set('token', jsonData.data.token);",
-                  "    }",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"phoneNumber\": \"27831112222\",\n    \"password\": \"password123\",\n    \"fullName\": \"Test User\",\n    \"email\": \"testuser@example.com\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "register"]
-            }
-          }
-        },
-        {
-          "name": "Login (Treasurer)",
+          "name": "PIN Login (ADMIN)",
           "event": [
             {
               "listen": "test",
@@ -97,7 +102,8 @@
                   "    var jsonData = pm.response.json();",
                   "    if (jsonData.data && jsonData.data.token) {",
                   "        pm.collectionVariables.set('token', jsonData.data.token);",
-                  "        console.log('Token saved:', jsonData.data.token.substring(0, 20) + '...');",
+                  "        pm.collectionVariables.set('adminToken', jsonData.data.token);",
+                  "        console.log('ADMIN token saved');",
                   "    }",
                   "}"
                 ],
@@ -115,17 +121,18 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"phoneNumber\": \"27831234567\",\n    \"password\": \"password123\"\n}"
+              "raw": "{\n    \"phoneNumber\": \"0831234567\",\n    \"pin\": \"56789\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/login",
               "host": ["{{baseUrl}}"],
               "path": ["api", "auth", "login"]
-            }
+            },
+            "description": "Login as ADMIN using phone number + 5-digit PIN.\nSeed ADMIN: 0831234567 / PIN: 56789 (must change on first login)"
           }
         },
         {
-          "name": "Login (Member)",
+          "name": "PIN Login (MEMBER)",
           "event": [
             {
               "listen": "test",
@@ -135,6 +142,8 @@
                   "    var jsonData = pm.response.json();",
                   "    if (jsonData.data && jsonData.data.token) {",
                   "        pm.collectionVariables.set('token', jsonData.data.token);",
+                  "        pm.collectionVariables.set('memberToken', jsonData.data.token);",
+                  "        console.log('MEMBER token saved');",
                   "    }",
                   "}"
                 ],
@@ -152,15 +161,62 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"phoneNumber\": \"27821234568\",\n    \"password\": \"password123\"\n}"
+              "raw": "{\n    \"phoneNumber\": \"0831234568\",\n    \"pin\": \"94716\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/login",
               "host": ["{{baseUrl}}"],
               "path": ["api", "auth", "login"]
-            }
+            },
+            "description": "Login as MEMBER using phone number + 5-digit PIN.\nSeed MEMBERS: 0831234568-72 / PIN: 94716 (must change on first login)"
           }
         },
+        {
+          "name": "SUPERADMIN Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.token) {",
+                  "        pm.collectionVariables.set('token', jsonData.data.token);",
+                  "        pm.collectionVariables.set('superadminToken', jsonData.data.token);",
+                  "        console.log('SUPERADMIN token saved');",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"admin@estokvel.co.za\",\n    \"password\": \"Admin@2026!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/superadmin/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "superadmin", "login"]
+            },
+            "description": "Login as SUPERADMIN using email + complex password.\nSeed: admin@estokvel.co.za / Admin@2026!\nReturns 2-hour JWT token."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth - Protected",
+      "description": "Authenticated endpoints (requires valid JWT token)",
+      "item": [
         {
           "name": "Get Current User",
           "request": {
@@ -175,16 +231,168 @@
               "raw": "{{baseUrl}}/api/auth/me",
               "host": ["{{baseUrl}}"],
               "path": ["api", "auth", "me"]
-            }
+            },
+            "description": "Get the currently authenticated user's profile information."
+          }
+        },
+        {
+          "name": "Change PIN",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"currentPin\": \"56789\",\n    \"newPin\": \"12345\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/change-pin",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "change-pin"]
+            },
+            "description": "Change the current user's PIN. Required on first login (mustChangePin flag).\nPIN must be exactly 5 digits."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth - SUPERADMIN Only",
+      "description": "Routes restricted to SUPERADMIN role only",
+      "item": [
+        {
+          "name": "Create Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{superadminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"phoneNumber\": \"0841112222\",\n    \"fullName\": \"New Admin User\",\n    \"pin\": \"11111\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/admin/create",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "admin", "create"]
+            },
+            "description": "Create a new ADMIN user. SUPERADMIN only.\nAssigns UserRole.ADMIN. PIN must be 5 digits."
+          }
+        },
+        {
+          "name": "List All Admins",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{superadminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/admin/list",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "admin", "list"]
+            },
+            "description": "List all users with ADMIN role. SUPERADMIN only."
+          }
+        },
+        {
+          "name": "Delete Admin",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{superadminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/admin/:adminId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "admin", ":adminId"],
+              "variable": [
+                {
+                  "key": "adminId",
+                  "value": "admin-user-id-here"
+                }
+              ]
+            },
+            "description": "Delete an ADMIN user. SUPERADMIN only."
+          }
+        },
+        {
+          "name": "System Overview",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{superadminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/system/overview",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "system", "overview"]
+            },
+            "description": "Get system-wide statistics (total users, groups, transactions). SUPERADMIN only."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth - ADMIN Only",
+      "description": "Routes restricted to ADMIN role",
+      "item": [
+        {
+          "name": "Add Member",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"phoneNumber\": \"0831239999\",\n    \"fullName\": \"New Member\",\n    \"pin\": \"99999\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/member/add",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "member", "add"]
+            },
+            "description": "Add a new MEMBER user. ADMIN only.\nAssigns UserRole.MEMBER. PIN must be 5 digits."
           }
         }
       ]
     },
     {
       "name": "Groups",
+      "description": "Stokvel group management (all routes require authentication)",
       "item": [
         {
-          "name": "Get All Groups",
+          "name": "Get My Groups",
           "request": {
             "method": "GET",
             "header": [
@@ -197,7 +405,8 @@
               "raw": "{{baseUrl}}/api/groups",
               "host": ["{{baseUrl}}"],
               "path": ["api", "groups"]
-            }
+            },
+            "description": "Get all groups the current user belongs to."
           }
         },
         {
@@ -222,7 +431,8 @@
               "raw": "{{baseUrl}}/api/groups",
               "host": ["{{baseUrl}}"],
               "path": ["api", "groups"]
-            }
+            },
+            "description": "Create a new stokvel group. Creator becomes group ADMIN."
           }
         },
         {
@@ -236,25 +446,15 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/groups/:groupId",
+              "raw": "{{baseUrl}}/api/groups/{{groupId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "groups", ":groupId"],
-              "variable": [
-                {
-                  "key": "groupId",
-                  "value": "your-group-id-here"
-                }
-              ]
-            }
+              "path": ["api", "groups", "{{groupId}}"]
+            },
+            "description": "Get a specific group by its ID."
           }
-        }
-      ]
-    },
-    {
-      "name": "Transactions",
-      "item": [
+        },
         {
-          "name": "Get All Transactions",
+          "name": "Get Group by Join Code",
           "request": {
             "method": "GET",
             "header": [
@@ -264,98 +464,39 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/transactions",
+              "raw": "{{baseUrl}}/api/groups/code/:code",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "transactions"]
-            }
-          }
-        },
-        {
-          "name": "Get Group Transactions",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/transactions/group/:groupId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "transactions", "group", ":groupId"],
+              "path": ["api", "groups", "code", ":code"],
               "variable": [
                 {
-                  "key": "groupId",
-                  "value": "your-group-id-here"
+                  "key": "code",
+                  "value": "group-join-code-here"
                 }
               ]
-            }
+            },
+            "description": "Look up a group by its unique join code."
           }
         },
         {
-          "name": "Create Contribution",
+          "name": "Join Group",
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "Authorization",
                 "value": "Bearer {{token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"groupId\": \"your-group-id-here\",\n    \"amount\": 500,\n    \"transactionType\": \"CONTRIBUTION\",\n    \"paymentMethod\": \"BANK_TRANSFER\",\n    \"description\": \"Monthly contribution\"\n}"
-            },
             "url": {
-              "raw": "{{baseUrl}}/api/transactions",
+              "raw": "{{baseUrl}}/api/groups/{{groupId}}/join",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "transactions"]
-            }
+              "path": ["api", "groups", "{{groupId}}", "join"]
+            },
+            "description": "Join an existing group. User becomes a group MEMBER."
           }
         },
         {
-          "name": "Verify Transaction (Treasurer)",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"status\": \"VERIFIED\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/transactions/:transactionId/verify",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "transactions", ":transactionId", "verify"],
-              "variable": [
-                {
-                  "key": "transactionId",
-                  "value": "your-transaction-id-here"
-                }
-              ]
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "Members",
-      "item": [
-        {
-          "name": "Get All Members",
+          "name": "Get Group Stats",
           "request": {
             "method": "GET",
             "header": [
@@ -365,10 +506,11 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/members",
+              "raw": "{{baseUrl}}/api/groups/{{groupId}}/stats",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "members"]
-            }
+              "path": ["api", "groups", "{{groupId}}", "stats"]
+            },
+            "description": "Get financial statistics for a group (total contributed, balance, etc.)."
           }
         },
         {
@@ -382,20 +524,47 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/members/group/:groupId",
+              "raw": "{{baseUrl}}/api/groups/{{groupId}}/members",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "members", "group", ":groupId"],
-              "variable": [
-                {
-                  "key": "groupId",
-                  "value": "your-group-id-here"
-                }
-              ]
-            }
+              "path": ["api", "groups", "{{groupId}}", "members"]
+            },
+            "description": "Get all members of a specific group."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transactions",
+      "description": "Transaction management (all routes require authentication)",
+      "item": [
+        {
+          "name": "Create Transaction (ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"groupId\": \"{{groupId}}\",\n    \"amount\": 500,\n    \"type\": \"CONTRIBUTION\",\n    \"description\": \"Monthly contribution\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "transactions"]
+            },
+            "description": "Create a transaction record. Requires group ADMIN role (requireAdminRole middleware)."
           }
         },
         {
-          "name": "Invite Member",
+          "name": "Make Contribution",
           "request": {
             "method": "POST",
             "header": [
@@ -410,17 +579,457 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"groupId\": \"your-group-id-here\",\n    \"phoneNumber\": \"+27821234599\"\n}"
+              "raw": "{\n    \"groupId\": \"{{groupId}}\",\n    \"amount\": 500,\n    \"paymentMethod\": \"BANK_TRANSFER\",\n    \"description\": \"My monthly contribution\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/members/invite",
+              "raw": "{{baseUrl}}/api/transactions/contribute",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "members", "invite"]
-            }
+              "path": ["api", "transactions", "contribute"]
+            },
+            "description": "Make a contribution payment to a group. Any authenticated member can contribute."
           }
         },
         {
-          "name": "Update Member Status",
+          "name": "Get Group Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions?groupId={{groupId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "transactions"],
+              "query": [
+                {
+                  "key": "groupId",
+                  "value": "{{groupId}}"
+                }
+              ]
+            },
+            "description": "Get transactions for a group. Requires group membership (requireGroupMembership middleware)."
+          }
+        },
+        {
+          "name": "Get My Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/my",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "transactions", "my"]
+            },
+            "description": "Get the current user's own transactions across all groups."
+          }
+        },
+        {
+          "name": "Get Dashboard Data",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/dashboard/{{groupId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "transactions", "dashboard", "{{groupId}}"]
+            },
+            "description": "Get dashboard summary data for a group (charts, totals). Requires group membership."
+          }
+        },
+        {
+          "name": "Get Transaction by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/{{transactionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "transactions", "{{transactionId}}"]
+            },
+            "description": "Get a specific transaction by ID. Requires group membership."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "description": "Payment proof and verification (all routes require authentication)",
+      "item": [
+        {
+          "name": "Update Bank Details (ADMIN)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"bankName\": \"FNB\",\n    \"accountNumber\": \"62012345678\",\n    \"accountType\": \"SAVINGS\",\n    \"branchCode\": \"250655\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/groups/{{groupId}}/bank-details",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "groups", "{{groupId}}", "bank-details"]
+            },
+            "description": "Update bank details for a group. ADMIN only."
+          }
+        },
+        {
+          "name": "Get Bank Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/groups/{{groupId}}/bank-details",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "groups", "{{groupId}}", "bank-details"]
+            },
+            "description": "Get bank details for a group. Any group member can view."
+          }
+        },
+        {
+          "name": "Upload Payment Proof",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "proof",
+                  "type": "file",
+                  "src": "",
+                  "description": "Payment proof image (JPG, PNG, PDF)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/transactions/{{transactionId}}/proof",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "transactions", "{{transactionId}}", "proof"]
+            },
+            "description": "Upload payment proof for a transaction. Any member who made the payment."
+          }
+        },
+        {
+          "name": "Verify Payment (ADMIN)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"VERIFIED\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/transactions/{{transactionId}}/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "transactions", "{{transactionId}}", "verify"]
+            },
+            "description": "Verify a payment. ADMIN only."
+          }
+        },
+        {
+          "name": "Get Pending Payments (ADMIN)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/groups/{{groupId}}/pending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "groups", "{{groupId}}", "pending"]
+            },
+            "description": "Get pending payments awaiting verification. ADMIN only."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat",
+      "description": "Group chat messaging (all routes require authentication)",
+      "item": [
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"groupId\": \"{{groupId}}\",\n    \"content\": \"Hello everyone!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat", "messages"]
+            },
+            "description": "Send a chat message to a group."
+          }
+        },
+        {
+          "name": "Get Group Messages",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/groups/{{groupId}}/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat", "groups", "{{groupId}}", "messages"]
+            },
+            "description": "Get chat messages for a group."
+          }
+        },
+        {
+          "name": "Mark Messages Read",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/groups/{{groupId}}/read",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat", "groups", "{{groupId}}", "read"]
+            },
+            "description": "Mark all messages in a group as read for the current user."
+          }
+        },
+        {
+          "name": "Get Unread Count",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/unread",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat", "unread"]
+            },
+            "description": "Get total unread message count across all groups."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "description": "Notification and SMS management (all routes require authentication)",
+      "item": [
+        {
+          "name": "Get My Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications"]
+            },
+            "description": "Get notifications for the current user."
+          }
+        },
+        {
+          "name": "Send SMS Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"phoneNumber\": \"0831234567\",\n    \"message\": \"Test notification message\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/sms",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications", "sms"]
+            },
+            "description": "Send an SMS notification to a phone number."
+          }
+        },
+        {
+          "name": "Send Contribution Reminders",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"groupId\": \"{{groupId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/reminders/contribution",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications", "reminders", "contribution"]
+            },
+            "description": "Send contribution reminder SMS to all group members."
+          }
+        },
+        {
+          "name": "Send Meeting Reminder",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"groupId\": \"{{groupId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/reminders/meeting",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications", "reminders", "meeting"]
+            },
+            "description": "Send meeting reminder SMS to all group members."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Announcements",
+      "description": "Group announcements (all routes require authentication)",
+      "item": [
+        {
+          "name": "Create Announcement",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"groupId\": \"{{groupId}}\",\n    \"title\": \"Monthly Meeting\",\n    \"content\": \"Our next meeting is scheduled for Saturday at 10am.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/announcements",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "announcements"]
+            },
+            "description": "Create a new announcement for a group."
+          }
+        },
+        {
+          "name": "Get Group Announcements",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/announcements/group/{{groupId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "announcements", "group", "{{groupId}}"]
+            },
+            "description": "Get all announcements for a group."
+          }
+        },
+        {
+          "name": "Update Announcement",
           "request": {
             "method": "PUT",
             "header": [
@@ -435,19 +1044,248 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"status\": \"ACTIVE\"\n}"
+              "raw": "{\n    \"title\": \"Updated Meeting\",\n    \"content\": \"Meeting moved to Sunday at 2pm.\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/members/:memberId/status",
+              "raw": "{{baseUrl}}/api/announcements/:id",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "members", ":memberId", "status"],
+              "path": ["api", "announcements", ":id"],
               "variable": [
                 {
-                  "key": "memberId",
-                  "value": "your-member-id-here"
+                  "key": "id",
+                  "value": "announcement-id-here"
                 }
               ]
-            }
+            },
+            "description": "Update an existing announcement."
+          }
+        },
+        {
+          "name": "Mark Announcement Read",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/announcements/:id/read",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "announcements", ":id", "read"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "announcement-id-here"
+                }
+              ]
+            },
+            "description": "Mark an announcement as read by the current user."
+          }
+        },
+        {
+          "name": "Delete Announcement",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/announcements/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "announcements", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "announcement-id-here"
+                }
+              ]
+            },
+            "description": "Delete an announcement."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Meetings",
+      "description": "Group meeting management (all routes require authentication)",
+      "item": [
+        {
+          "name": "Create Meeting",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"groupId\": \"{{groupId}}\",\n    \"title\": \"Monthly Stokvel Meeting\",\n    \"date\": \"2026-02-15T10:00:00.000Z\",\n    \"location\": \"Community Hall\",\n    \"agenda\": \"Discuss payout schedule\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/meetings",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "meetings"]
+            },
+            "description": "Create a new meeting for a group."
+          }
+        },
+        {
+          "name": "Get Group Meetings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/meetings/group/{{groupId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "meetings", "group", "{{groupId}}"]
+            },
+            "description": "Get all meetings for a group."
+          }
+        },
+        {
+          "name": "Update Meeting",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"title\": \"Updated Meeting\",\n    \"date\": \"2026-02-22T14:00:00.000Z\",\n    \"location\": \"New Venue\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/meetings/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "meetings", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "meeting-id-here"
+                }
+              ]
+            },
+            "description": "Update an existing meeting."
+          }
+        },
+        {
+          "name": "RSVP to Meeting",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"attending\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/meetings/:id/rsvp",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "meetings", ":id", "rsvp"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "meeting-id-here"
+                }
+              ]
+            },
+            "description": "RSVP to a meeting (attending: true/false)."
+          }
+        },
+        {
+          "name": "Delete Meeting",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/meetings/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "meetings", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "meeting-id-here"
+                }
+              ]
+            },
+            "description": "Delete a meeting."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "description": "User management routes",
+      "item": [
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "me"]
+            },
+            "description": "Get current user profile (duplicate of auth/me)."
+          }
+        },
+        {
+          "name": "Get Users in Groups (ADMIN/SUPERADMIN)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users"]
+            },
+            "description": "Get all users in the same stokvel groups. Requires ADMIN or SUPERADMIN role."
           }
         }
       ]
