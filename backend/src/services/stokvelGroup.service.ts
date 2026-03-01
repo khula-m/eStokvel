@@ -601,7 +601,7 @@ export class StokvelGroupService {
 
       const groups = [
 
-        ...createdGroups.map(group => ({
+        ...createdGroups.map((group: any) => ({
 
           ...group,
 
@@ -611,7 +611,7 @@ export class StokvelGroupService {
 
         })),
 
-        ...memberGroups.map(member => ({
+        ...memberGroups.map((member: any) => ({
 
           ...member.group,
 
@@ -811,7 +811,7 @@ export class StokvelGroupService {
 
       
 
-      transactions.forEach(transaction => {
+      transactions.forEach((transaction: any) => {
 
         if (transaction.transactionType === 'CONTRIBUTION') {
 

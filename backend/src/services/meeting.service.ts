@@ -69,13 +69,13 @@ export class MeetingService {
 
       const memberCount = await prisma.member.count({ where: { stokvelGroupId: groupId } });
 
-      const formatted = meetings.map((m) => {
-        const userAttendance = m.attendance.find((a) => a.userId === userId);
-        const goingCount = m.attendance.filter((a) => a.status === 'GOING').length;
-        const maybeCount = m.attendance.filter((a) => a.status === 'MAYBE').length;
+      const formatted = meetings.map((m: any) => {
+        const userAttendance = m.attendance.find((a: any) => a.userId === userId);
+        const goingCount = m.attendance.filter((a: any) => a.status === 'GOING').length;
+        const maybeCount = m.attendance.filter((a: any) => a.status === 'MAYBE').length;
         const attendees = m.attendance
-          .filter((a) => a.status === 'GOING' || a.status === 'MAYBE')
-          .map((a) => ({ name: (a as any).user?.fullName || 'Unknown', status: a.status }));
+          .filter((a: any) => a.status === 'GOING' || a.status === 'MAYBE')
+          .map((a: any) => ({ name: a.user?.fullName || 'Unknown', status: a.status }));
         return {
           ...m,
           userStatus: userAttendance?.status || null,

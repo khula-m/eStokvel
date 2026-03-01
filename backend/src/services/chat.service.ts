@@ -172,7 +172,7 @@ export class ChatService {
         select: { stokvelGroupId: true }
       });
 
-      const groupIds = memberships.map(m => m.stokvelGroupId);
+      const groupIds = memberships.map((m: any) => m.stokvelGroupId);
 
       const unreadCount = await prisma.chatMessage.count({
         where: {

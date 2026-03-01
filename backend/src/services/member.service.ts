@@ -285,7 +285,7 @@ export class MemberService {
     });
 
     const membersWithStats = await Promise.all(
-      members.map(async (member) => {
+      members.map(async (member: any) => {
         const transactions = await prisma.transaction.findMany({
           where: {
             memberId: member.id,
@@ -300,7 +300,7 @@ export class MemberService {
         let totalContributions = 0;
         let totalPayouts = 0;
 
-        transactions.forEach(transaction => {
+        transactions.forEach((transaction: any) => {
           if (transaction.transactionType === 'CONTRIBUTION') {
             totalContributions += Number(transaction.amount);
           } else if (transaction.transactionType === 'PAYOUT') {
@@ -368,7 +368,7 @@ export class MemberService {
     let pendingAmount = 0;
     let lastContributionDate: Date | null = null;
 
-    transactions.forEach(transaction => {
+    transactions.forEach((transaction: any) => {
       switch (transaction.transactionType) {
         case 'CONTRIBUTION':
           totalContributions += Number(transaction.amount);

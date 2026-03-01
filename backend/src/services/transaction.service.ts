@@ -554,7 +554,7 @@ export class TransactionService {
         completedAmount: 0
       };
 
-      transactions.forEach(transaction => {
+      transactions.forEach((transaction: any) => {
         // Count by type
         if (!stats.byType[transaction.transactionType]) {
           stats.byType[transaction.transactionType] = {
@@ -606,7 +606,7 @@ export class TransactionService {
 
       // Get member details for top contributors
       const topContributorsWithDetails = await Promise.all(
-        topContributors.map(async (contributor) => {
+        topContributors.map(async (contributor: any) => {
           if (!contributor.memberId) return null;
           
           const member = await prisma.member.findUnique({
@@ -854,8 +854,8 @@ export class TransactionService {
         };
       }
 
-      const groupIds = userMemberships.map(m => m.stokvelGroupId);
-      const memberIds = userMemberships.map(m => m.id);
+      const groupIds = userMemberships.map((m: any) => m.stokvelGroupId);
+      const memberIds = userMemberships.map((m: any) => m.id);
 
       // Build where clause - ALWAYS filter by user's groups
       const whereClause: any = {
@@ -1002,7 +1002,7 @@ export class TransactionService {
       }
 
       // Check if the user is a member of the group
-      const isMember = group.members.some((member) => member.userId === userId);
+      const isMember = group.members.some((member: any) => member.userId === userId);
 
       if (!isMember) {
         return {
@@ -1013,12 +1013,12 @@ export class TransactionService {
 
       // Calculate dashboard data (example: total contributions, total withdrawals, etc.)
       const totalContributions = group.transactions
-        .filter((tx) => tx.transactionType === TransactionType.CONTRIBUTION)
-        .reduce((sum, tx) => sum + toNumber(tx.amount), 0);
+        .filter((tx: any) => tx.transactionType === TransactionType.CONTRIBUTION)
+        .reduce((sum: number, tx: any) => sum + toNumber(tx.amount), 0);
 
       const totalWithdrawals = group.transactions
-        .filter((tx) => tx.transactionType === TransactionType.PAYOUT)
-        .reduce((sum, tx) => sum + toNumber(tx.amount), 0);
+        .filter((tx: any) => tx.transactionType === TransactionType.PAYOUT)
+        .reduce((sum: number, tx: any) => sum + toNumber(tx.amount), 0);
 
       return {
         success: true,

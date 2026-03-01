@@ -68,7 +68,7 @@ export class AnnouncementService {
       // Get total members for "seen by" count
       const memberCount = await prisma.member.count({ where: { stokvelGroupId: groupId } });
 
-      const formatted = announcements.map((a) => ({
+      const formatted = announcements.map((a: any) => ({
         ...a,
         isRead: a.readBy.length > 0,
         readCount: a._count.readBy,
