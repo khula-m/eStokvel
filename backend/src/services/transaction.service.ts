@@ -52,10 +52,12 @@ export class TransactionService {
         };
       }
 
-      // Validate the member exists and belongs to the group
-      if (data.memberId) {
+      // Resolve memberId: use provided one, or default to recorder's own membership
+      let resolvedMemberId = data.memberId;
+      if (resolvedMemberId) {
+        // Validate the specified member exists and belongs to the group
         const member = await prisma.member.findUnique({
-          where: { id: data.memberId },
+          where: { id: resolvedMemberId },
           include: {
             group: true
           }
@@ -74,6 +76,9 @@ export class TransactionService {
             message: 'Member does not belong to this group'
           };
         }
+      } else {
+        // Default to the recorder's own membership in this group
+        resolvedMemberId = recorderMembership.id;
       }
 
       // Generate reference number if not provided
@@ -82,14 +87,17 @@ export class TransactionService {
       // Create the transaction
       const transaction = await prisma.transaction.create({
         data: {
-          ...data,
+          stokvelGroupId: data.stokvelGroupId,
+          memberId: resolvedMemberId,
+          transactionType: Object.values(TransactionType).includes(data.transactionType as TransactionType) ? data.transactionType as TransactionType : TransactionType.CONTRIBUTION,
+          amount: data.amount,
+          paymentMethod: Object.values(PaymentMethod).includes(data.paymentMethod as PaymentMethod) ? data.paymentMethod as PaymentMethod : PaymentMethod.BANK_TRANSFER,
           referenceNumber,
           recordedById,
           currency: (data as any).currency || group.currency,
           transactionDate: data.transactionDate || new Date(),
           status: TransactionStatus.PENDING,
-          transactionType: Object.values(TransactionType).includes(data.transactionType as TransactionType) ? data.transactionType as TransactionType : TransactionType.CONTRIBUTION, // Validate and cast transactionType
-          paymentMethod: Object.values(PaymentMethod).includes(data.paymentMethod as PaymentMethod) ? data.paymentMethod as PaymentMethod : PaymentMethod.CASH // Validate and cast paymentMethod
+          notes: data.notes || (data as any).description || null,
         },
         include: {
           group: {
@@ -99,7 +107,7 @@ export class TransactionService {
               currency: true
             }
           },
-          member: data.memberId ? {
+          member: {
             include: {
               user: {
                 select: {
@@ -109,7 +117,7 @@ export class TransactionService {
                 }
               }
             }
-          } : false,
+          },
           recordedBy: {
             select: {
               id: true,
@@ -181,7 +189,7 @@ export class TransactionService {
           amount: data.amount,
           paymentMethod: Object.values(PaymentMethod).includes(data.paymentMethod as PaymentMethod)
             ? data.paymentMethod as PaymentMethod
-            : PaymentMethod.CASH,
+            : PaymentMethod.BANK_TRANSFER,
           notes: data.notes || undefined,
           referenceNumber,
           recordedById: userId,
@@ -823,12 +831,12 @@ export class TransactionService {
    * Get transactions for groups where user is a member (SECURE)
    * This ensures users can only see transactions from groups they belong to
    */
-  async getUserTransactions(userId: string, filters: any = {}, page: number = 1, limit: number = 20) {
+  async getUserTransactions(userId: string, filters: any = {}, page: number = 1, limit: number = 20, personalOnly: boolean = false) {
     try {
-      // First get all groups where user is a member
+      // First get all groups where user is a member (include role for ledger separation)
       const userMemberships = await prisma.member.findMany({
         where: { userId },
-        select: { stokvelGroupId: true, id: true }
+        select: { stokvelGroupId: true, id: true, role: true }
       });
 
       if (userMemberships.length === 0) {
@@ -854,28 +862,52 @@ export class TransactionService {
         };
       }
 
-      const groupIds = userMemberships.map((m: any) => m.stokvelGroupId);
       const memberIds = userMemberships.map((m: any) => m.id);
 
-      // Build where clause - ALWAYS filter by user's groups
-      const whereClause: any = {
-        OR: [
-          { stokvelGroupId: { in: groupIds } }, // Transactions in user's groups
-          { memberId: { in: memberIds } } // Or transactions where user is the member
-        ]
-      };
+      // Build where clause with ROLE-BASED LEDGER SEPARATION:
+      // - ADMIN in a group: sees ALL group transactions (full ledger)
+      // - MEMBER in a group: sees only THEIR OWN transactions
+      // - personalOnly=true: always sees only own transactions (for /my endpoint)
+      const whereClause: any = {};
 
       // Apply additional filters
       if (filters.stokvelGroupId) {
         // Verify user is a member of this group
-        if (!groupIds.includes(filters.stokvelGroupId)) {
+        const membership = userMemberships.find((m: any) => m.stokvelGroupId === filters.stokvelGroupId);
+        if (!membership) {
           return {
             success: false,
             message: 'You are not a member of this group'
           };
         }
         whereClause.stokvelGroupId = filters.stokvelGroupId;
-        delete whereClause.OR;
+
+        // LEDGER VIEW SEPARATION: MEMBER sees only their own transactions
+        if (personalOnly || membership.role === 'MEMBER') {
+          whereClause.memberId = membership.id;
+        }
+        // ADMIN sees all transactions in the group (no memberId filter)
+      } else {
+        // No specific group — different behavior based on personalOnly
+        if (personalOnly) {
+          // /my endpoint: always own transactions only
+          whereClause.memberId = { in: memberIds };
+        } else {
+          // /transactions endpoint: ADMIN groups see all, MEMBER groups see own
+          const adminGroupIds = userMemberships.filter((m: any) => m.role === 'ADMIN').map((m: any) => m.stokvelGroupId);
+          const memberOnlyMemberIds = userMemberships.filter((m: any) => m.role === 'MEMBER').map((m: any) => m.id);
+
+          if (adminGroupIds.length > 0 && memberOnlyMemberIds.length > 0) {
+            whereClause.OR = [
+              { stokvelGroupId: { in: adminGroupIds } },
+              { memberId: { in: memberOnlyMemberIds } }
+            ];
+          } else if (adminGroupIds.length > 0) {
+            whereClause.stokvelGroupId = { in: adminGroupIds };
+          } else {
+            whereClause.memberId = { in: memberOnlyMemberIds };
+          }
+        }
       }
 
       if (filters.transactionType) {

@@ -19,11 +19,11 @@ export enum TransactionType {
 }
 
 export enum PaymentMethod {
-  CASH = 'CASH',
   BANK_TRANSFER = 'BANK_TRANSFER',
   MOBILE_MONEY = 'MOBILE_MONEY',
   CARD = 'CARD',
-  VOUCHER = 'VOUCHER'
+  EFT = 'EFT',
+  OZOW = 'OZOW'
 }
 
 export enum TransactionStatus {

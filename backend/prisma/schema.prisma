@@ -139,11 +139,11 @@ enum MemberRole {
 }
 
 enum PaymentMethod {
-  CASH
   BANK_TRANSFER
   MOBILE_MONEY
   CARD
-  VOUCHER
+  EFT
+  OZOW
 }
 
 enum TransactionStatus {

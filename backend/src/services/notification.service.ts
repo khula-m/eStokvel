@@ -182,7 +182,7 @@ export class NotificationService {
       }
     });
 
-    return transactions.map(tx => ({
+    return transactions.map((tx: any) => ({
       id: tx.id,
       type: tx.transactionType,
       message: `${tx.transactionType}: R${tx.amount} - ${tx.group.name}`,

@@ -79,8 +79,12 @@ export class TransactionController {
         return res.status(400).json({ success: false, message: 'stokvelGroupId and amount are required' });
       }
 
+      if (!paymentMethod) {
+        return res.status(400).json({ success: false, message: 'paymentMethod is required (BANK_TRANSFER, MOBILE_MONEY, CARD, EFT, OZOW)' });
+      }
+
       const result = await transactionService.createMemberContribution(
-        { stokvelGroupId, amount: parseFloat(amount), paymentMethod: paymentMethod || 'CASH', notes },
+        { stokvelGroupId, amount: parseFloat(amount), paymentMethod, notes },
         userId
       );
 
@@ -414,8 +418,8 @@ export class TransactionController {
       const pageNum = parseInt(page as string, 10);
       const limitNum = parseInt(limit as string, 10);
 
-      // Use secure method that filters by user's groups
-      const result = await transactionService.getUserTransactions(userId, filters, pageNum, limitNum);
+      // Use secure method - personalOnly=true so members always see only their own
+      const result = await transactionService.getUserTransactions(userId, filters, pageNum, limitNum, true);
       
       if (result.success) {
         return res.status(200).json(result);

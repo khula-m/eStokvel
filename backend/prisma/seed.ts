@@ -165,7 +165,7 @@ async function main() {
       amount: i % 5 === 0 ? 5000 : 1000,
       currency: "ZAR",
       referenceNumber: `REF-${Date.now()}-${i}`,
-      paymentMethod: i % 2 === 0 ? PaymentMethod.CASH : PaymentMethod.BANK_TRANSFER,
+      paymentMethod: i % 2 === 0 ? PaymentMethod.EFT : PaymentMethod.BANK_TRANSFER,
       transactionDate: transactionDate,
       recordedById: admin.id,
       status: i > 10 ? TransactionStatus.PENDING : TransactionStatus.COMPLETED,
