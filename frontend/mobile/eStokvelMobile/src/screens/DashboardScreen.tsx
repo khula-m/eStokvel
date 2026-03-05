@@ -13,6 +13,7 @@ import { COLORS } from '../constants/theme';
 import { styles } from '../styles';
 import { AuthState, Group, Transaction, GroupMember, Announcement, Meeting } from '../types';
 import OzowPaymentWebView from '../components/OzowPaymentWebView';
+import { PaymentModal } from '../components/PaymentModal';
 
 interface DashboardScreenProps {
   auth: AuthState;
@@ -1064,60 +1065,19 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
         </Modal>
 
         {/* Admin Payment Modal */}
-        <Modal visible={showPaymentModal} animationType="slide" transparent>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Icon name="payments" size={24} color={COLORS.primary} />
-                <Text style={styles.modalTitle}>Make Payment</Text>
-                <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
-                  <Icon name="close" size={24} color={COLORS.textLight} />
-                </TouchableOpacity>
-              </View>
-              {paymentGroup && (
-                <>
-                  <View style={{ backgroundColor: '#EFF6FF', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 16 }}>
-                    <Text style={{ fontSize: 14, color: COLORS.textLight }}>Payment Amount</Text>
-                    <Text style={{ fontSize: 32, fontWeight: '800', color: COLORS.primary, marginTop: 4 }}>
-                      {formatCurrency(paymentGroup.contributionAmount)}
-                    </Text>
-                    <Text style={{ fontSize: 13, color: COLORS.textLight, marginTop: 4 }}>→ {paymentGroup.name}</Text>
-                  </View>
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.label}>Payment Method</Text>
-                    <View style={styles.frequencyRow}>
-                      {[{ key: 'EFT', label: 'EFT', icon: 'bank-transfer' }, { key: 'BANK_TRANSFER', label: 'Bank Transfer', icon: 'bank' }, { key: 'CARD', label: 'Card', icon: 'credit-card' }].map(m => (
-                        <TouchableOpacity key={m.key} style={[styles.typeBtn, paymentMethod === m.key && styles.typeBtnActive]}
-                          onPress={() => setPaymentMethod(m.key)}>
-                          <MaterialCommunityIcons name={m.icon as any} size={18} color={paymentMethod === m.key ? '#fff' : COLORS.textLight} />
-                          <Text style={[styles.typeBtnText, paymentMethod === m.key && styles.typeBtnTextActive]}>{m.label}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                    <View style={[styles.frequencyRow, { marginTop: 8 }]}>
-                      {[{ key: 'OZOW', label: 'Ozow', icon: 'contactless-payment' }, { key: 'MOBILE_MONEY', label: 'Mobile Money', icon: 'cellphone' }].map(m => (
-                        <TouchableOpacity key={m.key} style={[styles.typeBtn, paymentMethod === m.key && styles.typeBtnActive]}
-                          onPress={() => setPaymentMethod(m.key)}>
-                          <MaterialCommunityIcons name={m.icon as any} size={18} color={paymentMethod === m.key ? '#fff' : COLORS.textLight} />
-                          <Text style={[styles.typeBtnText, paymentMethod === m.key && styles.typeBtnTextActive]}>{m.label}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.label}>Notes (Optional)</Text>
-                    <TextInput style={styles.input} value={paymentNotes} onChangeText={setPaymentNotes} placeholder="Add a note..." />
-                  </View>
-                  <TouchableOpacity style={[styles.payNowBtn, paying && styles.buttonDisabled]} onPress={handleMemberPayment} disabled={paying}>
-                    {paying ? <ActivityIndicator color="#fff" /> : (
-                      <><Icon name="payments" size={20} color="#fff" /><Text style={styles.payNowText}>Confirm Payment</Text></>
-                    )}
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
-          </View>
-        </Modal>
+        <PaymentModal
+          visible={showPaymentModal}
+          groupName={paymentGroup?.name}
+          contributionAmount={paymentGroup?.contributionAmount}
+          paymentMethod={paymentMethod}
+          setPaymentMethod={setPaymentMethod}
+          paymentNotes={paymentNotes}
+          setPaymentNotes={setPaymentNotes}
+          paying={paying}
+          onConfirm={handleMemberPayment}
+          onClose={() => setShowPaymentModal(false)}
+          formatCurrency={formatCurrency}
+        />
 
         {/* Admin Ozow Payment WebView */}
         <OzowPaymentWebView
@@ -1180,6 +1140,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row' }}>
               {memberGroups.map((g, idx) => (
                 <TouchableOpacity key={g.id} onPress={() => setSelectedMemberGroupIdx(idx)}
+                  accessibilityLabel={`Select group ${g.name}`} accessibilityRole="button"
                   style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, marginRight: 8,
                     backgroundColor: idx === selectedMemberGroupIdx ? COLORS.member : '#F3F4F6',
                     borderWidth: 1, borderColor: idx === selectedMemberGroupIdx ? COLORS.member : '#E5E7EB' }}>
@@ -1244,7 +1205,8 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                   <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.text }}>{primaryGroup.contributionFrequency}</Text>
                 </View>
               </View>
-              <TouchableOpacity style={styles.payNowBtn} onPress={() => { setPaymentGroup(primaryGroup); setPaymentMethod('EFT'); setPaymentNotes(''); setShowPaymentModal(true); }}>
+              <TouchableOpacity style={styles.payNowBtn} onPress={() => { setPaymentGroup(primaryGroup); setPaymentMethod('EFT'); setPaymentNotes(''); setShowPaymentModal(true); }}
+                accessibilityLabel={`Pay now ${formatCurrency(primaryGroup.contributionAmount)}`} accessibilityRole="button">
                 <Icon name="payments" size={22} color="#fff" />
                 <Text style={styles.payNowText}>PAY NOW {formatCurrency(primaryGroup.contributionAmount)}</Text>
               </TouchableOpacity>
@@ -1369,60 +1331,19 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
       </ScrollView>
 
       {/* Payment Modal */}
-      <Modal visible={showPaymentModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Icon name="payments" size={24} color={COLORS.primary} />
-              <Text style={styles.modalTitle}>Make Payment</Text>
-              <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
-                <Icon name="close" size={24} color={COLORS.textLight} />
-              </TouchableOpacity>
-            </View>
-            {paymentGroup && (
-              <>
-                <View style={{ backgroundColor: '#EFF6FF', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 16 }}>
-                  <Text style={{ fontSize: 14, color: COLORS.textLight }}>Payment Amount</Text>
-                  <Text style={{ fontSize: 32, fontWeight: '800', color: COLORS.primary, marginTop: 4 }}>
-                    {formatCurrency(paymentGroup.contributionAmount)}
-                  </Text>
-                  <Text style={{ fontSize: 13, color: COLORS.textLight, marginTop: 4 }}>→ {paymentGroup.name}</Text>
-                </View>
-                <View style={styles.inputContainer}>
-                  <Text style={styles.label}>Payment Method</Text>
-                  <View style={styles.frequencyRow}>
-                    {[{ key: 'EFT', label: 'EFT', icon: 'bank-transfer' }, { key: 'BANK_TRANSFER', label: 'Bank Transfer', icon: 'bank' }, { key: 'CARD', label: 'Card', icon: 'credit-card' }].map(m => (
-                      <TouchableOpacity key={m.key} style={[styles.typeBtn, paymentMethod === m.key && styles.typeBtnActive]}
-                        onPress={() => setPaymentMethod(m.key)}>
-                        <MaterialCommunityIcons name={m.icon as any} size={18} color={paymentMethod === m.key ? '#fff' : COLORS.textLight} />
-                        <Text style={[styles.typeBtnText, paymentMethod === m.key && styles.typeBtnTextActive]}>{m.label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                  <View style={[styles.frequencyRow, { marginTop: 8 }]}>
-                    {[{ key: 'OZOW', label: 'Ozow', icon: 'contactless-payment' }, { key: 'MOBILE_MONEY', label: 'Mobile Money', icon: 'cellphone' }].map(m => (
-                      <TouchableOpacity key={m.key} style={[styles.typeBtn, paymentMethod === m.key && styles.typeBtnActive]}
-                        onPress={() => setPaymentMethod(m.key)}>
-                        <MaterialCommunityIcons name={m.icon as any} size={18} color={paymentMethod === m.key ? '#fff' : COLORS.textLight} />
-                        <Text style={[styles.typeBtnText, paymentMethod === m.key && styles.typeBtnTextActive]}>{m.label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-                <View style={styles.inputContainer}>
-                  <Text style={styles.label}>Notes (Optional)</Text>
-                  <TextInput style={styles.input} value={paymentNotes} onChangeText={setPaymentNotes} placeholder="Add a note..." />
-                </View>
-                <TouchableOpacity style={[styles.payNowBtn, paying && styles.buttonDisabled]} onPress={handleMemberPayment} disabled={paying}>
-                  {paying ? <ActivityIndicator color="#fff" /> : (
-                    <><Icon name="payments" size={20} color="#fff" /><Text style={styles.payNowText}>Confirm Payment</Text></>
-                  )}
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
+      <PaymentModal
+        visible={showPaymentModal}
+        groupName={paymentGroup?.name}
+        contributionAmount={paymentGroup?.contributionAmount}
+        paymentMethod={paymentMethod}
+        setPaymentMethod={setPaymentMethod}
+        paymentNotes={paymentNotes}
+        setPaymentNotes={setPaymentNotes}
+        paying={paying}
+        onConfirm={handleMemberPayment}
+        onClose={() => setShowPaymentModal(false)}
+        formatCurrency={formatCurrency}
+      />
 
       {/* Ozow Payment WebView */}
       <OzowPaymentWebView

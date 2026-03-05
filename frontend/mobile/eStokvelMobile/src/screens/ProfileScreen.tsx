@@ -130,7 +130,8 @@ export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState;
           <Text style={styles.profileSectionHeader}>Settings & Preferences</Text>
         </View>
         {!isSuperAdmin && (
-          <TouchableOpacity style={styles.profileActionRow} onPress={() => onNavigate?.('change-pin')}>
+          <TouchableOpacity style={styles.profileActionRow} onPress={() => onNavigate?.('change-pin')}
+            accessibilityLabel="Change your PIN" accessibilityRole="button">
             <View style={styles.profileActionLeft}>
               <View style={[styles.profileActionIconBg, { backgroundColor: '#EFF6FF' }]}>
                 <Icon name="lock" size={18} color={COLORS.primary} />
@@ -142,7 +143,8 @@ export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState;
         )}
       </View>
 
-      <TouchableOpacity style={styles.logoutButtonLarge} onPress={onLogout}>
+      <TouchableOpacity style={styles.logoutButtonLarge} onPress={onLogout}
+        accessibilityLabel="Sign out" accessibilityRole="button">
         <Icon name="logout" size={20} color={COLORS.error} />
         <Text style={styles.logoutButtonLargeText}>Sign Out of Your Account</Text>
       </TouchableOpacity>

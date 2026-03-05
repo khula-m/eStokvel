@@ -85,7 +85,9 @@ export const LedgerScreen = ({ auth }: { auth: AuthState }) => {
       {/* Filter */}
       <View style={styles.filterRow}>
         {(['ALL', 'CONTRIBUTION', 'PAYOUT'] as const).map(f => (
-          <TouchableOpacity key={f} style={[styles.filterBtn, filter === f && styles.filterBtnActive]} onPress={() => setFilter(f)}>
+          <TouchableOpacity key={f} style={[styles.filterBtn, filter === f && styles.filterBtnActive]} onPress={() => setFilter(f)}
+            accessibilityLabel={`Filter ${f === 'ALL' ? 'all' : f === 'CONTRIBUTION' ? 'contributions' : 'payouts'}`}
+            accessibilityRole="button" accessibilityState={{ selected: filter === f }}>
             <Text style={[styles.filterBtnText, filter === f && styles.filterBtnTextActive]}>
               {f === 'ALL' ? 'All' : f === 'CONTRIBUTION' ? 'In' : 'Out'}
             </Text>
@@ -101,6 +103,8 @@ export const LedgerScreen = ({ auth }: { auth: AuthState }) => {
               <TouchableOpacity
                 key={g.id}
                 onPress={() => { setSelectedGroupId(g.id); setSwitchingGroup(true); }}
+                accessibilityLabel={`Select group ${g.name}`}
+                accessibilityRole="button"
                 style={{
                   paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
                   backgroundColor: selectedGroupId === g.id ? COLORS.primary : '#F3F4F6',

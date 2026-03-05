@@ -31,6 +31,9 @@ export const BottomTabBar = ({ currentTab, onTabChange, userRole }: BottomTabBar
             style={tabBarStyles.item}
             onPress={() => onTabChange(tab.key)}
             activeOpacity={0.7}
+            accessibilityLabel={`${tab.label} tab`}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
           >
             <View style={[tabBarStyles.iconWrapper, active && tabBarStyles.iconWrapperActive]}>
               <TabIcon name={tab.key} focused={active} />

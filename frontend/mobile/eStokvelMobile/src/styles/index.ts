@@ -1,5 +1,6 @@
 import { StyleSheet, Platform } from 'react-native';
 import { COLORS } from '../constants/theme';
+import { scaleFontSize } from '../utils/responsive';
 
 // Helper for cross-platform shadows
 const shadow = (offsetY: number, blur: number, opacity: number): any =>
@@ -19,13 +20,13 @@ export const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', marginBottom: 20,
     ...shadow(6, 20, 0.2),
   },
-  logoTitle: { fontSize: 30, fontWeight: '800', color: COLORS.primary, letterSpacing: 0.5 },
+  logoTitle: { fontSize: scaleFontSize(30), fontWeight: '800', color: COLORS.primary, letterSpacing: 0.5 },
   logoTagline: { fontSize: 14, color: '#94A3B8', marginTop: 6, letterSpacing: 0.2 },
   authCard: {
     backgroundColor: '#fff', borderRadius: 24, padding: 28,
     ...shadow(4, 24, 0.06),
   },
-  authCardTitle: { fontSize: 24, fontWeight: '800', color: '#1A1A2E', marginBottom: 4 },
+  authCardTitle: { fontSize: scaleFontSize(24), fontWeight: '800', color: '#1A1A2E', marginBottom: 4 },
   authCardSubtitle: { fontSize: 14, color: '#94A3B8', marginBottom: 28 },
   inputLabel: { fontSize: 13, fontWeight: '600', color: '#475569', marginBottom: 8 },
   authInput: {
@@ -42,7 +43,7 @@ export const styles = StyleSheet.create({
     backgroundColor: COLORS.primary, borderRadius: 14, padding: 18,
     alignItems: 'center', marginTop: 24, ...shadow(4, 16, 0.2),
   },
-  primaryButtonText: { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
+  primaryButtonText: { color: '#fff', fontSize: scaleFontSize(16), fontWeight: '700', letterSpacing: 0.3 },
   authFooter: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 32, gap: 4 },
   authFooterText: { color: '#94A3B8', fontSize: 14 },
   authFooterLink: { color: COLORS.primary, fontSize: 14, fontWeight: '700' },
@@ -67,11 +68,11 @@ export const styles = StyleSheet.create({
     alignItems: 'center', marginTop: 16, minWidth: 100, ...shadow(2, 8, 0.15),
   },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  buttonText: { color: '#fff', fontSize: scaleFontSize(15), fontWeight: '700' },
 
   // Screen Container
   screenContainer: { flex: 1, backgroundColor: '#F8FAFC' },
-  screenTitle: { fontSize: 22, fontWeight: '800', color: '#1E293B', padding: 16 },
+  screenTitle: { fontSize: scaleFontSize(22), fontWeight: '800', color: '#1E293B', padding: 16 },
 
   // Dashboard Header
   dashboardHeader: {
@@ -83,7 +84,7 @@ export const styles = StyleSheet.create({
   headerLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14 },
   headerIconContainer: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center', alignItems: 'center' },
   greeting: { fontSize: 14, color: 'rgba(255,255,255,0.7)', fontWeight: '500' },
-  userName: { fontSize: 24, fontWeight: '800', color: '#fff', marginTop: 2, letterSpacing: 0.3 },
+  userName: { fontSize: scaleFontSize(24), fontWeight: '800', color: '#fff', marginTop: 2, letterSpacing: 0.3 },
   roleBadge: { backgroundColor: '#EFF6FF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   roleBadgeText: { fontSize: 11, fontWeight: '700', color: '#fff', letterSpacing: 0.5 },
   groupInfoBar: {
@@ -103,13 +104,13 @@ export const styles = StyleSheet.create({
   },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
   sectionHeaderTitle: { fontSize: 14, fontWeight: '700', color: '#475569', flex: 1, letterSpacing: 0.8, textTransform: 'uppercase' },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: '#1E293B', flex: 1 },
+  sectionTitle: { fontSize: scaleFontSize(17), fontWeight: '700', color: '#1E293B', flex: 1 },
 
   // Financial Grid
   financialGrid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 },
   financialItem: { width: '50%', paddingVertical: 14, paddingHorizontal: 8, alignItems: 'center' },
-  financialLabel: { fontSize: 12, color: '#94A3B8', marginTop: 6, fontWeight: '500' },
-  financialValue: { fontSize: 18, fontWeight: '700', color: '#1E293B', marginTop: 2 },
+  financialLabel: { fontSize: scaleFontSize(12), color: '#94A3B8', marginTop: 6, fontWeight: '500' },
+  financialValue: { fontSize: scaleFontSize(18), fontWeight: '700', color: '#1E293B', marginTop: 2 },
 
   // Quick Actions
   quickActionsRow: { flexDirection: 'row', justifyContent: 'space-around' },
@@ -164,7 +165,7 @@ export const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
     ...shadow(6, 20, 0.2),
   },
-  payNowText: { color: '#fff', fontSize: 17, fontWeight: '800', letterSpacing: 0.3 },
+  payNowText: { color: '#fff', fontSize: scaleFontSize(17), fontWeight: '800', letterSpacing: 0.3 },
 
   // RSVP Buttons
   rsvpBtn: {
@@ -197,7 +198,7 @@ export const styles = StyleSheet.create({
     borderLeftWidth: 4, ...shadow(2, 10, 0.06),
   },
   statsTitle: { fontSize: 12, color: '#94A3B8', marginBottom: 6, fontWeight: '500' },
-  statsValue: { fontSize: 20, fontWeight: '800', letterSpacing: 0.2 },
+  statsValue: { fontSize: scaleFontSize(20), fontWeight: '800', letterSpacing: 0.2 },
   statsSubtitle: { fontSize: 11, color: '#94A3B8', marginTop: 4 },
 
   // Filter
@@ -240,7 +241,7 @@ export const styles = StyleSheet.create({
     ...shadow(1, 4, 0.06),
   },
   chatSenderName: { fontSize: 11, fontWeight: '700', color: COLORS.primary, marginBottom: 4 },
-  chatMessageText: { fontSize: 15, color: '#1E293B', lineHeight: 21 },
+  chatMessageText: { fontSize: scaleFontSize(15), color: '#1E293B', lineHeight: 21 },
   chatTime: { fontSize: 10, color: '#94A3B8', marginTop: 4, alignSelf: 'flex-end' },
   chatInputBar: {
     flexDirection: 'row', alignItems: 'flex-end', padding: 12,
@@ -259,8 +260,8 @@ export const styles = StyleSheet.create({
   emptyContainer: { flex: 1, justifyContent: 'center' },
   emptyState: { alignItems: 'center', padding: 40 },
   emptyIcon: { width: 88, height: 88, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1E293B', marginBottom: 8 },
-  emptyText: { fontSize: 14, color: '#94A3B8', textAlign: 'center' },
+  emptyTitle: { fontSize: scaleFontSize(18), fontWeight: '700', color: '#1E293B', marginBottom: 8 },
+  emptyText: { fontSize: scaleFontSize(14), color: '#94A3B8', textAlign: 'center' },
   emptyStateCard: { backgroundColor: '#F8FAFC', borderRadius: 16, padding: 28, alignItems: 'center' },
 
   // Modal
@@ -269,7 +270,7 @@ export const styles = StyleSheet.create({
     backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28,
     padding: 24, maxHeight: '85%',
   },
-  modalTitle: { fontSize: 19, fontWeight: '700', color: '#1E293B', flex: 1, textAlign: 'center' },
+  modalTitle: { fontSize: scaleFontSize(19), fontWeight: '700', color: '#1E293B', flex: 1, textAlign: 'center' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
   modalButtons: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20, gap: 12 },
   modalCancelBtn: {
@@ -307,7 +308,7 @@ export const styles = StyleSheet.create({
     alignItems: 'center', marginBottom: 18, ...shadow(4, 16, 0.15),
   },
   profileAvatarText: { fontSize: 36, fontWeight: '800', color: '#fff' },
-  profileFullName: { fontSize: 22, fontWeight: '800', color: '#1E293B', marginBottom: 8 },
+  profileFullName: { fontSize: scaleFontSize(22), fontWeight: '800', color: '#1E293B', marginBottom: 8 },
   profileRoleBadge: { paddingHorizontal: 18, paddingVertical: 7, borderRadius: 20, marginBottom: 22 },
   profileRoleBadgeText: { fontSize: 12, fontWeight: '700', color: '#fff', letterSpacing: 0.3 },
   profileStatsRow: {
@@ -315,7 +316,7 @@ export const styles = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: '#F1F5F9', width: '100%',
   },
   profileStatItem: { flex: 1, alignItems: 'center' },
-  profileStatValue: { fontSize: 20, fontWeight: '800', color: COLORS.primary },
+  profileStatValue: { fontSize: scaleFontSize(20), fontWeight: '800', color: COLORS.primary },
   profileStatLabel: { fontSize: 11, color: '#94A3B8', marginTop: 4, fontWeight: '500' },
   profileStatDivider: { width: 1, height: 32, backgroundColor: '#F1F5F9' },
   profileSection: {
