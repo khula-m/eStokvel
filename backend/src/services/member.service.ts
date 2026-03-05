@@ -461,6 +461,45 @@ export class MemberService {
 
     return member;
   }
+
+  /**
+   * Get all group memberships for a user
+   */
+  async getUserMemberships(userId: string) {
+    const memberships = await prisma.member.findMany({
+      where: { userId },
+      include: {
+        group: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            contributionAmount: true,
+            contributionFrequency: true,
+            currency: true,
+            isActive: true,
+            groupCode: true,
+          }
+        },
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            phoneNumber: true,
+          }
+        },
+        _count: {
+          select: { transactions: true }
+        }
+      }
+    });
+
+    return {
+      success: true,
+      data: memberships,
+      message: `Found ${memberships.length} memberships`
+    };
+  }
 }
 
 

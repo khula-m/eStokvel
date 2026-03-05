@@ -14,6 +14,8 @@ router.post("/", roleMiddleware(['ADMIN']), controller.createGroup.bind(controll
 router.get("/", controller.getUserGroups.bind(controller));
 router.get("/code/:code", controller.getGroupByCode.bind(controller));
 router.get("/:id", controller.getGroup.bind(controller));
+router.put("/:id", roleMiddleware(['ADMIN']), controller.updateGroup.bind(controller));
+router.delete("/:id", roleMiddleware(['ADMIN', 'SUPERADMIN']), controller.deleteGroup.bind(controller));
 router.post("/:id/join", controller.joinGroup.bind(controller));
 router.get("/:id/stats", controller.getGroupStats.bind(controller));
 router.get("/:id/members", controller.getGroupMembers.bind(controller));

@@ -1,12 +1,19 @@
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 import { Request } from 'express';
 import { v4 as uuidv4 } from 'uuid';
+
+// Ensure uploads directory exists
+const uploadsDir = path.resolve('uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 // Configure storage
 const storage = multer.diskStorage({
   destination: (_req: Request, _file: Express.Multer.File, cb) => {
-    cb(null, 'uploads/');
+    cb(null, uploadsDir);
   },
   filename: (_req: Request, file: Express.Multer.File, cb) => {
     const uniqueSuffix = uuidv4();

@@ -6,6 +6,7 @@ import {
 import axios from 'axios';
 import { Icon, IconName } from '../components/Icon';
 import { StatsCard } from '../components/StatsCard';
+import { showAlert } from '../utils/alert';
 import { API_URL } from '../constants/config';
 import { COLORS } from '../constants/theme';
 import { styles } from '../styles';
@@ -20,6 +21,7 @@ export const LedgerScreen = ({ auth }: { auth: AuthState }) => {
   const isAdmin = ['ADMIN', 'SUPERADMIN'].includes(userRole);
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [switchingGroup, setSwitchingGroup] = useState(false);
 
   // Fetch groups for admin group selector
   useEffect(() => {
@@ -31,7 +33,10 @@ export const LedgerScreen = ({ auth }: { auth: AuthState }) => {
         const grps = res.data.data || [];
         setGroups(grps);
         if (grps.length > 0) setSelectedGroupId(grps[0].id);
-      } catch (e) { console.error('Groups fetch error:', e); }
+      } catch (e) {
+        console.error('Groups fetch error:', e);
+        showAlert('Error', 'Failed to load groups');
+      }
     };
     fetchGroups();
   }, [auth.token, isAdmin]);
@@ -44,8 +49,11 @@ export const LedgerScreen = ({ auth }: { auth: AuthState }) => {
       const response = await axios.get(endpoint, { headers });
       const td = response.data.data;
       setTransactions(Array.isArray(td) ? td : (td?.transactions || []));
-    } catch (error) { console.error('Ledger fetch error:', error); }
-    finally { setLoading(false); setRefreshing(false); }
+    } catch (error) {
+      console.error('Ledger fetch error:', error);
+      showAlert('Error', 'Failed to load transactions. Pull down to retry.');
+    }
+    finally { setLoading(false); setRefreshing(false); setSwitchingGroup(false); }
   }, [auth.token, isAdmin, selectedGroupId]);
 
   useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
@@ -55,8 +63,8 @@ export const LedgerScreen = ({ auth }: { auth: AuthState }) => {
   const formatCurrency = (amount: number | string) => `R ${Number(amount || 0).toFixed(2)}`;
   const formatDate = (date: string) => new Date(date).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' });
 
-  const totalIn = transactions.filter(t => t.transactionType === 'CONTRIBUTION' && t.status === 'COMPLETED').reduce((s, t) => s + t.amount, 0);
-  const totalOut = transactions.filter(t => t.transactionType === 'PAYOUT' && t.status === 'COMPLETED').reduce((s, t) => s + t.amount, 0);
+  const totalIn = transactions.filter(t => t.transactionType === 'CONTRIBUTION' && t.status === 'COMPLETED').reduce((s, t) => s + Number(t.amount), 0);
+  const totalOut = transactions.filter(t => t.transactionType === 'PAYOUT' && t.status === 'COMPLETED').reduce((s, t) => s + Number(t.amount), 0);
 
   if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
 
@@ -92,7 +100,7 @@ export const LedgerScreen = ({ auth }: { auth: AuthState }) => {
             {groups.map(g => (
               <TouchableOpacity
                 key={g.id}
-                onPress={() => { setSelectedGroupId(g.id); setLoading(true); }}
+                onPress={() => { setSelectedGroupId(g.id); setSwitchingGroup(true); }}
                 style={{
                   paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
                   backgroundColor: selectedGroupId === g.id ? COLORS.primary : '#F3F4F6',
@@ -105,7 +113,7 @@ export const LedgerScreen = ({ auth }: { auth: AuthState }) => {
             ))}
           </View>
           <Text style={{ fontSize: 12, color: COLORS.textLight, fontStyle: 'italic' }}>
-            {filtered.length} records
+            {switchingGroup ? 'Loading...' : `${filtered.length} records`}
           </Text>
         </View>
       )}
@@ -138,7 +146,7 @@ export const LedgerScreen = ({ auth }: { auth: AuthState }) => {
               {item.group && <Text style={styles.transactionGroup}>{item.group.name}</Text>}
               {item.paymentMethod && (
                 <Text style={{ fontSize: 11, color: COLORS.textLight, marginTop: 2 }}>
-                  {item.paymentMethod === 'CASH' ? 'Cash' : item.paymentMethod === 'BANK_TRANSFER' ? 'Bank Transfer' : item.paymentMethod === 'MOBILE_MONEY' ? 'Mobile Money' : item.paymentMethod}
+                  {item.paymentMethod === 'EFT' ? 'EFT' : item.paymentMethod === 'BANK_TRANSFER' ? 'Bank Transfer' : item.paymentMethod === 'CARD' ? 'Card' : item.paymentMethod === 'OZOW' ? 'Ozow' : item.paymentMethod === 'MOBILE_MONEY' ? 'Mobile Money' : item.paymentMethod}
                   {item.referenceNumber ? ` · Ref: ${item.referenceNumber}` : ''}
                 </Text>
               )}

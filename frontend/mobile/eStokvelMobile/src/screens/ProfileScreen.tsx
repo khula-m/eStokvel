@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import axios from 'axios';
 import { Icon } from '../components/Icon';
+import { showAlert } from '../utils/alert';
 import { API_URL } from '../constants/config';
 import { COLORS } from '../constants/theme';
 import { styles } from '../styles';
@@ -10,33 +11,37 @@ import { AuthState } from '../types';
 export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState; onLogout: () => void; onNavigate?: (screen: string) => void }) => {
   const [membershipCount, setMembershipCount] = useState(0);
   const [totalContributed, setTotalContributed] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const userRole = auth.user?.role || 'MEMBER';
   const isSuperAdmin = userRole === 'SUPERADMIN';
 
-  useEffect(() => {
-    const fetchProfileData = async () => {
-      try {
-        const headers = { Authorization: `Bearer ${auth.token}` };
-        if (isSuperAdmin) {
-          // SUPERADMIN doesn't have personal groups/contributions
-          setMembershipCount(0);
-          setTotalContributed(0);
-          return;
-        }
-        const [groupsRes, transactionsRes] = await Promise.all([
-          axios.get(`${API_URL}/api/groups`, { headers }),
-          axios.get(`${API_URL}/api/transactions/my`, { headers })
-        ]);
-        setMembershipCount((groupsRes.data.data || []).length);
-        const transactions = transactionsRes.data?.data?.transactions || [];
-        const contributions = transactions
-          .filter((t: any) => t.transactionType === 'CONTRIBUTION' && t.status === 'COMPLETED')
-          .reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
-        setTotalContributed(contributions);
-      } catch (error) { console.error('Profile data fetch error:', error); }
-    };
-    fetchProfileData();
+  const fetchProfileData = useCallback(async () => {
+    try {
+      const headers = { Authorization: `Bearer ${auth.token}` };
+      if (isSuperAdmin) {
+        // SUPERADMIN doesn't have personal groups/contributions
+        setMembershipCount(0);
+        setTotalContributed(0);
+        return;
+      }
+      const [groupsRes, transactionsRes] = await Promise.all([
+        axios.get(`${API_URL}/api/groups`, { headers }),
+        axios.get(`${API_URL}/api/transactions/my`, { headers })
+      ]);
+      setMembershipCount((groupsRes.data.data || []).length);
+      const transactions = transactionsRes.data?.data?.transactions || [];
+      const contributions = transactions
+        .filter((t: any) => t.transactionType === 'CONTRIBUTION' && t.status === 'COMPLETED')
+        .reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+      setTotalContributed(contributions);
+    } catch (error) {
+      console.error('Profile data fetch error:', error);
+      showAlert('Error', 'Failed to load profile data. Pull down to retry.');
+    } finally { setLoading(false); setRefreshing(false); }
   }, [auth.token, isSuperAdmin]);
+
+  useEffect(() => { fetchProfileData(); }, [fetchProfileData]);
 
   const formatPhone = (phone: string) => {
     if (phone?.startsWith('27')) return `0${phone.slice(2, 4)} ${phone.slice(4, 7)} ${phone.slice(7)}`;
@@ -47,8 +52,13 @@ export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState;
   const getRoleLabel = (role: string) => ({ SUPERADMIN: 'System Administrator', ADMIN: 'Group Administrator', MEMBER: 'Member' }[role] || role);
   const formatCurrency = (amount: number | string) => `R ${Number(amount || 0).toFixed(2)}`;
 
+  if (loading) {
+    return <View style={styles.centered}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
+  }
+
   return (
-    <ScrollView style={styles.screenContainer} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.screenContainer} showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchProfileData(); }} colors={[COLORS.primary]} />}>
       <View style={styles.profileHeaderCard}>
         <View style={[styles.profileAvatar, { backgroundColor: getRoleColor(auth.user?.role || 'MEMBER') }]}>
           <Text style={styles.profileAvatarText}>{getInitials(auth.user?.fullName || '')}</Text>

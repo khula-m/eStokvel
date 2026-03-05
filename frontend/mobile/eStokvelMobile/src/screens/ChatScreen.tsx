@@ -19,6 +19,7 @@ export const ChatScreen = ({ auth, initialGroupId }: { auth: AuthState; initialG
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const headers = { Authorization: `Bearer ${auth.token}` };
 
@@ -30,7 +31,10 @@ export const ChatScreen = ({ auth, initialGroupId }: { auth: AuthState; initialG
         const grps = res.data.data || [];
         setGroups(grps);
         if (!selectedGroupId && grps.length > 0) setSelectedGroupId(grps[0].id);
-      } catch (e) { console.error('Chat groups fetch error:', e); }
+      } catch (e) {
+        console.error('Chat groups fetch error:', e);
+        showAlert('Error', 'Failed to load groups');
+      }
       finally { setLoading(false); }
     };
     fetchGroups();
@@ -44,8 +48,14 @@ export const ChatScreen = ({ auth, initialGroupId }: { auth: AuthState; initialG
       setMessages(res.data.data?.messages || []);
       // Mark as read
       await axios.put(`${API_URL}/api/chat/groups/${selectedGroupId}/read`, {}, { headers }).catch(() => {});
-    } catch (e) { console.error('Messages fetch error:', e); }
-    finally { setRefreshing(false); }
+    } catch (e) {
+      console.error('Messages fetch error:', e);
+      // Only show alert on non-background fetch (not polling)
+      if (refreshing || messagesLoading) {
+        showAlert('Error', 'Failed to load messages');
+      }
+    }
+    finally { setRefreshing(false); setMessagesLoading(false); }
   }, [selectedGroupId, auth.token]);
 
   useEffect(() => { fetchMessages(); }, [fetchMessages]);
@@ -86,7 +96,7 @@ export const ChatScreen = ({ auth, initialGroupId }: { auth: AuthState; initialG
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 16, paddingBottom: 8, maxHeight: 50 }}>
           {groups.map(g => (
             <TouchableOpacity key={g.id} style={[styles.chatGroupChip, selectedGroupId === g.id && styles.chatGroupChipActive]}
-              onPress={() => setSelectedGroupId(g.id)}>
+              onPress={() => { setSelectedGroupId(g.id); setMessagesLoading(true); }}>
               <Text style={[styles.chatGroupChipText, selectedGroupId === g.id && styles.chatGroupChipTextActive]}>{g.name}</Text>
             </TouchableOpacity>
           ))}
@@ -95,7 +105,9 @@ export const ChatScreen = ({ auth, initialGroupId }: { auth: AuthState; initialG
 
       {groups.length === 0 ? (
         <View style={[styles.emptyState, { flex: 1 }]}>
-          <Icon name="chat-bubble" size={48} color="#ccc" />
+          <View style={[styles.emptyIcon, { backgroundColor: '#F1F5F9' }]}>
+            <Icon name="chat-bubble" size={48} color="#94A3B8" />
+          </View>
           <Text style={styles.emptyTitle}>No Groups</Text>
           <Text style={styles.emptyText}>Join a group to start chatting</Text>
         </View>
@@ -105,10 +117,18 @@ export const ChatScreen = ({ auth, initialGroupId }: { auth: AuthState; initialG
           <ScrollView style={{ flex: 1, paddingHorizontal: 16 }} ref={scrollRef}
             onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchMessages(); }} />}>
-            {messages.length === 0 ? (
+            {messagesLoading ? (
+              <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                <ActivityIndicator size="large" color={COLORS.primary} />
+                <Text style={{ color: COLORS.textLight, marginTop: 12, fontSize: 14 }}>Loading messages...</Text>
+              </View>
+            ) : messages.length === 0 ? (
               <View style={{ alignItems: 'center', paddingTop: 60 }}>
-                <Icon name="chat" size={48} color="#ddd" />
-                <Text style={{ color: '#aaa', marginTop: 8 }}>No messages yet. Say hello!</Text>
+                <View style={[styles.emptyIcon, { backgroundColor: '#F1F5F9' }]}>
+                  <Icon name="chat" size={48} color="#94A3B8" />
+                </View>
+                <Text style={styles.emptyTitle}>No Messages Yet</Text>
+                <Text style={styles.emptyText}>Be the first to say hello!</Text>
               </View>
             ) : messages.map((msg, i) => {
               const isMe = msg.sender.id === auth.user?.id;

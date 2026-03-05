@@ -81,6 +81,12 @@ model Member {
   role           MemberRole    @default(MEMBER)
   joinedAt       DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+  // Member's bank details for receiving payouts
+  payoutBankName      String?
+  payoutAccountNumber String?
+  payoutAccountHolder String?
+  payoutBranchCode    String?
+  nextPayoutOrder     Int?        // Round-robin payout order (1, 2, 3...)
   group          StokvelGroup  @relation(fields: [stokvelGroupId], references: [id], onDelete: Cascade)
   user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions   Transaction[]
@@ -108,6 +114,10 @@ model Transaction {
   notes           String?
   metadata        Json?
   receiptUrl      String?
+  // Ozow payment gateway fields
+  ozowTransactionId  String?        // Ozow's transaction reference
+  ozowPaymentStatus  String?        // Raw Ozow status string
+  paidAt             DateTime?      // When payment was confirmed by gateway
   member          Member            @relation(fields: [memberId], references: [id])
   recordedBy      User              @relation("TransactionRecordedBy", fields: [recordedById], references: [id])
   group           StokvelGroup      @relation(fields: [stokvelGroupId], references: [id])

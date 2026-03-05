@@ -509,11 +509,11 @@ export class StokvelGroupService {
 
     try {
 
-      // Get groups where user is a member
+      // Get groups where user is a member (exclude deactivated groups)
 
       const memberGroups = await prisma.member.findMany({
 
-        where: { userId },
+        where: { userId, group: { isActive: true } },
 
         include: {
 
@@ -557,11 +557,11 @@ export class StokvelGroupService {
 
 
 
-      // Get groups created by user
+      // Get groups created by user (exclude deactivated groups)
 
       const createdGroups = await prisma.stokvelGroup.findMany({
 
-        where: { createdById: userId },
+        where: { createdById: userId, isActive: true },
 
         include: {
 
@@ -597,19 +597,11 @@ export class StokvelGroupService {
 
 
 
-      // Combine and format
+      // Combine and format — memberGroups first, then createdGroups
+
+      // Map keeps the LAST entry, so createdGroups (ADMIN/creator) overwrites member entries
 
       const groups = [
-
-        ...createdGroups.map((group: any) => ({
-
-          ...group,
-
-          userRole: MemberRole.ADMIN,
-
-          isCreator: true
-
-        })),
 
         ...memberGroups.map((member: any) => ({
 
@@ -618,6 +610,16 @@ export class StokvelGroupService {
           userRole: member.role,
 
           isCreator: false
+
+        })),
+
+        ...createdGroups.map((group: any) => ({
+
+          ...group,
+
+          userRole: MemberRole.ADMIN,
+
+          isCreator: true
 
         }))
 
@@ -671,15 +673,23 @@ export class StokvelGroupService {
 
   */
 
-  async deleteGroup(id: string, userId: string) {
+  async deleteGroup(id: string, userId: string, userRole?: string) {
 
     try {
 
-      // Verify user is the creator
-
       const group = await prisma.stokvelGroup.findUnique({
 
-        where: { id }
+        where: { id },
+
+        include: {
+
+          members: {
+
+            select: { id: true, userId: true, role: true }
+
+          }
+
+        }
 
       });
 
@@ -699,13 +709,23 @@ export class StokvelGroupService {
 
 
 
-      if (group.createdById !== userId) {
+      // SUPERADMIN can always delete any group
+
+      if (userRole === 'SUPERADMIN') {
+
+        await prisma.stokvelGroup.update({
+
+          where: { id },
+
+          data: { isActive: false }
+
+        });
 
         return {
 
-          success: false,
+          success: true,
 
-          message: 'Only the group creator can delete the group'
+          message: 'Group deactivated successfully by superadmin'
 
         };
 
@@ -713,17 +733,53 @@ export class StokvelGroupService {
 
 
 
-      // Soft delete by marking as inactive
+      // ADMIN: must be the group creator/admin
 
-      const updatedGroup = await prisma.stokvelGroup.update({
+      if (group.createdById !== userId && group.adminId !== userId) {
+
+        return {
+
+          success: false,
+
+          message: 'You are not authorized to delete this group'
+
+        };
+
+      }
+
+
+
+      // ADMIN: count non-admin members
+
+      const nonAdminMembers = group.members.filter(
+
+        (m: any) => m.userId !== userId && m.role !== 'ADMIN'
+
+      );
+
+
+
+      if (nonAdminMembers.length > 0) {
+
+        return {
+
+          success: false,
+
+          message: `Cannot delete group with ${nonAdminMembers.length} active member(s). Only a superadmin can delete groups that have members.`
+
+        };
+
+      }
+
+
+
+      // Group is empty (only admin) — admin can delete
+
+      await prisma.stokvelGroup.update({
 
         where: { id },
 
-        data: {
-
-          isActive: false,
-
-        }
+        data: { isActive: false }
 
       });
 
@@ -732,8 +788,6 @@ export class StokvelGroupService {
       return {
 
         success: true,
-
-        data: updatedGroup,
 
         message: 'Group deactivated successfully'
 
@@ -865,7 +919,7 @@ export class StokvelGroupService {
 
 
 
-      const monthlyTarget = group?.contributionAmount || 0;
+      const monthlyTarget = Number(group?.contributionAmount || 0);
 
       
 
@@ -907,7 +961,7 @@ export class StokvelGroupService {
 
 
 
-      const collectedThisMonth = thisMonthContributions._sum.amount || 0;
+      const collectedThisMonth = Number(thisMonthContributions._sum.amount || 0);
 
 
 

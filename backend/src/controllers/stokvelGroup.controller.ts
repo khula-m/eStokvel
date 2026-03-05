@@ -171,8 +171,9 @@ export class StokvelGroupController {
     try {
       const id = String(req.params.id);
       const userId = (req as any).user?.id;
+      const userRole = (req as any).user?.role;
 
-      const result = await stokvelGroupService.deleteGroup(id, userId);
+      const result = await stokvelGroupService.deleteGroup(id, userId, userRole);
       
       if (result.success) {
         return res.status(200).json(result);

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput,
-  ActivityIndicator, ScrollView,
+  ActivityIndicator, ScrollView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import axios from 'axios';
@@ -42,6 +42,27 @@ export const ChangePinScreen = ({ auth, onNavigate }: ChangePinScreenProps) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Back Header */}
+      {!auth.user?.mustChangePin && (
+        <View style={{
+          flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12,
+          backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
+          ...(Platform.OS === 'web' ? { boxShadow: '0 1px 4px rgba(0,0,0,0.04)' } : {}) as any,
+        }}>
+          <TouchableOpacity
+            onPress={() => onNavigate('main')}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingRight: 16 }}
+            activeOpacity={0.6}
+          >
+            <Icon name="arrow-back" size={22} color={COLORS.primary} />
+            <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.primary }}>Back</Text>
+          </TouchableOpacity>
+          <Text style={{ flex: 1, fontSize: 17, fontWeight: '700', color: COLORS.text, textAlign: 'center', marginRight: 60 }}>
+            Change PIN
+          </Text>
+        </View>
+      )}
+
       <ScrollView contentContainerStyle={styles.authScrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.logoContainer}>
           <View style={styles.logoCircle}><Icon name="lock" size={36} color="#fff" /></View>

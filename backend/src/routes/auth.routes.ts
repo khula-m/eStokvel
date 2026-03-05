@@ -26,4 +26,9 @@ router.get("/system/overview", authMiddleware, roleMiddleware(['SUPERADMIN']), a
 // ADMIN-only routes
 router.post("/member/add", authMiddleware, roleMiddleware(['ADMIN']), authController.addMember.bind(authController));
 
+// SUPERADMIN-only: Remove a member from a group
+import { MemberController } from '../controllers/member.controller';
+const memberController = new MemberController();
+router.delete("/member/:id", authMiddleware, roleMiddleware(['SUPERADMIN']), memberController.removeMember.bind(memberController));
+
 export default router;

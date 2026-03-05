@@ -24,15 +24,16 @@ export interface Group {
 
 export interface Transaction {
   id: string;
+  stokvelGroupId: string;
   transactionType: string;
-  amount: number;
+  amount: number | string;
   status: string;
   description?: string;
   transactionDate: string;
   paymentMethod?: string;
   referenceNumber?: string;
   member?: { user: { fullName: string } };
-  group?: { name: string };
+  group?: { id: string; name: string };
 }
 
 export interface Member {

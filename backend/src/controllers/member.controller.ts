@@ -113,12 +113,13 @@ export class MemberController {
   }
 
   /**
-   * Remove member from group
+   * Remove member from group (SUPERADMIN only)
    */
   async removeMember(req: Request, res: Response) {
     try {
       const id = String(req.params.id);
       const userId = (req as any).user?.id;
+      const userRole = (req as any).user?.role;
 
       if (!userId) {
         return res.status(401).json({
@@ -127,7 +128,13 @@ export class MemberController {
         });
       }
 
-      // Only group ADMINs should be able to remove members
+      // Only SUPERADMIN can remove members from groups
+      if (userRole !== 'SUPERADMIN') {
+        return res.status(403).json({
+          success: false,
+          message: 'Only a superadmin can remove members from groups'
+        });
+      }
       
       const result = await memberService.removeMember(id, userId);
       
@@ -279,7 +286,7 @@ export class MemberController {
       }
 
       // Get all groups where user is a member
-      const memberships = await memberService.getGroupMembers(userId, {});
+      const memberships = await memberService.getUserMemberships(userId);
       
       if (memberships.success) {
         return res.status(200).json(memberships);

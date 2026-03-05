@@ -33,7 +33,7 @@ export class TransactionController {
       if (!Object.values(TransactionType).includes(input.transactionType as TransactionType)) {
         return res.status(400).json({
           success: false,
-          message: `Invalid transaction type. Valid types: \${Object.values(TransactionType).join(', ')}`
+          message: `Invalid transaction type. Valid types: ${Object.values(TransactionType).join(', ')}`
         });
       }
 
@@ -41,7 +41,7 @@ export class TransactionController {
       if (!Object.values(PaymentMethod).includes(input.paymentMethod as PaymentMethod)) {
         return res.status(400).json({
           success: false,
-          message: `Invalid payment method. Valid methods: \${Object.values(PaymentMethod).join(', ')}`
+          message: `Invalid payment method. Valid methods: ${Object.values(PaymentMethod).join(', ')}`
         });
       }
 
@@ -300,7 +300,7 @@ export class TransactionController {
       if (!Object.values(PaymentMethod).includes(paymentMethod)) {
         return res.status(400).json({
           success: false,
-          message: `Invalid payment method. Valid methods: \${Object.values(PaymentMethod).join(', ')}`
+          message: `Invalid payment method. Valid methods: ${Object.values(PaymentMethod).join(', ')}`
         });
       }
 
@@ -356,7 +356,7 @@ export class TransactionController {
       if (!Object.values(PaymentMethod).includes(paymentMethod)) {
         return res.status(400).json({
           success: false,
-          message: `Invalid payment method. Valid methods: \${Object.values(PaymentMethod).join(', ')}`
+          message: `Invalid payment method. Valid methods: ${Object.values(PaymentMethod).join(', ')}`
         });
       }
 

@@ -79,6 +79,7 @@ export class MeetingService {
         return {
           ...m,
           userStatus: userAttendance?.status || null,
+          myStatus: userAttendance?.status || null,
           goingCount,
           maybeCount,
           totalMembers: memberCount,

@@ -8,6 +8,7 @@ import chatRoutes from './chat.routes';
 import paymentRoutes from './payment.routes';
 import announcementRoutes from './announcement.routes';
 import meetingRoutes from './meeting.routes';
+import ozowRoutes from './ozow.routes';
 
 const router = express.Router();
 
@@ -32,6 +33,7 @@ router.use('/chat', chatRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/announcements', announcementRoutes);
 router.use('/meetings', meetingRoutes);
+router.use('/ozow', ozowRoutes);
 
 export default router;
 

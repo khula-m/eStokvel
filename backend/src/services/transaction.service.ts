@@ -7,9 +7,7 @@ export class TransactionService {
    * Generate a unique reference number
    */
   private generateReferenceNumber(): string {
-    return `STK-
-      ${Date.now().toString(36)}-
-      ${Math.random().toString(36).substring(2, 8)}`.toUpperCase(); // Removed unused variables
+    return `STK-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8)}`.toUpperCase();
   }
 
   /**
@@ -81,6 +79,20 @@ export class TransactionService {
         resolvedMemberId = recorderMembership.id;
       }
 
+      // Validate enum values
+      if (!Object.values(TransactionType).includes(data.transactionType as TransactionType)) {
+        return {
+          success: false,
+          message: `Invalid transaction type: ${data.transactionType}. Valid: ${Object.values(TransactionType).join(', ')}`
+        };
+      }
+      if (!Object.values(PaymentMethod).includes(data.paymentMethod as PaymentMethod)) {
+        return {
+          success: false,
+          message: `Invalid payment method: ${data.paymentMethod}. Valid: ${Object.values(PaymentMethod).join(', ')}`
+        };
+      }
+
       // Generate reference number if not provided
       const referenceNumber = data.referenceNumber || this.generateReferenceNumber();
 
@@ -89,9 +101,9 @@ export class TransactionService {
         data: {
           stokvelGroupId: data.stokvelGroupId,
           memberId: resolvedMemberId,
-          transactionType: Object.values(TransactionType).includes(data.transactionType as TransactionType) ? data.transactionType as TransactionType : TransactionType.CONTRIBUTION,
+          transactionType: data.transactionType as TransactionType,
           amount: data.amount,
-          paymentMethod: Object.values(PaymentMethod).includes(data.paymentMethod as PaymentMethod) ? data.paymentMethod as PaymentMethod : PaymentMethod.BANK_TRANSFER,
+          paymentMethod: data.paymentMethod as PaymentMethod,
           referenceNumber,
           recordedById,
           currency: (data as any).currency || group.currency,
@@ -338,10 +350,10 @@ export class TransactionService {
         };
       }
 
-      // If updating status to COMPLETED, set paidDate
+      // If updating status to COMPLETED, update the updatedAt timestamp
       const updateData: any = { ...data };
       if ((data as any).status === TransactionStatus.COMPLETED && transaction.status !== TransactionStatus.COMPLETED) {
-        updateData.paidDate = new Date();
+        // updatedAt is auto-managed by Prisma @updatedAt
       }
 
       const updatedTransaction = await prisma.transaction.update({
@@ -495,8 +507,8 @@ export class TransactionService {
             hasPrev: page > 1
           },
           summary: {
-            totalAmount: summary._sum.amount || 0,
-            averageAmount: summary._avg.amount || 0,
+            totalAmount: Number(summary._sum.amount || 0),
+            averageAmount: Number(summary._avg.amount || 0),
             count: summary._count._all
           }
         },
@@ -571,7 +583,7 @@ export class TransactionService {
           };
         }
         stats.byType[transaction.transactionType].count++;
-        stats.byType[transaction.transactionType].amount += transaction.amount;
+        stats.byType[transaction.transactionType].amount += Number(transaction.amount);
 
         // Count by status
         if (!stats.byStatus[transaction.status]) {
@@ -581,15 +593,15 @@ export class TransactionService {
           };
         }
         stats.byStatus[transaction.status].count++;
-        stats.byStatus[transaction.status].amount += transaction.amount;
+        stats.byStatus[transaction.status].amount += Number(transaction.amount);
 
         // Total amounts
-        stats.totalAmount += transaction.amount;
+        stats.totalAmount += Number(transaction.amount);
 
         if (transaction.status === TransactionStatus.PENDING) {
-          stats.pendingAmount += transaction.amount;
+          stats.pendingAmount += Number(transaction.amount);
         } else if (transaction.status === TransactionStatus.COMPLETED) {
-          stats.completedAmount += transaction.amount;
+          stats.completedAmount += Number(transaction.amount);
         }
       });
 
@@ -797,11 +809,27 @@ export class TransactionService {
 
       const totalContributions = toNumber(contributions._sum.amount);
 
-      // Check if payout amount is valid
-      if (data.amount > totalContributions) {
+      // Get previous payouts for this member in this group
+      const previousPayouts = await prisma.transaction.aggregate({
+        where: {
+          stokvelGroupId: data.stokvelGroupId,
+          memberId: data.memberId,
+          transactionType: TransactionType.PAYOUT,
+          status: TransactionStatus.COMPLETED
+        },
+        _sum: {
+          amount: true
+        }
+      });
+
+      const totalPreviousPayouts = toNumber(previousPayouts._sum.amount);
+      const availableBalance = totalContributions - totalPreviousPayouts;
+
+      // Check if payout amount is valid against net balance
+      if (data.amount > availableBalance) {
         return {
           success: false,
-          message: `Payout amount (${data.amount}) exceeds total contributions (${totalContributions})`
+          message: `Payout amount (${data.amount}) exceeds available balance (${availableBalance}). Total contributions: ${totalContributions}, previous payouts: ${totalPreviousPayouts}`
         };
       }
 
@@ -995,8 +1023,8 @@ export class TransactionService {
             hasPrev: page > 1
           },
           summary: {
-            totalAmount: summary._sum.amount || 0,
-            averageAmount: summary._avg.amount || 0,
+            totalAmount: Number(summary._sum.amount || 0),
+            averageAmount: Number(summary._avg.amount || 0),
             count: summary._count._all
           }
         },

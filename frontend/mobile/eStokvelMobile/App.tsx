@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-get-random-values';
 import { showAlert } from './src/utils/alert';
+import { GlobalOverlay } from './src/components/GlobalOverlay';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { ChangePinScreen } from './src/screens/ChangePinScreen';
 import { MainTabNavigator } from './src/navigation/MainTabNavigator';
@@ -32,6 +33,7 @@ export default function App() {
       {currentScreen === 'login' && <LoginScreen onNavigate={navigate} onLogin={handleLogin} />}
       {currentScreen === 'change-pin' && <ChangePinScreen auth={auth} onNavigate={navigate} />}
       {currentScreen === 'main' && <MainTabNavigator auth={auth} onLogout={handleLogout} onNavigate={navigate} />}
+      <GlobalOverlay />
     </SafeAreaProvider>
   );
 }

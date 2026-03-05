@@ -12,6 +12,7 @@ import { API_URL } from '../constants/config';
 import { COLORS } from '../constants/theme';
 import { styles } from '../styles';
 import { AuthState, Group, Transaction, GroupMember, Announcement, Meeting } from '../types';
+import OzowPaymentWebView from '../components/OzowPaymentWebView';
 
 interface DashboardScreenProps {
   auth: AuthState;
@@ -41,7 +42,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
 
   // ---- ADMIN STATE ----
   const [groups, setGroups] = useState<Group[]>([]);
-  const [adminView, setAdminView] = useState<'main' | 'analytics' | 'announcements' | 'meetings' | 'members'>('main');
+  const [adminView, setAdminView] = useState<'main' | 'analytics' | 'announcements' | 'meetings' | 'members' | 'payments'>('main');
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -63,6 +64,10 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
   const [newGroupDuration, setNewGroupDuration] = useState('12');
   const [creatingGroup, setCreatingGroup] = useState(false);
 
+  // ---- ADMIN PAYMENT GATEWAY STATE ----
+  const [bankDetails, setBankDetails] = useState<{ bankName: string; accountNumber: string; accountHolder: string; branchCode: string }>({ bankName: '', accountNumber: '', accountHolder: '', branchCode: '' });
+  const [savingBankDetails, setSavingBankDetails] = useState(false);
+
   // ---- ADMIN ADD MEMBER STATE ----
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [newMemberName, setNewMemberName] = useState('');
@@ -78,9 +83,22 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
   const [memberMeetings, setMemberMeetings] = useState<Meeting[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentGroup, setPaymentGroup] = useState<Group | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState('CASH');
+  const [paymentMethod, setPaymentMethod] = useState('EFT');
   const [paymentNotes, setPaymentNotes] = useState('');
   const [paying, setPaying] = useState(false);
+
+  // ---- ASYNC UI STATES ----
+  const [subScreenLoading, setSubScreenLoading] = useState(false);
+  const [submittingAnnouncement, setSubmittingAnnouncement] = useState(false);
+  const [submittingMeeting, setSubmittingMeeting] = useState(false);
+  const [rsvpingMeetingId, setRsvpingMeetingId] = useState<string | null>(null);
+  const [deletingAnnouncementId, setDeletingAnnouncementId] = useState<string | null>(null);
+
+  // ---- OZOW PAYMENT STATE ----
+  const [showOzowWebView, setShowOzowWebView] = useState(false);
+  const [ozowUrl, setOzowUrl] = useState('');
+  const [ozowPaymentData, setOzowPaymentData] = useState<Record<string, string>>({});
+  const [ozowTransactionId, setOzowTransactionId] = useState('');
 
   // ========== FETCH DATA ==========
   const fetchDashboardData = useCallback(async () => {
@@ -116,7 +134,10 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
           setMemberMeetings(Array.isArray(mtgs) ? mtgs : (mtgs?.meetings || []));
         }
       }
-    } catch (error) { console.error('Dashboard fetch error:', error); }
+    } catch (error) {
+      console.error('Dashboard fetch error:', error);
+      showAlert('Connection Error', 'Failed to load dashboard data. Pull down to retry.');
+    }
     finally { setLoading(false); setRefreshing(false); }
   }, [auth.token, isSuperAdmin, isAdmin, selectedMemberGroupIdx]);
 
@@ -154,6 +175,12 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
   // ========== ADMIN HANDLERS ==========
   const openAdminSubScreen = async (view: typeof adminView, group: Group) => {
     setSelectedGroup(group); setAdminView(view);
+    // Reset sub-screen data to prevent showing stale data from previous group
+    if (view === 'members') setGroupMembers([]);
+    else if (view === 'announcements') setAnnouncements([]);
+    else if (view === 'meetings') setMeetings([]);
+    else if (view === 'analytics') setGroupTransactions([]);
+    setSubScreenLoading(true);
     const h = { Authorization: `Bearer ${auth.token}` };
     try {
       if (view === 'members') {
@@ -161,49 +188,71 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
         setGroupMembers(res.data.data || []);
       } else if (view === 'announcements') {
         const res = await axios.get(`${API_URL}/api/announcements/group/${group.id}`, { headers: h });
-        setAnnouncements(res.data.data?.announcements || []);
+        const annData = res.data.data;
+        setAnnouncements(Array.isArray(annData) ? annData : (annData?.announcements || []));
       } else if (view === 'meetings') {
         const res = await axios.get(`${API_URL}/api/meetings/group/${group.id}`, { headers: h });
-        setMeetings(res.data.data?.meetings || []);
+        const mtgData = res.data.data;
+        setMeetings(Array.isArray(mtgData) ? mtgData : (mtgData?.meetings || []));
       } else if (view === 'analytics') {
         const transRes = await axios.get(`${API_URL}/api/transactions?stokvelGroupId=${group.id}`, { headers: h }).catch(() => ({ data: { data: { transactions: [] } } }));
         const td = transRes.data.data;
         const allTx = Array.isArray(td) ? td : (td?.transactions || []);
         setGroupTransactions(allTx);
+      } else if (view === 'payments') {
+        const bankRes = await axios.get(`${API_URL}/api/payments/groups/${group.id}/bank-details`, { headers: h }).catch(() => ({ data: { data: {} } }));
+        const bd = bankRes.data.data || {};
+        setBankDetails({ bankName: bd.bankName || '', accountNumber: bd.accountNumber || '', accountHolder: bd.accountHolder || '', branchCode: bd.branchCode || '' });
       }
-    } catch (e) { console.error('Sub-screen fetch error:', e); }
+    } catch (e) {
+      console.error('Sub-screen fetch error:', e);
+      showAlert('Error', 'Failed to load data. Please go back and try again.');
+    } finally { setSubScreenLoading(false); }
   };
 
   const handleCreateAnnouncement = async () => {
     if (!newAnnTitle.trim() || !newAnnContent.trim() || !selectedGroup) return;
+    setSubmittingAnnouncement(true);
     try {
       await axios.post(`${API_URL}/api/announcements`, { title: newAnnTitle.trim(), content: newAnnContent.trim(), groupId: selectedGroup.id }, { headers });
       setNewAnnTitle(''); setNewAnnContent(''); setShowAnnouncementForm(false);
       const res = await axios.get(`${API_URL}/api/announcements/group/${selectedGroup.id}`, { headers });
-      setAnnouncements(res.data.data?.announcements || []);
+      const annData = res.data.data;
+      setAnnouncements(Array.isArray(annData) ? annData : (annData?.announcements || []));
       showAlert('Success', 'Announcement posted!');
     } catch (e: any) { showAlert('Error', e.response?.data?.message || 'Failed'); }
+    finally { setSubmittingAnnouncement(false); }
   };
 
   const handleDeleteAnnouncement = async (id: string) => {
+    setDeletingAnnouncementId(id);
     try {
       await axios.delete(`${API_URL}/api/announcements/${id}`, { headers });
       setAnnouncements(prev => prev.filter(a => a.id !== id));
+      showAlert('Success', 'Announcement deleted');
     } catch (e: any) { showAlert('Error', e.response?.data?.message || 'Failed'); }
+    finally { setDeletingAnnouncementId(null); }
   };
 
   const handleCreateMeeting = async () => {
     if (!newMeetTitle.trim() || !newMeetDate.trim() || !selectedGroup) { showAlert('Error', 'Title and date are required'); return; }
+    // Validate date: support both "YYYY-MM-DD HH:MM" and ISO format
+    const dateStr = newMeetDate.trim().replace(' ', 'T');
+    const parsedDate = new Date(dateStr);
+    if (isNaN(parsedDate.getTime())) { showAlert('Error', 'Invalid date format. Use YYYY-MM-DD HH:MM'); return; }
+    setSubmittingMeeting(true);
     try {
       await axios.post(`${API_URL}/api/meetings`, {
         title: newMeetTitle.trim(), description: newMeetDesc.trim() || undefined,
-        date: new Date(newMeetDate).toISOString(), location: newMeetLocation.trim() || undefined, groupId: selectedGroup.id,
+        date: parsedDate.toISOString(), location: newMeetLocation.trim() || undefined, groupId: selectedGroup.id,
       }, { headers });
       setNewMeetTitle(''); setNewMeetDesc(''); setNewMeetDate(''); setNewMeetLocation(''); setShowMeetingForm(false);
       const res = await axios.get(`${API_URL}/api/meetings/group/${selectedGroup.id}`, { headers });
-      setMeetings(res.data.data?.meetings || []);
+      const mtgData = res.data.data;
+      setMeetings(Array.isArray(mtgData) ? mtgData : (mtgData?.meetings || []));
       showAlert('Success', 'Meeting scheduled!');
     } catch (e: any) { showAlert('Error', e.response?.data?.message || 'Failed'); }
+    finally { setSubmittingMeeting(false); }
   };
 
   const handleCreateGroup = async () => {
@@ -242,13 +291,76 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
     finally { setAddingMember(false); }
   };
 
+  // ========== ADMIN PAYMENT GATEWAY HANDLERS ==========
+  const handleSaveBankDetails = async () => {
+    if (!selectedGroup) return;
+    if (!bankDetails.bankName.trim() || !bankDetails.accountNumber.trim() || !bankDetails.accountHolder.trim()) {
+      showAlert('Error', 'Bank name, account number and account holder are required');
+      return;
+    }
+    setSavingBankDetails(true);
+    try {
+      const res = await axios.put(`${API_URL}/api/payments/groups/${selectedGroup.id}/bank-details`, bankDetails, { headers });
+      if (res.data.success) {
+        showAlert('Success', 'Bank details updated successfully');
+      } else { showAlert('Error', res.data.message || 'Failed to update bank details'); }
+    } catch (e: any) { showAlert('Error', e.response?.data?.message || 'Failed to update bank details'); }
+    finally { setSavingBankDetails(false); }
+  };
+
+
+
+  const handleDeleteGroup = async (group: Group) => {
+    const memberCount = group._count?.members || group.memberCount || 0;
+    const msg = memberCount > 1
+      ? `"${group.name}" has ${memberCount} members. Are you sure you want to deactivate it? This cannot be undone.`
+      : `Are you sure you want to delete "${group.name}"? This cannot be undone.`;
+    showAlert('Delete Group', msg, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try {
+          const res = await axios.delete(`${API_URL}/api/groups/${group.id}`, { headers });
+          if (res.data.success) {
+            showAlert('Success', res.data.message || 'Group deleted');
+            setAdminView('main'); setSelectedGroup(null);
+            fetchDashboardData();
+          } else { showAlert('Error', res.data.message || 'Failed to delete group'); }
+        } catch (e: any) { showAlert('Error', e.response?.data?.message || 'Failed to delete group'); }
+      }},
+    ]);
+  };
+
   // ========== MEMBER HANDLERS ==========
   const handleMemberPayment = async () => {
     if (!paymentGroup) return;
+
+    // If Ozow is selected, initiate via Ozow gateway
+    if (paymentMethod === 'OZOW') {
+      setPaying(true);
+      try {
+        const res = await axios.post(`${API_URL}/api/ozow/initiate`, {
+          groupId: paymentGroup.id,
+          amount: Number(paymentGroup.contributionAmount),
+        }, { headers });
+        if (res.data.success && res.data.url) {
+          setOzowUrl(res.data.url);
+          setOzowPaymentData(res.data.paymentData || {});
+          setOzowTransactionId(res.data.transactionId || '');
+          setShowPaymentModal(false);
+          setShowOzowWebView(true);
+        } else {
+          showAlert('Error', res.data.message || 'Failed to initiate Ozow payment');
+        }
+      } catch (e: any) { showAlert('Error', e.response?.data?.message || 'Failed to connect to Ozow'); }
+      finally { setPaying(false); }
+      return;
+    }
+
+    // Standard (non-Ozow) payment
     setPaying(true);
     try {
       const res = await axios.post(`${API_URL}/api/transactions/contribute`, {
-        stokvelGroupId: paymentGroup.id, amount: paymentGroup.contributionAmount, paymentMethod, notes: paymentNotes || undefined,
+        stokvelGroupId: paymentGroup.id, amount: Number(paymentGroup.contributionAmount), paymentMethod, notes: paymentNotes || undefined,
       }, { headers });
       if (res.data.success) {
         showAlert('Success', 'Payment recorded successfully!');
@@ -258,21 +370,44 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
     finally { setPaying(false); }
   };
 
+  const handleOzowSuccess = (_txId: string) => {
+    setShowOzowWebView(false);
+    showAlert('Payment Processing', 'Your Ozow payment is being processed. It will reflect in your dashboard shortly.');
+    setPaymentNotes('');
+    fetchDashboardData();
+  };
+  const handleOzowError = (_txId: string) => {
+    setShowOzowWebView(false);
+    showAlert('Payment Failed', 'Your Ozow payment failed. Please try again.');
+  };
+  const handleOzowCancel = (_txId: string) => {
+    setShowOzowWebView(false);
+    showAlert('Payment Cancelled', 'You cancelled the payment.');
+  };
+
   const handleRSVP = async (meetingId: string, status: string) => {
+    setRsvpingMeetingId(meetingId);
     try {
       await axios.put(`${API_URL}/api/meetings/${meetingId}/rsvp`, { status }, { headers });
       if (memberGroups.length > 0) {
         const gid = memberGroups[selectedMemberGroupIdx]?.id || memberGroups[0].id;
         const res = await axios.get(`${API_URL}/api/meetings/group/${gid}`, { headers });
-        setMemberMeetings(res.data.data?.meetings || []);
+        const mtgData = res.data.data;
+        setMemberMeetings(Array.isArray(mtgData) ? mtgData : (mtgData?.meetings || []));
       }
-    } catch (e: any) { showAlert('Error', e.response?.data?.message || 'Failed'); }
+      showAlert('Success', `RSVP updated to ${status === 'GOING' ? 'Going' : status === 'MAYBE' ? 'Maybe' : 'Not Going'}`);
+    } catch (e: any) { showAlert('Error', e.response?.data?.message || 'Failed to update RSVP'); }
+    finally { setRsvpingMeetingId(null); }
   };
 
   const handleMarkAnnouncementRead = async (id: string) => {
     try {
       await axios.put(`${API_URL}/api/announcements/${id}/read`, {}, { headers });
-    } catch (e) { /* silent */ }
+      // Update local state to reflect read status
+      setMemberAnnouncements(prev => prev.map(ann => ann.id === id ? { ...ann, isRead: true } : ann));
+    } catch (e) {
+      console.error('Mark announcement read error:', e);
+    }
   };
 
   // ========== LOADING ==========
@@ -306,181 +441,6 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
 
   // Dead code removed — SUPERADMIN mobile dashboard disabled.
   // SUPERADMIN functionality moved to web portal.
-  if (false) {
-    return (
-      <>
-        <ScrollView style={styles.screenContainer}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}>
-          {/* Header */}
-          <View style={[styles.dashboardHeader, { backgroundColor: '#9C27B0' }]}>
-            <View style={styles.headerContent}>
-              <View style={styles.headerLeft}>
-                <View style={styles.headerIconContainer}>
-                  <Icon name="admin-panel-settings" size={28} color="#fff" />
-                </View>
-                <View>
-                  <Text style={styles.greeting}>System Administrator</Text>
-                  <Text style={styles.userName}>{auth.user?.fullName?.split(' ')[0] || 'Admin'}</Text>
-                </View>
-              </View>
-              <View style={[styles.roleBadge, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-                <Text style={styles.roleBadgeText}>SUPERADMIN</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* System Overview */}
-          <View style={styles.cardElevated}>
-            <View style={styles.sectionHeaderRow}>
-              <Icon name="dashboard" size={20} color="#9C27B0" />
-              <Text style={styles.sectionHeaderTitle}>System Overview</Text>
-            </View>
-            <View style={styles.financialGrid}>
-              <View style={styles.financialItem}>
-                <Icon name="admin-panel-settings" size={28} color="#9C27B0" />
-                <Text style={styles.financialLabel}>Admins</Text>
-                <Text style={styles.financialValue}>{systemOverview.admins}</Text>
-              </View>
-              <View style={styles.financialItem}>
-                <Icon name="groups" size={28} color={COLORS.primary} />
-                <Text style={styles.financialLabel}>Groups</Text>
-                <Text style={styles.financialValue}>{systemOverview.groups}</Text>
-              </View>
-              <View style={styles.financialItem}>
-                <Icon name="people" size={28} color={COLORS.member} />
-                <Text style={styles.financialLabel}>Members</Text>
-                <Text style={styles.financialValue}>{systemOverview.members}</Text>
-              </View>
-              <View style={styles.financialItem}>
-                <Icon name="account-balance-wallet" size={28} color={COLORS.success} />
-                <Text style={styles.financialLabel}>Total Collected</Text>
-                <Text style={styles.financialValue}>{formatCurrency(systemOverview.totalCollected)}</Text>
-              </View>
-              <View style={styles.financialItem}>
-                <Icon name="people" size={28} color={COLORS.secondary} />
-                <Text style={styles.financialLabel}>Avg Group Size</Text>
-                <Text style={styles.financialValue}>{systemOverview.groups > 0 ? Math.round(systemOverview.members / systemOverview.groups) : 0}</Text>
-              </View>
-              <View style={styles.financialItem}>
-                <Icon name="receipt-long" size={28} color={COLORS.warning} />
-                <Text style={styles.financialLabel}>Transactions</Text>
-                <Text style={styles.financialValue}>{systemOverview.totalTransactions}</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Quick Actions */}
-          <View style={styles.cardElevated}>
-            <View style={styles.sectionHeaderRow}>
-              <Icon name="flash-on" size={20} color="#9C27B0" />
-              <Text style={styles.sectionHeaderTitle}>Quick Actions</Text>
-            </View>
-            <View style={styles.quickActionsRow}>
-              <TouchableOpacity style={styles.quickActionBtn} onPress={() => { setCreatedAdminPin(''); setShowCreateAdminModal(true); }}>
-                <View style={[styles.quickActionIconBg, { backgroundColor: '#F3E5F5' }]}>
-                  <Icon name="person-add" size={24} color="#9C27B0" />
-                </View>
-                <Text style={styles.quickActionText}>New{"\n"}Admin</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.quickActionBtn} onPress={fetchDashboardData}>
-                <View style={[styles.quickActionIconBg, { backgroundColor: '#E3F2FD' }]}>
-                  <Icon name="refresh" size={24} color={COLORS.primary} />
-                </View>
-                <Text style={styles.quickActionText}>Refresh{"\n"}Data</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Registered Admins */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeaderRow}>
-              <Icon name="supervisor-account" size={20} color="#9C27B0" />
-              <Text style={styles.sectionTitle}>Registered Admins ({adminList.length})</Text>
-            </View>
-            {adminList.length === 0 ? (
-              <View style={styles.emptyStateCard}>
-                <Icon name="person-add" size={48} color="#ccc" />
-                <Text style={styles.emptyText}>No admins created yet</Text>
-              </View>
-            ) : adminList.map((admin: any) => (
-              <View key={admin.id} style={styles.listItem}>
-                <View style={[styles.listItemIcon, { backgroundColor: '#F3E5F5' }]}>
-                  <Icon name="admin-panel-settings" size={20} color="#9C27B0" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.listItemTitle}>{admin.fullName}</Text>
-                  <Text style={styles.listItemSub}>{admin.phoneNumber}</Text>
-                </View>
-                <View style={{ alignItems: 'flex-end', flexDirection: 'row', gap: 8 }}>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={[styles.listItemSub, { color: COLORS.primary, fontWeight: '700' }]}>
-                      {admin.managedGroups?.length || 0} group{(admin.managedGroups?.length || 0) !== 1 ? 's' : ''}
-                    </Text>
-                    <Text style={[styles.listItemSub, { fontSize: 11 }]}>
-                      {admin.lastLogin ? `Last: ${formatDate(admin.lastLogin)}` : 'Never logged in'}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => handleDeleteAdmin(admin.id, admin.fullName)}
-                    style={{ padding: 6, borderRadius: 6, backgroundColor: '#FFEBEE' }}>
-                    <Icon name="delete" size={18} color={COLORS.error} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-          </View>
-        </ScrollView>
-
-        {/* Create Admin Modal */}
-        <Modal visible={showCreateAdminModal} animationType="slide" transparent>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Icon name="person-add" size={24} color="#9C27B0" />
-                <Text style={styles.modalTitle}>Create New Admin</Text>
-                <TouchableOpacity onPress={() => { setShowCreateAdminModal(false); setCreatedAdminPin(''); }}>
-                  <Icon name="close" size={24} color={COLORS.textLight} />
-                </TouchableOpacity>
-              </View>
-              {createdAdminPin ? (
-                <View style={{ alignItems: 'center', padding: 20 }}>
-                  <Icon name="check-circle" size={64} color={COLORS.success} />
-                  <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.text, marginTop: 16, marginBottom: 8 }}>Admin Created!</Text>
-                  <Text style={{ fontSize: 14, color: COLORS.textLight, textAlign: 'center', marginBottom: 16 }}>
-                    Share this temporary PIN with the new admin.
-                  </Text>
-                  <View style={{ backgroundColor: '#F3E5F5', borderRadius: 12, padding: 20, alignItems: 'center', width: '100%' }}>
-                    <Text style={{ fontSize: 14, color: COLORS.textLight, marginBottom: 4 }}>Temporary PIN</Text>
-                    <Text style={{ fontSize: 36, fontWeight: '700', color: '#9C27B0', letterSpacing: 8 }}>{createdAdminPin}</Text>
-                  </View>
-                  <TouchableOpacity style={[styles.button, { backgroundColor: '#9C27B0', marginTop: 20 }]}
-                    onPress={() => { setShowCreateAdminModal(false); setCreatedAdminPin(''); setNewAdminName(''); setNewAdminPhone(''); }}>
-                    <Text style={styles.buttonText}>Done</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <>
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.label}>Full Name *</Text>
-                    <TextInput style={styles.input} value={newAdminName} onChangeText={setNewAdminName} placeholder="Enter admin's full name" placeholderTextColor={COLORS.textLight} />
-                  </View>
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.label}>Phone Number *</Text>
-                    <TextInput style={styles.input} value={newAdminPhone} onChangeText={setNewAdminPhone} placeholder="e.g. 0831234567"
-                      placeholderTextColor={COLORS.textLight} keyboardType="phone-pad" maxLength={10} />
-                  </View>
-                  <TouchableOpacity style={[styles.button, { backgroundColor: '#9C27B0', opacity: creatingAdmin ? 0.7 : 1, flexDirection: 'row', gap: 8 }]}
-                    onPress={handleCreateAdmin} disabled={creatingAdmin}>
-                    {creatingAdmin ? <ActivityIndicator color="#fff" /> : <><Icon name="person-add" size={20} color="#fff" /><Text style={styles.buttonText}>Create Admin</Text></>}
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
-          </View>
-        </Modal>
-      </>
-    );
-  }
 
   // ╔══════════════════════════════════════════════════════════════╗
   // ║                    ADMIN DASHBOARD                          ║
@@ -489,7 +449,8 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
     // ---------- ADMIN SUB-SCREENS ----------
     if (adminView !== 'main' && selectedGroup) {
       return (
-        <ScrollView style={styles.screenContainer}>
+        <ScrollView style={styles.screenContainer}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); openAdminSubScreen(adminView, selectedGroup); }} colors={[COLORS.primary]} />}>
           {/* Sub-screen Header */}
           <View style={[styles.subScreenHeader, { backgroundColor: COLORS.admin }]}>
             <TouchableOpacity onPress={() => setAdminView('main')} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -503,6 +464,13 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
           {/* Analytics Sub-screen */}
           {adminView === 'analytics' && (
             <View style={{ padding: 16 }}>
+              {subScreenLoading ? (
+                <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color={COLORS.primary} />
+                  <Text style={{ color: COLORS.textLight, marginTop: 12, fontSize: 14 }}>Loading analytics...</Text>
+                </View>
+              ) : (
+              <>
               <View style={styles.section}>
                 <View style={styles.sectionHeaderRow}>
                   <Icon name="bar-chart" size={20} color={COLORS.primary} />
@@ -517,7 +485,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                   <View style={styles.financialItem}>
                     <Icon name="account-balance-wallet" size={24} color={COLORS.success} />
                     <Text style={styles.financialLabel}>Collected</Text>
-                    <Text style={styles.financialValue}>{formatCurrency(groupTransactions.filter(t => t.transactionType === 'CONTRIBUTION' && t.status === 'COMPLETED').reduce((s, t) => s + t.amount, 0))}</Text>
+                    <Text style={styles.financialValue}>{formatCurrency(groupTransactions.filter(t => t.transactionType === 'CONTRIBUTION' && t.status === 'COMPLETED').reduce((s, t) => s + Number(t.amount), 0))}</Text>
                   </View>
                   <View style={styles.financialItem}>
                     <Icon name="receipt-long" size={24} color={COLORS.member} />
@@ -536,8 +504,8 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                 <Text style={styles.sectionTitle}>Collection Rate</Text>
                 {(() => {
                   const memberCount = selectedGroup._count?.members || selectedGroup.memberCount || 1;
-                  const expected = memberCount * selectedGroup.contributionAmount;
-                  const collected = groupTransactions.filter(t => t.transactionType === 'CONTRIBUTION' && t.status === 'COMPLETED').reduce((s, t) => s + t.amount, 0);
+                  const expected = memberCount * Number(selectedGroup.contributionAmount);
+                  const collected = groupTransactions.filter(t => t.transactionType === 'CONTRIBUTION' && t.status === 'COMPLETED').reduce((s, t) => s + Number(t.amount), 0);
                   const rate = expected > 0 ? (collected / expected) * 100 : 0;
                   return (
                     <View>
@@ -570,14 +538,29 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                     </Text>
                   </View>
                 ))}
-                {groupTransactions.length === 0 && <Text style={styles.emptyText}>No transactions yet</Text>}
+                {groupTransactions.length === 0 && (
+                  <View style={styles.emptyStateCard}>
+                    <Icon name="receipt-long" size={40} color="#ccc" />
+                    <Text style={styles.emptyTitle}>No Transactions Yet</Text>
+                    <Text style={styles.emptyText}>Transactions will appear here once members contribute</Text>
+                  </View>
+                )}
               </View>
+              </>
+              )}
             </View>
           )}
 
           {/* Announcements Sub-screen */}
           {adminView === 'announcements' && (
             <View style={{ padding: 16 }}>
+              {subScreenLoading ? (
+                <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color={COLORS.primary} />
+                  <Text style={{ color: COLORS.textLight, marginTop: 12, fontSize: 14 }}>Loading announcements...</Text>
+                </View>
+              ) : (
+              <>
               <View style={styles.section}>
                 <View style={styles.sectionHeaderRow}>
                   <Icon name="announcement" size={20} color={COLORS.primary} />
@@ -596,8 +579,8 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                   <View key={ann.id} style={[styles.listItem, { flexDirection: 'column', alignItems: 'flex-start' }]}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
                       <Text style={[styles.listItemTitle, { flex: 1 }]}>{ann.pinned ? '📌 ' : ''}{ann.title}</Text>
-                      <TouchableOpacity onPress={() => handleDeleteAnnouncement(ann.id)}>
-                        <Icon name="delete" size={18} color={COLORS.error} />
+                      <TouchableOpacity onPress={() => handleDeleteAnnouncement(ann.id)} disabled={deletingAnnouncementId === ann.id}>
+                        {deletingAnnouncementId === ann.id ? <ActivityIndicator size="small" color={COLORS.error} /> : <Icon name="delete" size={18} color={COLORS.error} />}
                       </TouchableOpacity>
                     </View>
                     <Text style={{ fontSize: 13, color: COLORS.textLight, marginTop: 4 }}>{ann.content}</Text>
@@ -629,18 +612,27 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                       <TextInput style={[styles.input, { height: 100 }]} value={newAnnContent} onChangeText={setNewAnnContent}
                         placeholder="Write your announcement..." multiline />
                     </View>
-                    <TouchableOpacity style={styles.button} onPress={handleCreateAnnouncement}>
-                      <Text style={styles.buttonText}>Post Announcement</Text>
+                    <TouchableOpacity style={[styles.button, submittingAnnouncement && styles.buttonDisabled]} onPress={handleCreateAnnouncement} disabled={submittingAnnouncement}>
+                      {submittingAnnouncement ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Post Announcement</Text>}
                     </TouchableOpacity>
                   </View>
                 </View>
               </Modal>
+              </>
+              )}
             </View>
           )}
 
           {/* Meetings Sub-screen */}
           {adminView === 'meetings' && (
             <View style={{ padding: 16 }}>
+              {subScreenLoading ? (
+                <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color={COLORS.primary} />
+                  <Text style={{ color: COLORS.textLight, marginTop: 12, fontSize: 14 }}>Loading meetings...</Text>
+                </View>
+              ) : (
+              <>
               <View style={styles.section}>
                 <View style={styles.sectionHeaderRow}>
                   <Icon name="event" size={20} color={COLORS.primary} />
@@ -714,24 +706,32 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                     </View>
                     <View style={styles.inputContainer}>
                       <Text style={styles.label}>Date & Time * (YYYY-MM-DD HH:MM)</Text>
-                      <TextInput style={styles.input} value={newMeetDate} onChangeText={setNewMeetDate} placeholder="e.g. 2025-03-15 18:00" />
+                      <TextInput style={styles.input} value={newMeetDate} onChangeText={setNewMeetDate} placeholder="e.g. 2026-04-15 18:00" />
                     </View>
                     <View style={styles.inputContainer}>
                       <Text style={styles.label}>Location</Text>
                       <TextInput style={styles.input} value={newMeetLocation} onChangeText={setNewMeetLocation} placeholder="Meeting location" />
                     </View>
-                    <TouchableOpacity style={styles.button} onPress={handleCreateMeeting}>
-                      <Text style={styles.buttonText}>Schedule Meeting</Text>
+                    <TouchableOpacity style={[styles.button, submittingMeeting && styles.buttonDisabled]} onPress={handleCreateMeeting} disabled={submittingMeeting}>
+                      {submittingMeeting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Schedule Meeting</Text>}
                     </TouchableOpacity>
                   </View>
                 </View>
               </Modal>
+              </>
+              )}
             </View>
           )}
 
           {/* Members Sub-screen */}
           {adminView === 'members' && (
             <View style={{ padding: 16 }}>
+              {subScreenLoading ? (
+                <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color={COLORS.primary} />
+                  <Text style={{ color: COLORS.textLight, marginTop: 12, fontSize: 14 }}>Loading members...</Text>
+                </View>
+              ) : (
               <View style={styles.section}>
                 <View style={styles.sectionHeaderRow}>
                   <Icon name="people" size={20} color={COLORS.primary} />
@@ -742,7 +742,11 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                   </TouchableOpacity>
                 </View>
                 {groupMembers.length === 0 ? (
-                  <Text style={styles.emptyText}>No members found</Text>
+                  <View style={styles.emptyStateCard}>
+                    <Icon name="people" size={40} color="#ccc" />
+                    <Text style={styles.emptyTitle}>No Members Yet</Text>
+                    <Text style={styles.emptyText}>Add members using the button above</Text>
+                  </View>
                 ) : groupMembers.map((m: GroupMember) => (
                   <View key={m.id} style={styles.listItem}>
                     <View style={[styles.listItemIcon, {
@@ -766,7 +770,54 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                   </View>
                 ))}
               </View>
+              )}
             </View>
+          )}
+
+          {/* ====== PAYMENT GATEWAY SUB-SCREEN ====== */}
+          {adminView === 'payments' && (
+            <ScrollView style={{ padding: 16 }}>
+              {subScreenLoading ? (
+                <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color={COLORS.primary} />
+                  <Text style={{ color: COLORS.textLight, marginTop: 12, fontSize: 14 }}>Loading payment details...</Text>
+                </View>
+              ) : (
+              <>
+              {/* Bank Details Section */}
+              <View style={styles.section}>
+                <View style={styles.sectionHeaderRow}>
+                  <Icon name="account-balance" size={20} color={COLORS.primary} />
+                  <Text style={styles.sectionTitle}>Bank Details</Text>
+                </View>
+                <Text style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 16 }}>
+                  Members will see these details when making payments
+                </Text>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.label}>Bank Name *</Text>
+                  <TextInput style={styles.input} value={bankDetails.bankName} onChangeText={t => setBankDetails(prev => ({ ...prev, bankName: t }))} placeholder="e.g. FNB, Capitec, Standard Bank" />
+                </View>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.label}>Account Holder *</Text>
+                  <TextInput style={styles.input} value={bankDetails.accountHolder} onChangeText={t => setBankDetails(prev => ({ ...prev, accountHolder: t }))} placeholder="Account holder name" />
+                </View>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.label}>Account Number *</Text>
+                  <TextInput style={styles.input} value={bankDetails.accountNumber} onChangeText={t => setBankDetails(prev => ({ ...prev, accountNumber: t }))} placeholder="Account number" keyboardType="numeric" />
+                </View>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.label}>Branch Code</Text>
+                  <TextInput style={styles.input} value={bankDetails.branchCode} onChangeText={t => setBankDetails(prev => ({ ...prev, branchCode: t }))} placeholder="Branch code (optional)" keyboardType="numeric" />
+                </View>
+                <TouchableOpacity style={[styles.button, savingBankDetails && styles.buttonDisabled]} onPress={handleSaveBankDetails} disabled={savingBankDetails}>
+                  {savingBankDetails ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Save Bank Details</Text>}
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ height: 20 }} />
+              </>
+              )}
+            </ScrollView>
           )}
 
           {/* Add Member Modal */}
@@ -923,15 +974,32 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                     <Icon name="people" size={16} color={COLORS.primary} />
                     <Text style={styles.groupActionText}>Members</Text>
                   </TouchableOpacity>
+                  <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('payments', group)}>
+                    <Icon name="payments" size={16} color={COLORS.primary} />
+                    <Text style={styles.groupActionText}>Payments</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity style={styles.groupActionBtn} onPress={() => onNavigateTab('ledger')}>
                     <Icon name="menu-book" size={16} color={COLORS.primary} />
                     <Text style={styles.groupActionText}>Ledger</Text>
                   </TouchableOpacity>
+                </View>
+                <View style={styles.groupActionRow}>
                   <TouchableOpacity style={styles.groupActionBtn} onPress={() => onNavigateTab('chat', group.id)}>
                     <Icon name="chat-bubble" size={16} color={COLORS.primary} />
                     <Text style={styles.groupActionText}>Chat</Text>
                   </TouchableOpacity>
+                  <TouchableOpacity style={[styles.groupActionBtn, { flex: 2, backgroundColor: '#EFF6FF', borderColor: COLORS.primary, borderWidth: 1 }]}
+                    onPress={() => { setPaymentGroup(group); setPaymentMethod('EFT'); setPaymentNotes(''); setShowPaymentModal(true); }}>
+                    <Icon name="payments" size={16} color={COLORS.primary} />
+                    <Text style={[styles.groupActionText, { color: COLORS.primary, fontWeight: '700' }]}>Pay {formatCurrency(group.contributionAmount)}</Text>
+                  </TouchableOpacity>
                 </View>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, marginTop: 4, borderTopWidth: 1, borderTopColor: COLORS.border }}
+                  onPress={() => handleDeleteGroup(group)}>
+                  <Icon name="delete" size={16} color={COLORS.error} />
+                  <Text style={{ color: COLORS.error, fontSize: 13, fontWeight: '600', marginLeft: 6 }}>Delete Group</Text>
+                </TouchableOpacity>
               </View>
             );
           })}
@@ -994,6 +1062,77 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
             </View>
           </View>
         </Modal>
+
+        {/* Admin Payment Modal */}
+        <Modal visible={showPaymentModal} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Icon name="payments" size={24} color={COLORS.primary} />
+                <Text style={styles.modalTitle}>Make Payment</Text>
+                <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
+                  <Icon name="close" size={24} color={COLORS.textLight} />
+                </TouchableOpacity>
+              </View>
+              {paymentGroup && (
+                <>
+                  <View style={{ backgroundColor: '#EFF6FF', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 16 }}>
+                    <Text style={{ fontSize: 14, color: COLORS.textLight }}>Payment Amount</Text>
+                    <Text style={{ fontSize: 32, fontWeight: '800', color: COLORS.primary, marginTop: 4 }}>
+                      {formatCurrency(paymentGroup.contributionAmount)}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: COLORS.textLight, marginTop: 4 }}>→ {paymentGroup.name}</Text>
+                  </View>
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.label}>Payment Method</Text>
+                    <View style={styles.frequencyRow}>
+                      {[{ key: 'EFT', label: 'EFT', icon: 'bank-transfer' }, { key: 'BANK_TRANSFER', label: 'Bank Transfer', icon: 'bank' }, { key: 'CARD', label: 'Card', icon: 'credit-card' }].map(m => (
+                        <TouchableOpacity key={m.key} style={[styles.typeBtn, paymentMethod === m.key && styles.typeBtnActive]}
+                          onPress={() => setPaymentMethod(m.key)}>
+                          <MaterialCommunityIcons name={m.icon as any} size={18} color={paymentMethod === m.key ? '#fff' : COLORS.textLight} />
+                          <Text style={[styles.typeBtnText, paymentMethod === m.key && styles.typeBtnTextActive]}>{m.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <View style={[styles.frequencyRow, { marginTop: 8 }]}>
+                      {[{ key: 'OZOW', label: 'Ozow', icon: 'contactless-payment' }, { key: 'MOBILE_MONEY', label: 'Mobile Money', icon: 'cellphone' }].map(m => (
+                        <TouchableOpacity key={m.key} style={[styles.typeBtn, paymentMethod === m.key && styles.typeBtnActive]}
+                          onPress={() => setPaymentMethod(m.key)}>
+                          <MaterialCommunityIcons name={m.icon as any} size={18} color={paymentMethod === m.key ? '#fff' : COLORS.textLight} />
+                          <Text style={[styles.typeBtnText, paymentMethod === m.key && styles.typeBtnTextActive]}>{m.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.label}>Notes (Optional)</Text>
+                    <TextInput style={styles.input} value={paymentNotes} onChangeText={setPaymentNotes} placeholder="Add a note..." />
+                  </View>
+                  <TouchableOpacity style={[styles.payNowBtn, paying && styles.buttonDisabled]} onPress={handleMemberPayment} disabled={paying}>
+                    {paying ? <ActivityIndicator color="#fff" /> : (
+                      <><Icon name="payments" size={20} color="#fff" /><Text style={styles.payNowText}>Confirm Payment</Text></>
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
+
+        {/* Admin Ozow Payment WebView */}
+        <OzowPaymentWebView
+          visible={showOzowWebView}
+          ozowUrl={ozowUrl}
+          paymentData={ozowPaymentData}
+          transactionId={ozowTransactionId}
+          amount={paymentGroup ? Number(paymentGroup.contributionAmount) : 0}
+          groupName={paymentGroup?.name || ''}
+          onSuccess={handleOzowSuccess}
+          onError={handleOzowError}
+          onCancel={handleOzowCancel}
+          onClose={() => setShowOzowWebView(false)}
+          apiUrl={API_URL}
+        />
       </>
     );
   }
@@ -1002,9 +1141,10 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
   // ║                   MEMBER DASHBOARD                          ║
   // ╚══════════════════════════════════════════════════════════════╝
   const primaryGroup = memberGroups[selectedMemberGroupIdx] || memberGroups[0] || null;
-  const totalSaved = myTransactions.filter(t => t.transactionType === 'CONTRIBUTION' && t.status === 'COMPLETED').reduce((s, t) => s + t.amount, 0);
+  const groupTransactionsForMember = primaryGroup ? myTransactions.filter(t => t.stokvelGroupId === primaryGroup.id || t.group?.id === primaryGroup.id) : myTransactions;
+  const totalSaved = groupTransactionsForMember.filter(t => t.transactionType === 'CONTRIBUTION' && t.status === 'COMPLETED').reduce((s, t) => s + Number(t.amount), 0);
   const totalToSave = primaryGroup ? Number(primaryGroup.contributionAmount) * (primaryGroup.durationMonths || 12) : 0;
-  const savingsProgress = totalToSave > 0 ? (totalSaved / totalToSave) * 100 : 0;
+  const savingsProgress = totalToSave > 0 ? Math.min((totalSaved / totalToSave) * 100, 100) : 0;
 
   return (
     <>
@@ -1104,13 +1244,13 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                   <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.text }}>{primaryGroup.contributionFrequency}</Text>
                 </View>
               </View>
-              <TouchableOpacity style={styles.payNowBtn} onPress={() => { setPaymentGroup(primaryGroup); setShowPaymentModal(true); }}>
+              <TouchableOpacity style={styles.payNowBtn} onPress={() => { setPaymentGroup(primaryGroup); setPaymentMethod('EFT'); setPaymentNotes(''); setShowPaymentModal(true); }}>
                 <Icon name="payments" size={22} color="#fff" />
                 <Text style={styles.payNowText}>PAY NOW {formatCurrency(primaryGroup.contributionAmount)}</Text>
               </TouchableOpacity>
-              <View style={{ marginTop: 12, backgroundColor: '#F9FAFB', borderRadius: 8, padding: 10 }}>
-                <Text style={{ fontSize: 12, color: COLORS.textLight, textAlign: 'center' }}>
-                  Select your payment method in the payment screen above
+              <View style={{ marginTop: 12, backgroundColor: '#ECFDF5', borderRadius: 8, padding: 10 }}>
+                <Text style={{ fontSize: 12, color: COLORS.success, textAlign: 'center' }}>
+                  ✔ Tap the button above to select your payment method and pay securely
                 </Text>
               </View>
             </View>
@@ -1121,12 +1261,12 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                 <Icon name="receipt-long" size={20} color={COLORS.text} />
                 <Text style={styles.sectionTitle}>Recent Transactions</Text>
               </View>
-              {myTransactions.length === 0 ? (
+              {groupTransactionsForMember.length === 0 ? (
                 <View style={styles.emptyStateCard}>
                   <Icon name="receipt-long" size={40} color="#ccc" />
                   <Text style={styles.emptyText}>No transactions yet</Text>
                 </View>
-              ) : myTransactions.slice(0, 5).map(tx => (
+              ) : groupTransactionsForMember.slice(0, 5).map(tx => (
                 <View key={tx.id} style={styles.listItem}>
                   <View style={[styles.listItemIcon, { backgroundColor: tx.transactionType === 'CONTRIBUTION' ? '#ECFDF5' : '#FFEBEE' }]}>
                     <Icon name="trending-up" size={18} color={tx.transactionType === 'CONTRIBUTION' ? COLORS.success : COLORS.error} />
@@ -1154,7 +1294,11 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                 <Text style={styles.sectionTitle}>Announcements</Text>
               </View>
               {memberAnnouncements.length === 0 ? (
-                <Text style={styles.emptyText}>No announcements</Text>
+                <View style={styles.emptyStateCard}>
+                  <Icon name="announcement" size={40} color="#ccc" />
+                  <Text style={styles.emptyTitle}>No Announcements</Text>
+                  <Text style={styles.emptyText}>Group announcements will appear here</Text>
+                </View>
               ) : memberAnnouncements.slice(0, 3).map(ann => (
                 <TouchableOpacity key={ann.id} style={[styles.listItem, { flexDirection: 'column', alignItems: 'flex-start' }]}
                   onPress={() => handleMarkAnnouncementRead(ann.id)}>
@@ -1175,7 +1319,11 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                 <Text style={styles.sectionTitle}>Upcoming Meetings</Text>
               </View>
               {memberMeetings.filter(mtg => new Date(mtg.date) >= new Date(new Date().toDateString())).length === 0 ? (
-                <Text style={styles.emptyText}>No upcoming meetings</Text>
+                <View style={styles.emptyStateCard}>
+                  <Icon name="event" size={40} color="#ccc" />
+                  <Text style={styles.emptyTitle}>No Upcoming Meetings</Text>
+                  <Text style={styles.emptyText}>Scheduled meetings will appear here</Text>
+                </View>
               ) : memberMeetings.filter(mtg => new Date(mtg.date) >= new Date(new Date().toDateString())).map(mtg => (
                 <View key={mtg.id} style={[styles.listItem, { flexDirection: 'column', alignItems: 'flex-start' }]}>
                   <Text style={styles.listItemTitle}>{mtg.title}</Text>
@@ -1192,21 +1340,24 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                     )}
                   </View>
                   <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-                    <TouchableOpacity style={[styles.rsvpBtn, mtg.myStatus === 'GOING' && styles.rsvpBtnActive]}
-                      onPress={() => handleRSVP(mtg.id, 'GOING')}>
+                    <TouchableOpacity style={[styles.rsvpBtn, mtg.myStatus === 'GOING' && styles.rsvpBtnActive, rsvpingMeetingId === mtg.id && styles.buttonDisabled]}
+                      onPress={() => handleRSVP(mtg.id, 'GOING')} disabled={rsvpingMeetingId === mtg.id}>
+                      {rsvpingMeetingId === mtg.id ? <ActivityIndicator size="small" color={COLORS.success} /> : (
                       <Text style={[styles.rsvpBtnText, mtg.myStatus === 'GOING' && styles.rsvpBtnTextActive]}>
                         ✓ Going {mtg.goingCount ? `(${mtg.goingCount})` : ''}
-                      </Text>
+                      </Text>)}
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.rsvpBtn, mtg.myStatus === 'MAYBE' && { backgroundColor: COLORS.warning, borderColor: COLORS.warning }]}
-                      onPress={() => handleRSVP(mtg.id, 'MAYBE')}>
+                    <TouchableOpacity style={[styles.rsvpBtn, mtg.myStatus === 'MAYBE' && { backgroundColor: COLORS.warning, borderColor: COLORS.warning }, rsvpingMeetingId === mtg.id && styles.buttonDisabled]}
+                      onPress={() => handleRSVP(mtg.id, 'MAYBE')} disabled={rsvpingMeetingId === mtg.id}>
+                      {rsvpingMeetingId === mtg.id ? <ActivityIndicator size="small" color={COLORS.warning} /> : (
                       <Text style={[styles.rsvpBtnText, mtg.myStatus === 'MAYBE' && styles.rsvpBtnTextActive]}>
                         ? Maybe {mtg.maybeCount ? `(${mtg.maybeCount})` : ''}
-                      </Text>
+                      </Text>)}
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.rsvpBtn, mtg.myStatus === 'NOT_GOING' && { backgroundColor: COLORS.error, borderColor: COLORS.error }]}
-                      onPress={() => handleRSVP(mtg.id, 'NOT_GOING')}>
-                      <Text style={[styles.rsvpBtnText, mtg.myStatus === 'NOT_GOING' && styles.rsvpBtnTextActive]}>✗ No</Text>
+                    <TouchableOpacity style={[styles.rsvpBtn, mtg.myStatus === 'NOT_GOING' && { backgroundColor: COLORS.error, borderColor: COLORS.error }, rsvpingMeetingId === mtg.id && styles.buttonDisabled]}
+                      onPress={() => handleRSVP(mtg.id, 'NOT_GOING')} disabled={rsvpingMeetingId === mtg.id}>
+                      {rsvpingMeetingId === mtg.id ? <ActivityIndicator size="small" color={COLORS.error} /> : (
+                      <Text style={[styles.rsvpBtnText, mtg.myStatus === 'NOT_GOING' && styles.rsvpBtnTextActive]}>✗ No</Text>)}
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1240,7 +1391,16 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                 <View style={styles.inputContainer}>
                   <Text style={styles.label}>Payment Method</Text>
                   <View style={styles.frequencyRow}>
-                    {[{ key: 'CASH', label: 'Cash', icon: 'cash' }, { key: 'BANK_TRANSFER', label: 'Bank', icon: 'bank' }, { key: 'MOBILE_MONEY', label: 'Mobile', icon: 'cellphone' }].map(m => (
+                    {[{ key: 'EFT', label: 'EFT', icon: 'bank-transfer' }, { key: 'BANK_TRANSFER', label: 'Bank Transfer', icon: 'bank' }, { key: 'CARD', label: 'Card', icon: 'credit-card' }].map(m => (
+                      <TouchableOpacity key={m.key} style={[styles.typeBtn, paymentMethod === m.key && styles.typeBtnActive]}
+                        onPress={() => setPaymentMethod(m.key)}>
+                        <MaterialCommunityIcons name={m.icon as any} size={18} color={paymentMethod === m.key ? '#fff' : COLORS.textLight} />
+                        <Text style={[styles.typeBtnText, paymentMethod === m.key && styles.typeBtnTextActive]}>{m.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <View style={[styles.frequencyRow, { marginTop: 8 }]}>
+                    {[{ key: 'OZOW', label: 'Ozow', icon: 'contactless-payment' }, { key: 'MOBILE_MONEY', label: 'Mobile Money', icon: 'cellphone' }].map(m => (
                       <TouchableOpacity key={m.key} style={[styles.typeBtn, paymentMethod === m.key && styles.typeBtnActive]}
                         onPress={() => setPaymentMethod(m.key)}>
                         <MaterialCommunityIcons name={m.icon as any} size={18} color={paymentMethod === m.key ? '#fff' : COLORS.textLight} />
@@ -1263,6 +1423,21 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
           </View>
         </View>
       </Modal>
+
+      {/* Ozow Payment WebView */}
+      <OzowPaymentWebView
+        visible={showOzowWebView}
+        ozowUrl={ozowUrl}
+        paymentData={ozowPaymentData}
+        transactionId={ozowTransactionId}
+        amount={paymentGroup ? Number(paymentGroup.contributionAmount) : 0}
+        groupName={paymentGroup?.name || ''}
+        onSuccess={handleOzowSuccess}
+        onError={handleOzowError}
+        onCancel={handleOzowCancel}
+        onClose={() => setShowOzowWebView(false)}
+        apiUrl={API_URL}
+      />
     </>
   );
 };

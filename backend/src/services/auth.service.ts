@@ -380,6 +380,16 @@ export class AuthService {
     await prisma.meeting.deleteMany({ where: { createdBy: adminId } });
     // 6. Delete announcements created by this user
     await prisma.announcement.deleteMany({ where: { createdBy: adminId } });
+    // 6.5. Delete transactions referencing this admin's member records (FK: memberId → Member)
+    const adminMemberIds = await prisma.member.findMany({
+      where: { userId: adminId },
+      select: { id: true }
+    });
+    if (adminMemberIds.length > 0) {
+      await prisma.transaction.deleteMany({
+        where: { memberId: { in: adminMemberIds.map((m: { id: string }) => m.id) } }
+      });
+    }
     // 7. Delete memberships
     await prisma.member.deleteMany({ where: { userId: adminId } });
     // 8. Nullify createdById on users this admin created

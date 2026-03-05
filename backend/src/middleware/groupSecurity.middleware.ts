@@ -1,7 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 
 // Helper to extract groupId from request
 const getGroupIdFromRequest = (req: Request): string | null => {
@@ -23,7 +21,7 @@ export const requireGroupMembership = async (
   next: NextFunction
 ) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.user.id;
     const groupId = getGroupIdFromRequest(req);
     
     if (!groupId) {
@@ -82,7 +80,7 @@ export const requireAdminRole = async (
   next: NextFunction
 ) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.user.id;
     const groupId = getGroupIdFromRequest(req);
     
     if (!groupId) {

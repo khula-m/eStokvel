@@ -10,6 +10,9 @@ import {
   urlEncodedLimit,
 } from "./src/middleware/security.middleware";
 
+// Import payout scheduler
+import { startPayoutScheduler } from "./src/jobs/payout.job";
+
 const app = express();
 const PORT = parseInt(process.env.PORT || "5000", 10);
 
@@ -68,49 +71,18 @@ if (process.env.NODE_ENV === "development") {
   });
 }
 
-// Load routes
+// Load routes via centralized index
 if (!process.env.JEST_WORKER_ID) {
   console.log("Loading routes...");
 }
 
 try {
-  const authRoutes = require("./src/routes/auth.routes").default;
-  app.use("/api/auth", authRoutes);
-  if (!process.env.JEST_WORKER_ID) console.log("✅ Auth routes loaded");
+  const indexRoutes = require("./src/routes/index").default;
+  app.use("/api", indexRoutes);
+  if (!process.env.JEST_WORKER_ID) console.log("✅ All routes loaded via index");
 } catch (error: any) {
-  if (!process.env.JEST_WORKER_ID) console.log("❌ Failed to load auth routes:", error.message);
+  if (!process.env.JEST_WORKER_ID) console.log("❌ Failed to load routes:", error.message);
 }
-
-try {
-  const groupRoutes = require("./src/routes/groups.routes").default;
-  app.use("/api/groups", groupRoutes);
-  if (!process.env.JEST_WORKER_ID) console.log("✅ Group routes loaded");
-} catch (error: any) {
-  if (!process.env.JEST_WORKER_ID) console.log("❌ Failed to load group routes:", error.message);
-}
-
-try {
-  const transactionRoutes = require("./src/routes/transaction.routes").default;
-  app.use("/api/transactions", transactionRoutes);
-  if (!process.env.JEST_WORKER_ID) console.log("✅ Transaction routes loaded");
-} catch (error: any) {
-  if (!process.env.JEST_WORKER_ID) console.log("❌ Failed to load transaction routes:", error.message);
-}
-
-try {
-  // Import user routes
-  const userRoutes = require("./src/routes/user.routes").default;
-
-  // Mount user routes
-  app.use("/api/users", userRoutes);
-  if (!process.env.JEST_WORKER_ID) console.log("✅ User routes loaded");
-} catch (error: any) {
-  if (!process.env.JEST_WORKER_ID) console.log("❌ Failed to load user routes:", error.message);
-}
-
-// Move the mounting of index routes to the end
-const indexRoutes = require("./src/routes/index").default;
-app.use("/api", indexRoutes);
 
 // Error handling middleware
 const errorHandler = require("./src/middleware/error.middleware");
@@ -158,5 +130,8 @@ if (!process.env.JEST_WORKER_ID) {
     console.log("   MEMBERS:    0831234568-72 / PIN: 94716 (must change)");
     console.log("\n📚 eStokvel MVP - PIN-based Auth | Role: SUPERADMIN > ADMIN > MEMBER");
     console.log("");
+
+    // Start automatic payout scheduler
+    startPayoutScheduler();
   });
 }
