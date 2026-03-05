@@ -43,6 +43,16 @@ export const LoginScreen = ({ onNavigate, onLogin }: LoginScreenProps) => {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.authScrollContent} keyboardShouldPersistTaps="handled">
+        {/* Back to Landing */}
+        <TouchableOpacity
+          onPress={() => onNavigate('landing')}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 }}
+          accessibilityLabel="Back to home" accessibilityRole="button"
+        >
+          <Icon name="arrow-back" size={22} color={COLORS.primary} />
+          <Text style={{ color: COLORS.primary, fontWeight: '600', fontSize: 15 }}>Back</Text>
+        </TouchableOpacity>
+
         <View style={styles.logoContainer}>
           <View style={styles.logoCircle}>
             <Icon name="account-balance-wallet" size={36} color="#fff" />
