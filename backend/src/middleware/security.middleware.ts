@@ -1,6 +1,7 @@
 import rateLimit from 'express-rate-limit';
 import cors, { CorsOptions } from 'cors';
 import helmet from 'helmet';
+import logger from '../utils/logger';
 
 // ============================================
 // RATE LIMITING CONFIGURATION
@@ -101,7 +102,7 @@ export const corsOptions: CorsOptions = {
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      console.warn(`CORS blocked request from origin: ${origin}`);
+      logger.warn(`CORS blocked request from origin: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },

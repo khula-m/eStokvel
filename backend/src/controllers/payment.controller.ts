@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../utils/prisma';
 import { TransactionService } from '../services/transaction.service';
+import logger from '../utils/logger';
 
 const transactionService = new TransactionService();
 
@@ -70,7 +71,7 @@ class PaymentController {
         message: 'Bank details updated successfully'
       });
     } catch (error: any) {
-      console.error('Update bank details error:', error);
+      logger.error('Update bank details error:', error);
       return res.status(500).json({
         success: false,
         message: 'Failed to update bank details'
@@ -136,7 +137,7 @@ class PaymentController {
         data: maskedData
       });
     } catch (error: any) {
-      console.error('Get bank details error:', error);
+      logger.error('Get bank details error:', error);
       return res.status(500).json({
         success: false,
         message: 'Failed to get bank details'
@@ -213,7 +214,7 @@ class PaymentController {
         message: 'Payment proof uploaded successfully'
       });
     } catch (error: any) {
-      console.error('Upload payment proof error:', error);
+      logger.error('Upload payment proof error:', error);
       return res.status(500).json({
         success: false,
         message: 'Failed to upload payment proof'
@@ -295,7 +296,7 @@ class PaymentController {
         message: `Payment ${status === 'COMPLETED' ? 'verified' : 'updated'} successfully`
       });
     } catch (error: any) {
-      console.error('Verify payment error:', error);
+      logger.error('Verify payment error:', error);
       return res.status(500).json({
         success: false,
         message: 'Failed to verify payment'
@@ -357,7 +358,7 @@ class PaymentController {
         count: pendingPayments.length
       });
     } catch (error: any) {
-      console.error('Get pending payments error:', error);
+      logger.error('Get pending payments error:', error);
       return res.status(500).json({
         success: false,
         message: 'Failed to get pending payments'

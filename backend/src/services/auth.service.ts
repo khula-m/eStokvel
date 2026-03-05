@@ -1,4 +1,4 @@
-ï»¿import { prisma } from '../utils/prisma';
+import { prisma } from '../utils/prisma';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET, JWT_EXPIRES_IN } from '../utils/jwt';
@@ -87,13 +87,13 @@ export class AuthService {
 
     const existing = await prisma.user.findUnique({ where: { phoneNumber } });
     if (existing) {
-      // User exists â€” if a groupId is specified, assign them as admin of that group
+      // User exists — if a groupId is specified, assign them as admin of that group
       if (data.groupId) {
         const existingMember = await prisma.member.findUnique({
           where: { userId_stokvelGroupId: { userId: existing.id, stokvelGroupId: data.groupId } }
         });
         if (existingMember) {
-          // Already a member â€” promote to ADMIN
+          // Already a member — promote to ADMIN
           await prisma.member.update({
             where: { id: existingMember.id },
             data: { role: 'ADMIN' }
@@ -104,7 +104,7 @@ export class AuthService {
             message: `"${existing.fullName}" has been promoted to admin for this group`
           };
         }
-        // Not a member yet â€” add as ADMIN
+        // Not a member yet — add as ADMIN
         await prisma.member.create({
           data: { userId: existing.id, stokvelGroupId: data.groupId, role: 'ADMIN' }
         });
@@ -194,7 +194,7 @@ export class AuthService {
     let user = await prisma.user.findUnique({ where: { phoneNumber } });
 
     if (user) {
-      // User exists â€” check if already a member of this group
+      // User exists — check if already a member of this group
       const existingMember = await prisma.member.findUnique({
         where: { userId_stokvelGroupId: { userId: user.id, stokvelGroupId: group.id } }
       });
@@ -240,7 +240,7 @@ export class AuthService {
     };
   }
 
-  // ============ LOGIN (Phone + PIN) â€” ADMIN & MEMBER ONLY ============
+  // ============ LOGIN (Phone + PIN) — ADMIN & MEMBER ONLY ============
   async login(data: LoginInput) {
     if (!data.pin || data.pin.length < 5) {
       return { success: false, message: 'PIN must be 5 digits' };
@@ -319,7 +319,7 @@ export class AuthService {
       };
     }
 
-    // Successful login â€” reset failed attempts and lockout
+    // Successful login — reset failed attempts and lockout
     await prisma.user.update({
       where: { id: user.id },
       data: { lastLogin: new Date(), failedAttempts: 0, lockedUntil: null }
@@ -420,44 +420,55 @@ export class AuthService {
       return { success: false, message: 'User is not an admin of any group' };
     }
 
-    // Delete in order to satisfy FK constraints
-    // 1. Delete meeting attendance for this user
-    await prisma.meetingAttendance.deleteMany({ where: { userId: adminId } });
-    // 2. Delete announcement reads for this user
-    await prisma.announcementRead.deleteMany({ where: { userId: adminId } });
-    // 3. Delete chat replies by this user
-    await prisma.chatReply.deleteMany({ where: { senderId: adminId } });
-    // 4. Delete chat messages by this user
-    await prisma.chatMessage.deleteMany({ where: { senderId: adminId } });
-    // 5. Delete meetings created by this user
-    await prisma.meeting.deleteMany({ where: { createdBy: adminId } });
-    // 6. Delete announcements created by this user
-    await prisma.announcement.deleteMany({ where: { createdBy: adminId } });
-    // 6.5. Delete transactions referencing this admin's member records (FK: memberId â†’ Member)
-    const adminMemberIds = await prisma.member.findMany({
-      where: { userId: adminId },
-      select: { id: true }
-    });
-    if (adminMemberIds.length > 0) {
-      await prisma.transaction.deleteMany({
-        where: { memberId: { in: adminMemberIds.map((m: { id: string }) => m.id) } }
+    try {
+      // ATOMIC: All cascading deletes in a single transaction to prevent corrupt state
+      await prisma.$transaction(async (tx: any) => {
+        // 1. Delete meeting attendance for this user
+        await tx.meetingAttendance.deleteMany({ where: { userId: adminId } });
+        // 2. Delete announcement reads for this user
+        await tx.announcementRead.deleteMany({ where: { userId: adminId } });
+        // 3. Delete chat replies by this user
+        await tx.chatReply.deleteMany({ where: { senderId: adminId } });
+        // 4. Delete chat messages by this user
+        await tx.chatMessage.deleteMany({ where: { senderId: adminId } });
+        // 5. Delete meetings created by this user
+        await tx.meeting.deleteMany({ where: { createdBy: adminId } });
+        // 6. Delete announcements created by this user
+        await tx.announcement.deleteMany({ where: { createdBy: adminId } });
+        // 6.5. Delete transactions referencing this admin's member records (FK: memberId ? Member)
+        const adminMemberIds = await tx.member.findMany({
+          where: { userId: adminId },
+          select: { id: true }
+        });
+        if (adminMemberIds.length > 0) {
+          await tx.transaction.deleteMany({
+            where: { memberId: { in: adminMemberIds.map((m: { id: string }) => m.id) } }
+          });
+        }
+        // 7. Delete memberships
+        await tx.member.deleteMany({ where: { userId: adminId } });
+        // 8. Nullify createdById on users this admin created
+        await tx.user.updateMany({ where: { createdById: adminId }, data: { createdById: null } });
+        // 9. Handle groups they created – set createdById to requester
+        await tx.stokvelGroup.updateMany({ where: { createdById: adminId }, data: { createdById: requesterId } });
+        // 10. Reassign transactions recorded by this admin
+        await tx.transaction.updateMany({ where: { recordedById: adminId }, data: { recordedById: requesterId } });
+        // 11. Finally delete the user
+        await tx.user.delete({ where: { id: adminId } });
+      }, {
+        timeout: 15000, // 15s timeout for cascading deletes
       });
-    }
-    // 7. Delete memberships
-    await prisma.member.deleteMany({ where: { userId: adminId } });
-    // 8. Nullify createdById on users this admin created
-    await prisma.user.updateMany({ where: { createdById: adminId }, data: { createdById: null } });
-    // 9. Handle groups they created â€“ set createdById to requester
-    await prisma.stokvelGroup.updateMany({ where: { createdById: adminId }, data: { createdById: requesterId } });
-    // 11. Delete transactions recorded by this admin
-    await prisma.transaction.updateMany({ where: { recordedById: adminId }, data: { recordedById: requesterId } });
-    // 12. Finally delete the user
-    await prisma.user.delete({ where: { id: adminId } });
 
-    return {
-      success: true,
-      message: `Admin "${admin.fullName}" has been removed from the system`
-    };
+      return {
+        success: true,
+        message: `Admin "${admin.fullName}" has been removed from the system`
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to delete admin. No changes were made.'
+      };
+    }
   }
 
   // ============ SUPERADMIN LOGIN (Email + Password) ============
@@ -514,7 +525,7 @@ export class AuthService {
       return { success: false, message: 'Invalid credentials' };
     }
 
-    // Success â€” reset failed attempts, log IP
+    // Success — reset failed attempts, log IP
     await prisma.user.update({
       where: { id: user.id },
       data: {

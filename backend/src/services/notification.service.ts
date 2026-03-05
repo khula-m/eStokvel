@@ -5,6 +5,7 @@
 
 import { prisma } from '../utils/prisma';
 import { smsService } from './sms.service';
+import logger from '../utils/logger';
 
 export class NotificationService {
   /**
@@ -48,7 +49,7 @@ export class NotificationService {
           break;
       }
     } catch (error) {
-      console.error('Error sending transaction notification:', error);
+      logger.error('Error sending transaction notification:', error);
     }
   }
 
@@ -65,7 +66,7 @@ export class NotificationService {
 
       await smsService.sendWelcome(user.phoneNumber, user.fullName);
     } catch (error) {
-      console.error('Error sending welcome notification:', error);
+      logger.error('Error sending welcome notification:', error);
     }
   }
 
@@ -87,7 +88,7 @@ export class NotificationService {
         group.name
       );
     } catch (error) {
-      console.error('Error sending group join notification:', error);
+      logger.error('Error sending group join notification:', error);
     }
   }
 
@@ -126,7 +127,7 @@ export class NotificationService {
         );
       }
     } catch (error) {
-      console.error('Error sending contribution reminders:', error);
+      logger.error('Error sending contribution reminders:', error);
     }
   }
 
@@ -161,7 +162,7 @@ export class NotificationService {
         );
       }
     } catch (error) {
-      console.error('Error sending meeting reminders:', error);
+      logger.error('Error sending meeting reminders:', error);
     }
   }
 

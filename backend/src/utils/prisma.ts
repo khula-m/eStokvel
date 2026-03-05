@@ -11,6 +11,12 @@ export const prisma = globalForPrisma.prisma ?? new PrismaClient()
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 /**
+ * Transaction client type for use in prisma.$transaction callbacks.
+ * Use: prisma.$transaction(async (tx: TransactionClient) => { ... })
+ */
+export type TransactionClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0] extends infer T ? T : never;
+
+/**
  * Safely convert Prisma Decimal to number
  * Use this for all monetary calculations to avoid type errors
  */

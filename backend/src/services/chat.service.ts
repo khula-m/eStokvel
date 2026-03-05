@@ -4,6 +4,7 @@
  */
 
 import { prisma } from '../utils/prisma';
+import logger from '../utils/logger';
 
 interface SendMessageInput {
   stokvelGroupId: string;
@@ -12,11 +13,21 @@ interface SendMessageInput {
 }
 
 export class ChatService {
+  private static readonly MAX_MESSAGE_LENGTH = 2000;
+
   /**
    * Send a message to a group chat
    */
   async sendMessage(senderId: string, data: SendMessageInput) {
     try {
+      // Validate message length
+      if (!data.message || data.message.trim().length === 0) {
+        return { success: false, message: 'Message cannot be empty' };
+      }
+      if (data.message.length > ChatService.MAX_MESSAGE_LENGTH) {
+        return { success: false, message: `Message cannot exceed ${ChatService.MAX_MESSAGE_LENGTH} characters` };
+      }
+
       // Verify sender is a member of the group
       const membership = await prisma.member.findFirst({
         where: {
@@ -64,7 +75,7 @@ export class ChatService {
         message: 'Message sent successfully'
       };
     } catch (error: any) {
-      console.error('Send message error:', error);
+      logger.error('Send message error:', error);
       return {
         success: false,
         message: error.message || 'Failed to send message'
@@ -133,7 +144,7 @@ export class ChatService {
         message: 'Messages retrieved successfully'
       };
     } catch (error: any) {
-      console.error('Get messages error:', error);
+      logger.error('Get messages error:', error);
       return {
         success: false,
         message: error.message || 'Failed to retrieve messages'

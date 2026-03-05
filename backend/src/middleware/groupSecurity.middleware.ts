@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma';
+import logger from '../utils/logger';
 
 // Helper to extract groupId from request
 const getGroupIdFromRequest = (req: Request): string | null => {
@@ -63,7 +64,7 @@ export const requireGroupMembership = async (
     next();
     
   } catch (error) {
-    console.error('Group membership check error:', error);
+    logger.error('Group membership check error:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error'
@@ -112,7 +113,7 @@ export const requireAdminRole = async (
     return;
     
   } catch (error) {
-    console.error('Admin role check error:', error);
+    logger.error('Admin role check error:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error'

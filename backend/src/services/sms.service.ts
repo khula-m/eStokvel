@@ -5,6 +5,8 @@
  * In production, configure with actual API credentials
  */
 
+import logger from '../utils/logger';
+
 // SMS Templates
 export const SMS_TEMPLATES = {
   WELCOME: (name: string) => 
@@ -92,9 +94,9 @@ export class SMSService {
     
     // Log in development mode
     if (!this.enabled || process.env.NODE_ENV === 'development') {
-      console.log('📱 SMS (Development Mode):');
-      console.log(`   To: ${formattedNumber}`);
-      console.log(`   Message: ${message}`);
+      logger.info('📱 SMS (Development Mode):');
+      logger.info(`   To: ${formattedNumber}`);
+      logger.info(`   Message: ${message}`);
       return { success: true, messageId: 'dev-' + Date.now() };
     }
 
@@ -107,10 +109,10 @@ export class SMSService {
       // const result = await sms.send({ to: [formattedNumber], message, from: this._senderId })
       
       // For now, return mock success in production without API key
-      console.log('SMS sent:', { to: formattedNumber, message: message.substring(0, 50) + '...', sender: this._senderId });
+      logger.info('SMS sent:', { to: formattedNumber, message: message.substring(0, 50) + '...', sender: this._senderId });
       return { success: true, messageId: 'sms-' + Date.now() };
     } catch (error: any) {
-      console.error('SMS Error:', error);
+      logger.error('SMS Error:', error);
       return { success: false, error: error.message };
     }
   }

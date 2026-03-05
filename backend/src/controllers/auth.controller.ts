@@ -1,5 +1,6 @@
 ﻿import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
+import logger from '../utils/logger';
 
 const authService = new AuthService();
 
@@ -25,7 +26,7 @@ export class AuthController {
 
       return res.status(200).json(result);
     } catch (error: any) {
-      console.error('Login error:', error);
+      logger.error('Login error:', error);
       return res.status(500).json({
         success: false,
         message: error.message || "Login failed"
@@ -57,7 +58,7 @@ export class AuthController {
 
       return res.status(200).json(result);
     } catch (error: any) {
-      console.error('Change PIN error:', error);
+      logger.error('Change PIN error:', error);
       return res.status(500).json({
         success: false,
         message: error.message || "PIN change failed"
@@ -89,7 +90,7 @@ export class AuthController {
 
       return res.status(201).json(result);
     } catch (error: any) {
-      console.error('Create admin error:', error);
+      logger.error('Create admin error:', error);
       return res.status(500).json({
         success: false,
         message: error.message || "Failed to create admin"
@@ -121,7 +122,7 @@ export class AuthController {
 
       return res.status(201).json(result);
     } catch (error: any) {
-      console.error('Add member error:', error);
+      logger.error('Add member error:', error);
       return res.status(500).json({
         success: false,
         message: error.message || "Failed to add member"
@@ -145,7 +146,7 @@ export class AuthController {
 
       return res.status(200).json(result);
     } catch (error: any) {
-      console.error('Get current user error:', error);
+      logger.error('Get current user error:', error);
       return res.status(500).json({
         success: false,
         message: error.message || "Failed to get user"
@@ -174,7 +175,7 @@ export class AuthController {
 
       return res.status(200).json(result);
     } catch (error: any) {
-      console.error('Delete admin error:', error);
+      logger.error('Delete admin error:', error);
       return res.status(500).json({
         success: false,
         message: error.message || "Failed to delete admin"
@@ -188,7 +189,7 @@ export class AuthController {
       const result = await authService.listAdmins();
       return res.status(200).json(result);
     } catch (error: any) {
-      console.error('List admins error:', error);
+      logger.error('List admins error:', error);
       return res.status(500).json({
         success: false,
         message: error.message || "Failed to list admins"
@@ -202,7 +203,7 @@ export class AuthController {
       const result = await authService.getSystemOverview();
       return res.status(200).json(result);
     } catch (error: any) {
-      console.error('System overview error:', error);
+      logger.error('System overview error:', error);
       return res.status(500).json({
         success: false,
         message: error.message || "Failed to get system overview"
@@ -232,7 +233,7 @@ export class AuthController {
 
       return res.status(200).json(result);
     } catch (error: any) {
-      console.error('Superadmin login error:', error);
+      logger.error('Superadmin login error:', error);
       return res.status(500).json({
         success: false,
         message: error.message || "Superadmin login failed"

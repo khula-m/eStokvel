@@ -4,6 +4,7 @@ import { CreateStokvelGroupInput, UpdateStokvelGroupInput } from '../models/Stok
 import { MemberRole } from '../utils/enums';
 
 import { prisma } from '../utils/prisma';
+import logger from '../utils/logger';
 
 
 
@@ -95,61 +96,69 @@ export class StokvelGroupService {
 
 
 
-      // Create the group
+      // ATOMIC: Create group + add creator as admin in single transaction
 
-      const group = await prisma.stokvelGroup.create({
+      const group = await prisma.$transaction(async (tx: any) => {
 
-        data: {
+        const newGroup = await tx.stokvelGroup.create({
 
-          ...data,
+          data: {
 
-          code,
+            ...data,
 
-          createdById,
+            code,
 
-          startDate,
+            createdById,
 
-          endDate,
+            startDate,
 
-          durationMonths,
+            endDate,
 
-        },
+            durationMonths,
 
-        include: {
+          },
 
-          createdBy: {
+          include: {
 
-            select: {
+            createdBy: {
 
-              id: true,
+              select: {
 
-              fullName: true,
+                id: true,
 
-              phoneNumber: true,
+                fullName: true,
+
+                phoneNumber: true,
+
+              }
 
             }
 
           }
 
-        }
-
-      });
+        });
 
 
 
-      // Automatically add creator as ADMIN of the group
+        // Automatically add creator as ADMIN of the group
 
-      await prisma.member.create({
+        await tx.member.create({
 
-        data: {
+          data: {
 
-          userId: createdById,
+            userId: createdById,
 
-          stokvelGroupId: group.id,
+            stokvelGroupId: newGroup.id,
 
-          role: MemberRole.ADMIN,
+            role: MemberRole.ADMIN,
 
-        }
+          }
+
+        });
+
+
+
+        return newGroup;
 
       });
 
@@ -168,6 +177,8 @@ export class StokvelGroupService {
       
 
     } catch (error: any) {
+
+      logger.error('createGroup error:', error);
 
       return {
 
@@ -771,53 +782,33 @@ export class StokvelGroupService {
 
 
 
-      // Get total transactions amount
+      // DB-LEVEL AGGREGATION instead of loading all transactions
 
-      const transactions = await prisma.transaction.findMany({
+      const [contributionAgg, payoutAgg] = await Promise.all([
 
-        where: { 
+        prisma.transaction.aggregate({
 
-          stokvelGroupId: groupId,
+          where: { stokvelGroupId: groupId, status: 'COMPLETED', transactionType: 'CONTRIBUTION' },
 
-          status: 'COMPLETED'
+          _sum: { amount: true }
 
-        },
+        }),
 
-        select: {
+        prisma.transaction.aggregate({
 
-          amount: true,
+          where: { stokvelGroupId: groupId, status: 'COMPLETED', transactionType: 'PAYOUT' },
 
-          transactionType: true
+          _sum: { amount: true }
 
-        }
+        })
 
-      });
-
-
-
-      // Calculate totals
-
-      let totalContributions = 0;
-
-      let totalPayouts = 0;
-
-      
-
-      transactions.forEach((transaction: any) => {
-
-        if (transaction.transactionType === 'CONTRIBUTION') {
-
-          totalContributions += Number(transaction.amount);
-
-        } else if (transaction.transactionType === 'PAYOUT') {
-
-          totalPayouts += Number(transaction.amount);
-
-        }
-
-      });
+      ]);
 
 
+
+      const totalContributions = Number(contributionAgg._sum.amount || 0);
+
+      const totalPayouts = Number(payoutAgg._sum.amount || 0);
 
       const totalBalance = totalContributions - totalPayouts;
 

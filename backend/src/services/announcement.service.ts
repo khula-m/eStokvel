@@ -1,6 +1,9 @@
 import { prisma } from '../utils/prisma';
 
 export class AnnouncementService {
+  private static readonly MAX_TITLE_LENGTH = 200;
+  private static readonly MAX_CONTENT_LENGTH = 5000;
+
   /**
    * Create an announcement for a group
    */
@@ -13,6 +16,20 @@ export class AnnouncementService {
     expiresAt?: Date;
   }) {
     try {
+      // Validate lengths
+      if (!data.title || data.title.trim().length === 0) {
+        return { success: false, message: 'Title cannot be empty' };
+      }
+      if (data.title.length > AnnouncementService.MAX_TITLE_LENGTH) {
+        return { success: false, message: `Title cannot exceed ${AnnouncementService.MAX_TITLE_LENGTH} characters` };
+      }
+      if (!data.content || data.content.trim().length === 0) {
+        return { success: false, message: 'Content cannot be empty' };
+      }
+      if (data.content.length > AnnouncementService.MAX_CONTENT_LENGTH) {
+        return { success: false, message: `Content cannot exceed ${AnnouncementService.MAX_CONTENT_LENGTH} characters` };
+      }
+
       // Verify the user is an admin/creator of the group
       const membership = await prisma.member.findFirst({
         where: { userId: data.createdBy, stokvelGroupId: data.groupId, role: 'ADMIN' }

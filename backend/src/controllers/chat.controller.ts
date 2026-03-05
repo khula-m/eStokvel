@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { chatService } from '../services/chat.service';
+import logger from '../utils/logger';
 
 export class ChatController {
   /**
@@ -50,7 +51,7 @@ export class ChatController {
         return res.status(400).json(result);
       }
     } catch (error: any) {
-      console.error('Send message error:', error);
+      logger.error('Send message error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error'
@@ -95,7 +96,7 @@ export class ChatController {
         return res.status(statusCode).json(result);
       }
     } catch (error: any) {
-      console.error('Get messages error:', error);
+      logger.error('Get messages error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error'
@@ -121,7 +122,7 @@ export class ChatController {
       const result = await chatService.markAsRead(userId, groupId as string);
       return res.status(200).json(result);
     } catch (error: any) {
-      console.error('Mark as read error:', error);
+      logger.error('Mark as read error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error'
@@ -146,7 +147,7 @@ export class ChatController {
       const result = await chatService.getUnreadCount(userId);
       return res.status(200).json(result);
     } catch (error: any) {
-      console.error('Get unread count error:', error);
+      logger.error('Get unread count error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error'

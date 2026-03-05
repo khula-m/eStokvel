@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { Prisma } from "@prisma/client";
+import logger from '../utils/logger';
 
 /**
  * Global error handler — sanitizes errors in production,
@@ -27,7 +28,7 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
           message: "Related record not found",
         });
       default:
-        console.error(`Prisma error [${err.code}]:`, err.message);
+        logger.error(`Prisma error [${err.code}]:`, err.message);
         return res.status(500).json({
           success: false,
           message: isProd ? "Internal server error" : `Database error: ${err.code}`,
@@ -36,7 +37,7 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
   }
 
   if (err instanceof Prisma.PrismaClientValidationError) {
-    console.error("Prisma validation error:", err.message);
+    logger.error("Prisma validation error:", err.message);
     return res.status(400).json({
       success: false,
       message: isProd ? "Invalid request data" : err.message.split("\n").pop(),
@@ -50,7 +51,7 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
     : err.message || "Internal server error";
 
   if (status >= 500) {
-    console.error("Unhandled error:", err.stack || err);
+    logger.error("Unhandled error:", err.stack || err);
   }
 
   return res.status(status).json({ success: false, message });

@@ -1,6 +1,7 @@
 ﻿import { Request, Response } from 'express';
 import { StokvelGroupService } from '../services/stokvelGroup.service';
 import { CreateStokvelGroupInput, UpdateStokvelGroupInput } from '../models/StokvelGroup.model';
+import logger from '../utils/logger';
 
 const stokvelGroupService = new StokvelGroupService();
 
@@ -37,7 +38,7 @@ export class StokvelGroupController {
       }
       
     } catch (error: any) {
-      console.error('Create group error:', error);
+      logger.error('Create group error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -63,7 +64,7 @@ export class StokvelGroupController {
       }
       
     } catch (error: any) {
-      console.error('Get group error:', error);
+      logger.error('Get group error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -88,7 +89,7 @@ export class StokvelGroupController {
       }
       
     } catch (error: any) {
-      console.error('Get group by code error:', error);
+      logger.error('Get group by code error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -124,7 +125,7 @@ export class StokvelGroupController {
       }
       
     } catch (error: any) {
-      console.error('Update group error:', error);
+      logger.error('Update group error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -155,7 +156,7 @@ export class StokvelGroupController {
       }
       
     } catch (error: any) {
-      console.error('Get user groups error:', error);
+      logger.error('Get user groups error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -182,7 +183,7 @@ export class StokvelGroupController {
       }
       
     } catch (error: any) {
-      console.error('Delete group error:', error);
+      logger.error('Delete group error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -217,7 +218,7 @@ export class StokvelGroupController {
       }
       
     } catch (error: any) {
-      console.error('Get group stats error:', error);
+      logger.error('Get group stats error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -246,7 +247,7 @@ export class StokvelGroupController {
 
       return res.status(200).json(result);
     } catch (error: any) {
-      console.error('Join group error:', error);
+      logger.error('Join group error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -275,7 +276,7 @@ export class StokvelGroupController {
 
       return res.status(200).json(result);
     } catch (error: any) {
-      console.error('Get group members error:', error);
+      logger.error('Get group members error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',

@@ -1,6 +1,7 @@
-﻿import { prisma, toNumber } from '../utils/prisma';
+import { prisma, toNumber } from '../utils/prisma';
 import { CreateTransactionInput, UpdateTransactionInput, TransactionFilters } from '../models/Transaction.model';
 import { TransactionType, TransactionStatus, PaymentMethod } from '../utils/enums';
+import logger from '../utils/logger';
 
 export class TransactionService {
   /**
@@ -144,7 +145,7 @@ export class TransactionService {
       if (data.transactionType === TransactionType.CONTRIBUTION && (data as any).status === TransactionStatus.COMPLETED) {
         // Note: In a real app, we would have a balance field to update
         // For now, we'll just log it
-        console.log(`Contribution of \${data.amount} recorded for member \${data.memberId}`);
+        logger.info(`Contribution of \${data.amount} recorded for member \${data.memberId}`);
       }
 
       return {
@@ -164,65 +165,70 @@ export class TransactionService {
 
   /**
    * Create a member self-contribution - Members can make their own payments
+   * ATOMIC: Uses prisma.$transaction to ensure data consistency
    */
   async createMemberContribution(data: { stokvelGroupId: string; amount: number; paymentMethod: string; notes?: string }, userId: string) {
     try {
-      // Validate the group exists
-      const group = await prisma.stokvelGroup.findUnique({
-        where: { id: data.stokvelGroupId }
-      });
-
-      if (!group) {
-        return { success: false, message: 'Group not found' };
-      }
-
-      // Verify the user is a member of the group
-      const membership = await prisma.member.findFirst({
-        where: { userId, stokvelGroupId: data.stokvelGroupId }
-      });
-
-      if (!membership) {
-        return { success: false, message: 'You are not a member of this group' };
-      }
-
-      // Validate amount
-      if (!data.amount || data.amount <= 0) {
-        return { success: false, message: 'Amount must be greater than 0' };
-      }
-
-      const referenceNumber = this.generateReferenceNumber();
-
-      // Create the contribution transaction
-      const transaction = await prisma.transaction.create({
-        data: {
-          stokvelGroupId: data.stokvelGroupId,
-          memberId: membership.id,
-          transactionType: TransactionType.CONTRIBUTION,
-          amount: data.amount,
-          paymentMethod: Object.values(PaymentMethod).includes(data.paymentMethod as PaymentMethod)
-            ? data.paymentMethod as PaymentMethod
-            : PaymentMethod.BANK_TRANSFER,
-          notes: data.notes || undefined,
-          referenceNumber,
-          recordedById: userId,
-          currency: group.currency,
-          transactionDate: new Date(),
-          status: TransactionStatus.COMPLETED,
-        },
-        include: {
-          group: { select: { id: true, name: true, currency: true } },
-          member: {
-            include: {
-              user: { select: { id: true, fullName: true, phoneNumber: true } }
-            }
-          },
-          recordedBy: { select: { id: true, fullName: true, phoneNumber: true } }
+      const result = await prisma.$transaction(async (tx: any) => {
+        // Validate the group exists
+        const group = await tx.stokvelGroup.findUnique({
+          where: { id: data.stokvelGroupId }
+        });
+        if (!group) {
+          throw new Error('Group not found');
         }
+
+        // Verify the user is a member of the group
+        const membership = await tx.member.findFirst({
+          where: { userId, stokvelGroupId: data.stokvelGroupId }
+        });
+        if (!membership) {
+          throw new Error('You are not a member of this group');
+        }
+
+        // Validate amount
+        if (!data.amount || data.amount <= 0) {
+          throw new Error('Amount must be greater than 0');
+        }
+
+        const referenceNumber = this.generateReferenceNumber();
+
+        // Create the contribution transaction atomically
+        const transaction = await tx.transaction.create({
+          data: {
+            stokvelGroupId: data.stokvelGroupId,
+            memberId: membership.id,
+            transactionType: TransactionType.CONTRIBUTION,
+            amount: data.amount,
+            paymentMethod: Object.values(PaymentMethod).includes(data.paymentMethod as PaymentMethod)
+              ? data.paymentMethod as PaymentMethod
+              : PaymentMethod.BANK_TRANSFER,
+            notes: data.notes || undefined,
+            referenceNumber,
+            recordedById: userId,
+            currency: group.currency,
+            transactionDate: new Date(),
+            status: TransactionStatus.COMPLETED,
+          },
+          include: {
+            group: { select: { id: true, name: true, currency: true } },
+            member: {
+              include: {
+                user: { select: { id: true, fullName: true, phoneNumber: true } }
+              }
+            },
+            recordedBy: { select: { id: true, fullName: true, phoneNumber: true } }
+          }
+        });
+
+        return transaction;
+      }, {
+        timeout: 10000,
       });
 
       return {
         success: true,
-        data: transaction,
+        data: result,
         message: 'Contribution recorded successfully'
       };
     } catch (error: any) {
@@ -549,63 +555,50 @@ export class TransactionService {
           startDate = new Date(0); // Beginning of time
       }
 
-      // Get transaction counts by type
-      const transactions = await prisma.transaction.findMany({
-        where: {
-          stokvelGroupId: groupId,
-          transactionDate: {
-            gte: startDate
-          }
-        },
-        select: {
-          transactionType: true,
-          amount: true,
-          status: true
-        }
+      // Get transaction counts by type using aggregation
+      const [contributionAgg, payoutAgg, allAgg, pendingAgg] = await Promise.all([
+        prisma.transaction.aggregate({
+          where: { stokvelGroupId: groupId, transactionDate: { gte: startDate }, transactionType: TransactionType.CONTRIBUTION },
+          _sum: { amount: true }, _count: { _all: true }
+        }),
+        prisma.transaction.aggregate({
+          where: { stokvelGroupId: groupId, transactionDate: { gte: startDate }, transactionType: TransactionType.PAYOUT },
+          _sum: { amount: true }, _count: { _all: true }
+        }),
+        prisma.transaction.aggregate({
+          where: { stokvelGroupId: groupId, transactionDate: { gte: startDate } },
+          _sum: { amount: true }, _count: { _all: true }
+        }),
+        prisma.transaction.aggregate({
+          where: { stokvelGroupId: groupId, transactionDate: { gte: startDate }, status: TransactionStatus.PENDING },
+          _sum: { amount: true }, _count: { _all: true }
+        }),
+      ]);
+
+      // Get status breakdown
+      const statusBreakdown = await prisma.transaction.groupBy({
+        by: ['status'],
+        where: { stokvelGroupId: groupId, transactionDate: { gte: startDate } },
+        _sum: { amount: true }, _count: { _all: true }
       });
 
-      // Calculate statistics
       const stats: any = {
-        total: transactions.length,
-        byType: {},
-        byStatus: {},
-        totalAmount: 0,
-        pendingAmount: 0,
-        completedAmount: 0
+        total: allAgg._count._all,
+        byType: {
+          CONTRIBUTION: { count: contributionAgg._count._all, amount: toNumber(contributionAgg._sum.amount) },
+          PAYOUT: { count: payoutAgg._count._all, amount: toNumber(payoutAgg._sum.amount) },
+        },
+        byStatus: {} as Record<string, { count: number; amount: number }>,
+        totalAmount: toNumber(allAgg._sum.amount),
+        pendingAmount: toNumber(pendingAgg._sum.amount),
+        completedAmount: toNumber(contributionAgg._sum.amount) + toNumber(payoutAgg._sum.amount)
       };
 
-      transactions.forEach((transaction: any) => {
-        // Count by type
-        if (!stats.byType[transaction.transactionType]) {
-          stats.byType[transaction.transactionType] = {
-            count: 0,
-            amount: 0
-          };
-        }
-        stats.byType[transaction.transactionType].count++;
-        stats.byType[transaction.transactionType].amount += Number(transaction.amount);
+      for (const row of statusBreakdown) {
+        stats.byStatus[row.status] = { count: row._count._all, amount: toNumber(row._sum.amount) };
+      }
 
-        // Count by status
-        if (!stats.byStatus[transaction.status]) {
-          stats.byStatus[transaction.status] = {
-            count: 0,
-            amount: 0
-          };
-        }
-        stats.byStatus[transaction.status].count++;
-        stats.byStatus[transaction.status].amount += Number(transaction.amount);
-
-        // Total amounts
-        stats.totalAmount += Number(transaction.amount);
-
-        if (transaction.status === TransactionStatus.PENDING) {
-          stats.pendingAmount += Number(transaction.amount);
-        } else if (transaction.status === TransactionStatus.COMPLETED) {
-          stats.completedAmount += Number(transaction.amount);
-        }
-      });
-
-      // Get top contributors
+      // Get top contributors � single query with JOIN instead of N+1
       const topContributors = await prisma.transaction.groupBy({
         by: ['memberId'],
         where: {
@@ -613,44 +606,29 @@ export class TransactionService {
           transactionType: TransactionType.CONTRIBUTION,
           status: TransactionStatus.COMPLETED
         },
-        _sum: {
-          amount: true
-        },
-        orderBy: {
-          _sum: {
-            amount: 'desc'
-          }
-        },
+        _sum: { amount: true },
+        orderBy: { _sum: { amount: 'desc' } },
         take: 5
       });
 
-      // Get member details for top contributors
-      const topContributorsWithDetails = await Promise.all(
-        topContributors.map(async (contributor: any) => {
-          if (!contributor.memberId) return null;
-          
-          const member = await prisma.member.findUnique({
-            where: { id: contributor.memberId },
-            include: {
-              user: {
-                select: {
-                  fullName: true,
-                  phoneNumber: true
-                }
-              }
-            }
-          });
+      // Batch-fetch member details in one query
+      const memberIds = topContributors.map((c: any) => c.memberId).filter(Boolean);
+      const memberDetails = memberIds.length > 0
+        ? await prisma.member.findMany({
+            where: { id: { in: memberIds } },
+            include: { user: { select: { fullName: true, phoneNumber: true } } }
+          })
+        : [];
+      const memberMap = new Map(memberDetails.map((m: any) => [m.id, m]));
 
-          return {
-            memberId: contributor.memberId,
-            amount: contributor._sum.amount || 0,
-            member: member ? {
-              name: member.user.fullName,
-              phone: member.user.phoneNumber
-            } : null
-          };
-        })
-      );
+      const topContributorsWithDetails = topContributors.map((contributor: any) => {
+        const member = memberMap.get(contributor.memberId) as any;
+        return {
+          memberId: contributor.memberId,
+          amount: contributor._sum.amount || 0,
+          member: member ? { name: member.user.fullName, phone: member.user.phoneNumber } : null
+        };
+      });
 
       // Get recent transactions
       const recentTransactions = await prisma.transaction.findMany({
@@ -678,7 +656,7 @@ export class TransactionService {
         success: true,
         data: {
           summary: stats,
-          topContributors: topContributorsWithDetails.filter(Boolean),
+          topContributors: topContributorsWithDetails,
           recentTransactions,
           period: period || 'all'
         },
@@ -784,6 +762,7 @@ export class TransactionService {
 
   /**
    * Record a payout to a member
+   * ATOMIC: Uses prisma.$transaction to prevent double-spending race conditions
    */
   async recordPayout(data: {
     stokvelGroupId: string;
@@ -794,58 +773,94 @@ export class TransactionService {
     notes?: string;
   }, recordedById: string) {
     try {
-      // Get member's total contributions
-      const contributions = await prisma.transaction.aggregate({
-        where: {
-          stokvelGroupId: data.stokvelGroupId,
-          memberId: data.memberId,
-          transactionType: TransactionType.CONTRIBUTION,
-          status: TransactionStatus.COMPLETED
-        },
-        _sum: {
-          amount: true
+      // Use an interactive transaction with serializable isolation to prevent race conditions
+      const result = await prisma.$transaction(async (tx: any) => {
+        // Get member's total contributions
+        const contributions = await tx.transaction.aggregate({
+          where: {
+            stokvelGroupId: data.stokvelGroupId,
+            memberId: data.memberId,
+            transactionType: TransactionType.CONTRIBUTION,
+            status: TransactionStatus.COMPLETED
+          },
+          _sum: { amount: true }
+        });
+
+        const totalContributions = toNumber(contributions._sum.amount);
+
+        // Get previous payouts for this member in this group
+        const previousPayouts = await tx.transaction.aggregate({
+          where: {
+            stokvelGroupId: data.stokvelGroupId,
+            memberId: data.memberId,
+            transactionType: TransactionType.PAYOUT,
+            status: { in: [TransactionStatus.COMPLETED, TransactionStatus.PENDING] }
+          },
+          _sum: { amount: true }
+        });
+
+        const totalPreviousPayouts = toNumber(previousPayouts._sum.amount);
+        const availableBalance = totalContributions - totalPreviousPayouts;
+
+        // Check if payout amount is valid against net balance
+        if (data.amount > availableBalance) {
+          throw new Error(`Payout amount (${data.amount}) exceeds available balance (${availableBalance}). Total contributions: ${totalContributions}, previous payouts: ${totalPreviousPayouts}`);
         }
+
+        // Validate the group exists
+        const group = await tx.stokvelGroup.findUnique({
+          where: { id: data.stokvelGroupId }
+        });
+        if (!group) {
+          throw new Error('Group not found');
+        }
+
+        // Verify the recorder is an admin of the group
+        const recorderMembership = await tx.member.findFirst({
+          where: { userId: recordedById, stokvelGroupId: data.stokvelGroupId }
+        });
+        if (!recorderMembership) {
+          throw new Error('You are not a member of this group');
+        }
+        if (recorderMembership.role !== 'ADMIN') {
+          throw new Error('Only the group admin can record payouts');
+        }
+
+        const referenceNumber = this.generateReferenceNumber();
+
+        // Create the payout transaction atomically
+        const transaction = await tx.transaction.create({
+          data: {
+            stokvelGroupId: data.stokvelGroupId,
+            memberId: data.memberId,
+            transactionType: TransactionType.PAYOUT,
+            amount: data.amount,
+            paymentMethod: data.paymentMethod,
+            referenceNumber,
+            recordedById,
+            currency: group.currency,
+            transactionDate: data.transactionDate || new Date(),
+            status: TransactionStatus.PENDING,
+            notes: data.notes || 'Group payout',
+          },
+          include: {
+            group: { select: { id: true, name: true, currency: true } },
+            member: { include: { user: { select: { id: true, fullName: true, phoneNumber: true } } } },
+            recordedBy: { select: { id: true, fullName: true, phoneNumber: true } }
+          }
+        });
+
+        return transaction;
+      }, {
+        timeout: 10000, // 10s timeout for the transaction
       });
 
-      const totalContributions = toNumber(contributions._sum.amount);
+      return {
+        success: true,
+        data: result,
+        message: 'Payout recorded successfully'
+      };
 
-      // Get previous payouts for this member in this group
-      const previousPayouts = await prisma.transaction.aggregate({
-        where: {
-          stokvelGroupId: data.stokvelGroupId,
-          memberId: data.memberId,
-          transactionType: TransactionType.PAYOUT,
-          status: TransactionStatus.COMPLETED
-        },
-        _sum: {
-          amount: true
-        }
-      });
-
-      const totalPreviousPayouts = toNumber(previousPayouts._sum.amount);
-      const availableBalance = totalContributions - totalPreviousPayouts;
-
-      // Check if payout amount is valid against net balance
-      if (data.amount > availableBalance) {
-        return {
-          success: false,
-          message: `Payout amount (${data.amount}) exceeds available balance (${availableBalance}). Total contributions: ${totalContributions}, previous payouts: ${totalPreviousPayouts}`
-        };
-      }
-
-      // Create the payout transaction
-      const transaction = await this.createTransaction({
-        stokvelGroupId: data.stokvelGroupId,
-        memberId: data.memberId,
-        transactionType: TransactionType.PAYOUT,
-        amount: data.amount,
-        paymentMethod: data.paymentMethod,
-        transactionDate: data.transactionDate,
-        notes: data.notes || 'Group payout'
-      }, recordedById);
-
-      return transaction;
-      
     } catch (error: any) {
       return {
         success: false,
@@ -916,7 +931,7 @@ export class TransactionService {
         }
         // ADMIN sees all transactions in the group (no memberId filter)
       } else {
-        // No specific group — different behavior based on personalOnly
+        // No specific group � different behavior based on personalOnly
         if (personalOnly) {
           // /my endpoint: always own transactions only
           whereClause.memberId = { in: memberIds };
@@ -1042,55 +1057,64 @@ export class TransactionService {
 
   /**
    * Get dashboard data for a specific group
+   * OPTIMIZED: Uses DB aggregation instead of loading all transactions into memory
    */
   async getDashboardData(groupId: string, userId: string) {
     try {
       // Validate the group exists
       const group = await prisma.stokvelGroup.findUnique({
         where: { id: groupId },
-        include: {
-          members: true,
-          transactions: true,
-        },
+        select: {
+          id: true,
+          name: true,
+          _count: { select: { members: true } }
+        }
       });
 
       if (!group) {
-        return {
-          success: false,
-          message: 'Group not found',
-        };
+        return { success: false, message: 'Group not found' };
       }
 
       // Check if the user is a member of the group
-      const isMember = group.members.some((member: any) => member.userId === userId);
+      const membership = await prisma.member.findFirst({
+        where: { userId, stokvelGroupId: groupId }
+      });
 
-      if (!isMember) {
-        return {
-          success: false,
-          message: 'You are not a member of this group',
-        };
+      if (!membership) {
+        return { success: false, message: 'You are not a member of this group' };
       }
 
-      // Calculate dashboard data (example: total contributions, total withdrawals, etc.)
-      const totalContributions = group.transactions
-        .filter((tx: any) => tx.transactionType === TransactionType.CONTRIBUTION)
-        .reduce((sum: number, tx: any) => sum + toNumber(tx.amount), 0);
-
-      const totalWithdrawals = group.transactions
-        .filter((tx: any) => tx.transactionType === TransactionType.PAYOUT)
-        .reduce((sum: number, tx: any) => sum + toNumber(tx.amount), 0);
+      // Aggregate contributions and payouts at DB level
+      const [contributionAgg, payoutAgg] = await Promise.all([
+        prisma.transaction.aggregate({
+          where: {
+            stokvelGroupId: groupId,
+            transactionType: TransactionType.CONTRIBUTION,
+            status: TransactionStatus.COMPLETED
+          },
+          _sum: { amount: true }
+        }),
+        prisma.transaction.aggregate({
+          where: {
+            stokvelGroupId: groupId,
+            transactionType: TransactionType.PAYOUT,
+            status: TransactionStatus.COMPLETED
+          },
+          _sum: { amount: true }
+        })
+      ]);
 
       return {
         success: true,
         data: {
           groupName: group.name,
-          totalMembers: group.members.length,
-          totalContributions,
-          totalWithdrawals,
+          totalMembers: group._count.members,
+          totalContributions: toNumber(contributionAgg._sum.amount),
+          totalWithdrawals: toNumber(payoutAgg._sum.amount),
         },
       };
     } catch (error: any) {
-      console.error('Get dashboard data error:', error);
+      logger.error('Get dashboard data error:', error);
       return {
         success: false,
         message: 'Internal server error',

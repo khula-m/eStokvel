@@ -1,9 +1,11 @@
-﻿import { MemberRole } from '@prisma/client';
+import { MemberRole } from '@prisma/client';
 import { CreateMemberInput, UpdateMemberInput } from '../models/Member.model';
 import { prisma } from '../utils/prisma';
+import logger from '../utils/logger';
 
 export class MemberService {
   async addMember(data: CreateMemberInput, invitedById?: string) {
+    try {
     const user = await prisma.user.findUnique({
       where: { id: data.userId }
     });
@@ -46,54 +48,67 @@ export class MemberService {
       ? (data.role as MemberRole)
       : MemberRole.MEMBER;
 
-    const member = await prisma.member.create({
-      data: {
-        userId: data.userId,
-        stokvelGroupId: data.stokvelGroupId,
-        role: roleValue
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            fullName: true,
-            phoneNumber: true,
-            email: true
-          }
+    // ATOMIC: Create member and audit transaction together
+    const result = await prisma.$transaction(async (tx: any) => {
+      const member = await tx.member.create({
+        data: {
+          userId: data.userId,
+          stokvelGroupId: data.stokvelGroupId,
+          role: roleValue
         },
-        group: {
-          select: {
-            id: true,
-            name: true,
-            code: true
+        include: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              phoneNumber: true,
+              email: true
+            }
+          },
+          group: {
+            select: {
+              id: true,
+              name: true,
+              code: true
+            }
           }
         }
-      }
-    });
+      });
 
-    await prisma.transaction.create({
-      data: {
-        stokvelGroupId: data.stokvelGroupId,
-        memberId: member.id,
-        transactionType: 'ADJUSTMENT',
-        amount: 0,
-        currency: group.currency,
-        paymentMethod: 'BANK_TRANSFER',
-        transactionDate: new Date(),
-        recordedById: invitedById || data.userId,
-        status: 'COMPLETED',
-        notes: `${user.fullName} joined the group`
-      }
+      await tx.transaction.create({
+        data: {
+          stokvelGroupId: data.stokvelGroupId,
+          memberId: member.id,
+          transactionType: 'ADJUSTMENT',
+          amount: 0,
+          currency: group.currency,
+          paymentMethod: 'BANK_TRANSFER',
+          transactionDate: new Date(),
+          recordedById: invitedById || data.userId,
+          status: 'COMPLETED',
+          notes: `${user.fullName} joined the group`
+        }
+      });
+
+      return member;
     });
 
     return {
       success: true,
-      data: member,
+      data: result,
       message: 'Member added successfully'
     };
+    } catch (error: any) {
+      logger.error('addMember error:', error);
+      return {
+        success: false,
+        message: error.message || 'Failed to add member'
+      };
+    }
   }
 
   async getMemberById(id: string) {
+    try {
     const member = await prisma.member.findUnique({
       where: { id },
       include: {
@@ -143,9 +158,14 @@ export class MemberService {
       data: member,
       message: 'Member retrieved successfully'
     };
+    } catch (error: any) {
+      logger.error('getMemberById error:', error);
+      return { success: false, message: error.message || 'Failed to retrieve member' };
+    }
   }
 
   async updateMember(id: string, data: UpdateMemberInput) {
+    try {
     const { role, ...rest } = data;
     
     const roleValue = role && Object.values(MemberRole).includes(role as MemberRole)
@@ -153,7 +173,7 @@ export class MemberService {
       : undefined;
 
     if (role && !roleValue) {
-      throw new Error('Invalid role');
+      return { success: false, message: 'Invalid role' };
     }
 
     const member = await prisma.member.update({
@@ -184,9 +204,14 @@ export class MemberService {
       data: member,
       message: 'Member updated successfully'
     };
+    } catch (error: any) {
+      logger.error('updateMember error:', error);
+      return { success: false, message: error.message || 'Failed to update member' };
+    }
   }
 
   async removeMember(id: string, removedById: string) {
+    try {
     const member = await prisma.member.findUnique({
       where: { id },
       include: {
@@ -216,35 +241,43 @@ export class MemberService {
       };
     }
 
-    await prisma.transaction.create({
-      data: {
-        stokvelGroupId: member.stokvelGroupId,
-        memberId: id,
-        transactionType: 'ADJUSTMENT',
-        amount: 0,
-        currency: member.group.currency,
-        paymentMethod: 'BANK_TRANSFER',
-        transactionDate: new Date(),
-        recordedById: removedById,
-        status: 'COMPLETED',
-        notes: `${member.user.fullName} was removed from the group`
-      }
-    });
+    // ATOMIC: Create audit transaction and delete member together
+    await prisma.$transaction(async (tx: any) => {
+      await tx.transaction.create({
+        data: {
+          stokvelGroupId: member.stokvelGroupId,
+          memberId: id,
+          transactionType: 'ADJUSTMENT',
+          amount: 0,
+          currency: member.group.currency,
+          paymentMethod: 'BANK_TRANSFER',
+          transactionDate: new Date(),
+          recordedById: removedById,
+          status: 'COMPLETED',
+          notes: `${member.user.fullName} was removed from the group`
+        }
+      });
 
-    await prisma.member.delete({
-      where: { id }
+      await tx.member.delete({
+        where: { id }
+      });
     });
 
     return {
       success: true,
       message: 'Member removed successfully'
     };
+    } catch (error: any) {
+      logger.error('removeMember error:', error);
+      return { success: false, message: error.message || 'Failed to remove member' };
+    }
   }
 
   async getGroupMembers(groupId: string, filters?: {
     role?: string;
     search?: string;
   }) {
+    try {
     const whereClause: any = {
       stokvelGroupId: groupId
     };
@@ -284,51 +317,59 @@ export class MemberService {
       }
     });
 
-    const membersWithStats = await Promise.all(
-      members.map(async (member: any) => {
-        const transactions = await prisma.transaction.findMany({
-          where: {
-            memberId: member.id,
-            status: 'COMPLETED'
-          },
-          select: {
-            amount: true,
-            transactionType: true
-          }
-        });
+    const memberIds = members.map((m: any) => m.id);
 
-        let totalContributions = 0;
-        let totalPayouts = 0;
-
-        transactions.forEach((transaction: any) => {
-          if (transaction.transactionType === 'CONTRIBUTION') {
-            totalContributions += Number(transaction.amount);
-          } else if (transaction.transactionType === 'PAYOUT') {
-            totalPayouts += Number(transaction.amount);
-          }
-        });
-
-        const balance = totalContributions - totalPayouts;
-
-        return {
-          ...member,
-          stats: {
-            totalContributions,
-            totalPayouts,
-            balance
-          }
-        };
+    // BATCH: Single groupBy query instead of N+1 individual queries
+    const [contributionStats, payoutStats] = await Promise.all([
+      prisma.transaction.groupBy({
+        by: ['memberId'],
+        where: {
+          memberId: { in: memberIds },
+          status: 'COMPLETED',
+          transactionType: 'CONTRIBUTION'
+        },
+        _sum: { amount: true }
+      }),
+      prisma.transaction.groupBy({
+        by: ['memberId'],
+        where: {
+          memberId: { in: memberIds },
+          status: 'COMPLETED',
+          transactionType: 'PAYOUT'
+        },
+        _sum: { amount: true }
       })
-    );
+    ]);
+
+    const contribMap = new Map<string, number>(contributionStats.map((s: any) => [s.memberId, Number(s._sum.amount || 0)]));
+    const payoutMap = new Map<string, number>(payoutStats.map((s: any) => [s.memberId, Number(s._sum.amount || 0)]));
+
+    const membersWithStats = members.map((member: any) => {
+      const totalContributions: number = contribMap.get(member.id) || 0;
+      const totalPayouts: number = payoutMap.get(member.id) || 0;
+      return {
+        ...member,
+        stats: {
+          totalContributions,
+          totalPayouts,
+          balance: Number(totalContributions) - Number(totalPayouts)
+        }
+      };
+    });
 
     return {
       success: true,
       data: membersWithStats,
       message: 'Group members retrieved successfully'
     };
+    } catch (error: any) {
+      logger.error('getGroupMembers error:', error);
+      return { success: false, message: error.message || 'Failed to retrieve group members' };
+    }
   }
 
   async getMemberStats(memberId: string) {
+    try {
     const member = await prisma.member.findUnique({
       where: { id: memberId },
       include: {
@@ -354,37 +395,36 @@ export class MemberService {
       };
     }
 
-    const transactions = await prisma.transaction.findMany({
-      where: {
-        memberId: memberId
-      },
-      orderBy: {
-        transactionDate: 'desc'
-      }
-    });
+    // DB-LEVEL AGGREGATION instead of loading all transactions into memory
+    const [contributionAgg, payoutAgg, pendingAgg, totalCount, lastContribution, recentTransactions] = await Promise.all([
+      prisma.transaction.aggregate({
+        where: { memberId, transactionType: 'CONTRIBUTION' },
+        _sum: { amount: true }
+      }),
+      prisma.transaction.aggregate({
+        where: { memberId, transactionType: 'PAYOUT' },
+        _sum: { amount: true }
+      }),
+      prisma.transaction.aggregate({
+        where: { memberId, transactionType: 'CONTRIBUTION', status: 'PENDING' },
+        _sum: { amount: true }
+      }),
+      prisma.transaction.count({ where: { memberId } }),
+      prisma.transaction.findFirst({
+        where: { memberId, transactionType: 'CONTRIBUTION' },
+        orderBy: { transactionDate: 'desc' },
+        select: { transactionDate: true }
+      }),
+      prisma.transaction.findMany({
+        where: { memberId },
+        orderBy: { transactionDate: 'desc' },
+        take: 5
+      })
+    ]);
 
-    let totalContributions = 0;
-    let totalPayouts = 0;
-    let pendingAmount = 0;
-    let lastContributionDate: Date | null = null;
-
-    transactions.forEach((transaction: any) => {
-      switch (transaction.transactionType) {
-        case 'CONTRIBUTION':
-          totalContributions += Number(transaction.amount);
-          if (transaction.status === 'PENDING') {
-            pendingAmount += Number(transaction.amount);
-          }
-          if (!lastContributionDate || transaction.transactionDate > lastContributionDate) {
-            lastContributionDate = transaction.transactionDate;
-          }
-          break;
-        case 'PAYOUT':
-          totalPayouts += Number(transaction.amount);
-          break;
-      }
-    });
-
+    const totalContributions = Number(contributionAgg._sum.amount || 0);
+    const totalPayouts = Number(payoutAgg._sum.amount || 0);
+    const pendingAmount = Number(pendingAgg._sum.amount || 0);
     const currentBalance = totalContributions - totalPayouts;
 
     return {
@@ -402,16 +442,21 @@ export class MemberService {
           totalPayouts,
           currentBalance,
           pendingAmount,
-          lastContributionDate,
-          totalTransactions: transactions.length
+          lastContributionDate: lastContribution?.transactionDate || null,
+          totalTransactions: totalCount
         },
-        recentTransactions: transactions.slice(0, 5)
+        recentTransactions
       },
       message: 'Member statistics retrieved successfully'
     };
+    } catch (error: any) {
+      logger.error('getMemberStats error:', error);
+      return { success: false, message: error.message || 'Failed to retrieve member stats' };
+    }
   }
 
   async joinGroupWithCode(userId: string, code: string) {
+    try {
     const group = await prisma.stokvelGroup.findUnique({
       where: { code },
       include: {
@@ -460,12 +505,17 @@ export class MemberService {
     }, userId);
 
     return member;
+    } catch (error: any) {
+      logger.error('joinGroupWithCode error:', error);
+      return { success: false, message: error.message || 'Failed to join group' };
+    }
   }
 
   /**
    * Get all group memberships for a user
    */
   async getUserMemberships(userId: string) {
+    try {
     const memberships = await prisma.member.findMany({
       where: { userId },
       include: {
@@ -478,7 +528,7 @@ export class MemberService {
             contributionFrequency: true,
             currency: true,
             isActive: true,
-            groupCode: true,
+            code: true,
           }
         },
         user: {
@@ -499,6 +549,10 @@ export class MemberService {
       data: memberships,
       message: `Found ${memberships.length} memberships`
     };
+    } catch (error: any) {
+      logger.error('getUserMemberships error:', error);
+      return { success: false, message: error.message || 'Failed to retrieve memberships' };
+    }
   }
 }
 

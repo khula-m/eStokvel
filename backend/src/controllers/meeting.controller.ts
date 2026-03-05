@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { meetingService } from '../services/meeting.service';
+import logger from '../utils/logger';
 
 export class MeetingController {
   async create(req: Request, res: Response) {
@@ -14,7 +15,7 @@ export class MeetingController {
       });
       return res.status(result.success ? 201 : 400).json(result);
     } catch (error: any) {
-      console.error('Create meeting error:', error);
+      logger.error('Create meeting error:', error);
       return res.status(500).json({ success: false, message: 'Internal server error' });
     }
   }
@@ -26,7 +27,7 @@ export class MeetingController {
       const result = await meetingService.getGroupMeetings(groupId, (req as any).user.id, upcoming);
       return res.status(result.success ? 200 : 400).json(result);
     } catch (error: any) {
-      console.error('Get meetings error:', error);
+      logger.error('Get meetings error:', error);
       return res.status(500).json({ success: false, message: 'Internal server error' });
     }
   }
@@ -41,7 +42,7 @@ export class MeetingController {
       const result = await meetingService.rsvpMeeting(id, (req as any).user.id, status);
       return res.status(result.success ? 200 : 400).json(result);
     } catch (error: any) {
-      console.error('RSVP meeting error:', error);
+      logger.error('RSVP meeting error:', error);
       return res.status(500).json({ success: false, message: 'Internal server error' });
     }
   }
@@ -55,7 +56,7 @@ export class MeetingController {
       });
       return res.status(result.success ? 200 : 400).json(result);
     } catch (error: any) {
-      console.error('Update meeting error:', error);
+      logger.error('Update meeting error:', error);
       return res.status(500).json({ success: false, message: 'Internal server error' });
     }
   }
@@ -66,7 +67,7 @@ export class MeetingController {
       const result = await meetingService.deleteMeeting(id, (req as any).user.id);
       return res.status(result.success ? 200 : 400).json(result);
     } catch (error: any) {
-      console.error('Delete meeting error:', error);
+      logger.error('Delete meeting error:', error);
       return res.status(500).json({ success: false, message: 'Internal server error' });
     }
   }

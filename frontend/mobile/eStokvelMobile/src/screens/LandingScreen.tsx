@@ -1,202 +1,370 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, Animated, StyleSheet, Platform,
+  View, Text, TouchableOpacity, Animated, StyleSheet, Platform, ScrollView, Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon, IconName } from '../components/Icon';
 import { COLORS } from '../constants/theme';
 import { scaleFontSize } from '../utils/responsive';
 
+const shadow = (offsetY: number, blur: number, opacity: number): any =>
+  Platform.OS === 'web'
+    ? { boxShadow: `0 ${offsetY}px ${blur}px rgba(0,0,0,${opacity})` }
+    : { shadowColor: '#000', shadowOffset: { width: 0, height: offsetY }, shadowOpacity: opacity, shadowRadius: blur / 2, elevation: Math.round(blur / 2) };
+
 interface LandingScreenProps {
   onGetStarted: () => void;
 }
 
-export const LandingScreen = ({ onGetStarted }: LandingScreenProps) => {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(40)).current;
-  const btnFade = useRef(new Animated.Value(0)).current;
+/* ── Interactive feature card ── */
+const FeatureCard = ({ icon, title, desc, tint, bg, anim, index }: {
+  icon: IconName; title: string; desc: string; tint: string; bg: string;
+  anim: Animated.Value; index: number;
+}) => {
+  const scale = useRef(new Animated.Value(1)).current;
+  const [expanded, setExpanded] = useState(false);
 
-  useEffect(() => {
-    // Logo + title fade in
-    Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 800, useNativeDriver: true }),
-    ]).start(() => {
-      // Then button fades in
-      Animated.timing(btnFade, { toValue: 1, duration: 500, useNativeDriver: true }).start();
-    });
-  }, []);
+  const onPressIn = () => Animated.spring(scale, { toValue: 0.96, useNativeDriver: true }).start();
+  const onPressOut = () => {
+    Animated.spring(scale, { toValue: 1, friction: 3, useNativeDriver: true }).start();
+    setExpanded(!expanded);
+  };
+
+  const details: Record<number, string> = {
+    0: 'Your data is encrypted end-to-end. PIN authentication ensures only you can access your account.',
+    1: 'Be an admin in one stokvel and a member in another. Full flexibility for modern savings.',
+    2: 'See every contribution and payout as it happens. Export reports anytime you need them.',
+  };
 
   return (
-    <SafeAreaView style={landing.container}>
-      {/* Gradient-like background with overlay circles */}
-      <View style={landing.bgCircle1} />
-      <View style={landing.bgCircle2} />
-
-      {/* Main content */}
-      <Animated.View style={[landing.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-        {/* Icon */}
-        <View style={landing.logoOuter}>
-          <View style={landing.logoInner}>
-            <Icon name="account-balance-wallet" size={52} color="#fff" />
+    <Animated.View style={{ opacity: anim, transform: [{ scale }] }}>
+      <TouchableOpacity
+        activeOpacity={1}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        style={[s.featureCard, expanded && s.featureCardExpanded]}
+      >
+        <View style={s.featureCardRow}>
+          <View style={[s.featureIcon, { backgroundColor: bg }]}>
+            <Icon name={icon} size={24} color={tint} />
           </View>
+          <View style={s.featureText}>
+            <Text style={s.featureTitle}>{title}</Text>
+            <Text style={s.featureDesc}>{desc}</Text>
+          </View>
+          <Icon name={expanded ? 'expand-less' : 'expand-more'} size={22} color="#94A3B8" />
         </View>
+        {expanded && (
+          <View style={s.featureDetail}>
+            <View style={[s.featureDetailBar, { backgroundColor: tint }]} />
+            <Text style={s.featureDetailText}>{details[index]}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
 
-        {/* App name */}
-        <Text style={landing.appName}>eStokvel</Text>
-        <Text style={landing.tagline}>Your Trusted Stokvel{'\n'}Management Platform</Text>
+export const LandingScreen = ({ onGetStarted }: LandingScreenProps) => {
+  // ── Entrance animations ──
+  const heroFade = useRef(new Animated.Value(0)).current;
+  const heroSlide = useRef(new Animated.Value(30)).current;
+  const statsFade = useRef(new Animated.Value(0)).current;
+  const feat1 = useRef(new Animated.Value(0)).current;
+  const feat2 = useRef(new Animated.Value(0)).current;
+  const feat3 = useRef(new Animated.Value(0)).current;
+  const btnFade = useRef(new Animated.Value(0)).current;
 
-        {/* Feature highlights */}
-        <View style={landing.features}>
-          {([
-            { icon: 'shield' as IconName, label: 'Secure & Private' },
-            { icon: 'groups' as IconName, label: 'Group Savings' },
-            { icon: 'payments' as IconName, label: 'Digital Payments' },
-          ]).map((f) => (
-            <View key={f.label} style={landing.featureItem}>
-              <View style={landing.featureIcon}>
-                <Icon name={f.icon} size={20} color={COLORS.secondary} />
-              </View>
-              <Text style={landing.featureText}>{f.label}</Text>
+  // ── Continuous animations ──
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const btnGlow = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const stagger = (anim: Animated.Value, delay: number) =>
+      Animated.timing(anim, { toValue: 1, duration: 500, delay, useNativeDriver: true });
+
+    // Entrance
+    Animated.parallel([
+      Animated.timing(heroFade, { toValue: 1, duration: 600, useNativeDriver: true }),
+      Animated.timing(heroSlide, { toValue: 0, duration: 600, useNativeDriver: true }),
+      stagger(statsFade, 350),
+      stagger(feat1, 500),
+      stagger(feat2, 620),
+      stagger(feat3, 740),
+      stagger(btnFade, 850),
+    ]).start();
+
+    // Continuous pulse on logo ring
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.08, duration: 1800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    ).start();
+
+    // Floating icon
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, { toValue: -6, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(floatAnim, { toValue: 0, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    ).start();
+
+    // Button glow pulse
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(btnGlow, { toValue: 1, duration: 1500, useNativeDriver: true }),
+        Animated.timing(btnGlow, { toValue: 0, duration: 1500, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  const features: { icon: IconName; title: string; desc: string; tint: string; bg: string }[] = [
+    { icon: 'shield', title: 'Bank-Grade Security', desc: 'PIN-protected & encrypted data storage', tint: COLORS.primary, bg: '#EEF2FF' },
+    { icon: 'groups', title: 'Multi-Group Roles', desc: 'Admin in one group, member in another', tint: COLORS.accent, bg: '#ECFDF5' },
+    { icon: 'trending-up', title: 'Real-Time Tracking', desc: 'Contributions, payouts & analytics live', tint: '#D97706', bg: '#FFFBEB' },
+  ];
+  const featAnims = [feat1, feat2, feat3];
+
+  return (
+    <SafeAreaView style={s.safeArea}>
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} bounces={false}>
+
+        {/* ══ Hero Banner ══ */}
+        <Animated.View style={[s.heroBanner, { opacity: heroFade, transform: [{ translateY: heroSlide }] }]}>
+          <View style={s.heroCircle1} />
+          <View style={s.heroCircle2} />
+          <View style={s.heroCircle3} />
+
+          <Animated.View style={[s.logoRing, { transform: [{ scale: pulseAnim }] }]}>
+            <Animated.View style={[s.logoCircle, { transform: [{ translateY: floatAnim }] }]}>
+              <Icon name="account-balance-wallet" size={32} color="#fff" />
+            </Animated.View>
+          </Animated.View>
+
+          <Text style={s.heroTitle}>eStokvel</Text>
+          <Text style={s.heroSub}>Community Savings,{'\n'}Digitally Empowered</Text>
+
+          {/* Inline trust badges */}
+          <View style={s.heroBadges}>
+            <View style={s.heroBadge}>
+              <Icon name="check-circle" size={14} color={COLORS.accent} />
+              <Text style={s.heroBadgeText}>Verified</Text>
             </View>
+            <View style={s.heroBadgeDot} />
+            <View style={s.heroBadge}>
+              <Icon name="lock" size={14} color={COLORS.secondary} />
+              <Text style={s.heroBadgeText}>Encrypted</Text>
+            </View>
+            <View style={s.heroBadgeDot} />
+            <View style={s.heroBadge}>
+              <Icon name="flash-on" size={14} color="#F59E0B" />
+              <Text style={s.heroBadgeText}>Instant</Text>
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* ══ Trust Indicators ══ */}
+        <Animated.View style={[s.statsRow, { opacity: statsFade }]}>
+          <View style={s.statItem}>
+            <Icon name="lock" size={20} color={COLORS.primary} />
+            <Text style={s.statLabel}>PIN Protected</Text>
+          </View>
+          <View style={s.statDivider} />
+          <View style={s.statItem}>
+            <Icon name="shield" size={20} color={COLORS.accent} />
+            <Text style={s.statLabel}>Encrypted</Text>
+          </View>
+          <View style={s.statDivider} />
+          <View style={s.statItem}>
+            <Icon name="access-time" size={20} color={COLORS.secondary} />
+            <Text style={s.statLabel}>24/7 Access</Text>
+          </View>
+        </Animated.View>
+
+        {/* ══ Interactive Feature Cards ══ */}
+        <View style={s.featuresWrap}>
+          <Text style={s.sectionLabel}>Why eStokvel?</Text>
+          <Text style={s.sectionHint}>Tap a card to learn more</Text>
+          {features.map((f, i) => (
+            <FeatureCard key={f.title} {...f} anim={featAnims[i]} index={i} />
           ))}
         </View>
-      </Animated.View>
 
-      {/* CTA Button */}
-      <Animated.View style={[landing.bottomSection, { opacity: btnFade }]}>
-        <TouchableOpacity
-          style={landing.ctaButton}
-          onPress={onGetStarted}
-          activeOpacity={0.85}
-          accessibilityLabel="Sign in to eStokvel"
-          accessibilityRole="button"
-        >
-          <Text style={landing.ctaButtonText}>Sign In</Text>
-          <Icon name="arrow-forward" size={22} color="#fff" />
-        </TouchableOpacity>
-        <Text style={landing.version}>eStokvel v2.0.0 · Proudly South African 🇿🇦</Text>
-      </Animated.View>
+        {/* ══ How It Works ══ */}
+        <Animated.View style={[s.stepsSection, { opacity: btnFade }]}>
+          <Text style={s.sectionLabel}>How It Works</Text>
+          {[
+            { step: '1', icon: 'person-add' as IconName, text: 'Your admin creates your account' },
+            { step: '2', icon: 'group-add' as IconName, text: 'Join or create stokvel groups' },
+            { step: '3', icon: 'attach-money' as IconName, text: 'Contribute & track everything live' },
+          ].map((item, i) => (
+            <View key={item.step} style={s.stepRow}>
+              <View style={s.stepNumberWrap}>
+                <Text style={s.stepNumber}>{item.step}</Text>
+                {i < 2 && <View style={s.stepLine} />}
+              </View>
+              <View style={s.stepIconWrap}>
+                <Icon name={item.icon} size={20} color={COLORS.primary} />
+              </View>
+              <Text style={s.stepText}>{item.text}</Text>
+            </View>
+          ))}
+        </Animated.View>
+
+        {/* ══ CTA ══ */}
+        <Animated.View style={[s.ctaWrap, { opacity: btnFade }]}>
+          <TouchableOpacity
+            style={s.ctaButton}
+            onPress={onGetStarted}
+            activeOpacity={0.85}
+            accessibilityLabel="Sign in to eStokvel"
+            accessibilityRole="button"
+          >
+            <Text style={s.ctaText}>Get Started</Text>
+            <Animated.View style={[s.ctaArrow, { opacity: Animated.add(0.6, Animated.multiply(btnGlow, 0.4)) }]}>
+              <Icon name="arrow-forward" size={18} color={COLORS.primary} />
+            </Animated.View>
+          </TouchableOpacity>
+          <Text style={s.footerNote}>Community savings, digitally empowered</Text>
+          <Text style={s.version}>v2.0.0 · Proudly South African 🇿🇦</Text>
+        </Animated.View>
+
+      </ScrollView>
     </SafeAreaView>
   );
 };
 
-const landing = StyleSheet.create({
-  container: {
-    flex: 1,
+const s = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: '#F8FAFC' },
+  scroll: { flexGrow: 1, paddingBottom: 36 },
+
+  /* ── Hero ── */
+  heroBanner: {
     backgroundColor: COLORS.primary,
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
+    alignItems: 'center',
+    paddingTop: Platform.OS === 'web' ? 48 : 36,
+    paddingBottom: 48,
     overflow: 'hidden',
   },
-  bgCircle1: {
-    position: 'absolute',
-    width: 500,
-    height: 500,
-    borderRadius: 250,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    top: -180,
-    right: -150,
+  heroCircle1: {
+    position: 'absolute', width: 240, height: 240, borderRadius: 120,
+    backgroundColor: 'rgba(255,255,255,0.05)', top: -70, right: -50,
   },
-  bgCircle2: {
-    position: 'absolute',
-    width: 400,
-    height: 400,
-    borderRadius: 200,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    bottom: -100,
-    left: -120,
+  heroCircle2: {
+    position: 'absolute', width: 180, height: 180, borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.04)', bottom: -40, left: -40,
   },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
+  heroCircle3: {
+    position: 'absolute', width: 100, height: 100, borderRadius: 50,
+    backgroundColor: 'rgba(255,255,255,0.03)', top: 40, left: 30,
   },
-  logoOuter: {
-    width: 120,
-    height: 120,
-    borderRadius: 36,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 28,
+  logoRing: {
+    width: 92, height: 92, borderRadius: 46,
+    borderWidth: 2.5, borderColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center', alignItems: 'center', marginBottom: 16,
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  logoInner: {
-    width: 88,
-    height: 88,
-    borderRadius: 26,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }
-      : { shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16, elevation: 12 }),
+  logoCircle: {
+    width: 64, height: 64, borderRadius: 32,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center', alignItems: 'center',
   },
-  appName: {
-    fontSize: scaleFontSize(42),
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 1.2,
-    marginBottom: 10,
+  heroTitle: {
+    fontSize: scaleFontSize(36), fontWeight: '900', color: '#FFFFFF',
+    letterSpacing: 1.5, marginBottom: 8,
   },
-  tagline: {
-    fontSize: scaleFontSize(16),
-    color: 'rgba(255,255,255,0.7)',
-    textAlign: 'center',
-    lineHeight: 24,
-    letterSpacing: 0.3,
-    marginBottom: 40,
+  heroSub: {
+    fontSize: scaleFontSize(15), color: 'rgba(255,255,255,0.7)',
+    textAlign: 'center', lineHeight: 24, letterSpacing: 0.3, marginBottom: 18,
   },
-  features: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 24,
+  heroBadges: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 20,
+    paddingHorizontal: 16, paddingVertical: 8,
   },
-  featureItem: {
-    alignItems: 'center',
-    gap: 8,
+  heroBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  heroBadgeText: { fontSize: 11, color: 'rgba(255,255,255,0.8)', fontWeight: '600' },
+  heroBadgeDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: 'rgba(255,255,255,0.3)' },
+
+  /* ── Stats ── */
+  statsRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly',
+    marginTop: -28, marginHorizontal: 20,
+    backgroundColor: '#fff', borderRadius: 20, paddingVertical: 20,
+    ...shadow(6, 24, 0.1),
+  },
+  statItem: { alignItems: 'center', flex: 1, gap: 6 },
+  statLabel: { fontSize: scaleFontSize(11), color: '#64748B', fontWeight: '700', letterSpacing: 0.3 },
+  statDivider: { width: 1, height: 32, backgroundColor: '#E5E7EB' },
+
+  /* ── Features ── */
+  featuresWrap: { paddingHorizontal: 24, marginTop: 28 },
+  sectionLabel: {
+    fontSize: scaleFontSize(13), fontWeight: '700', color: '#94A3B8',
+    textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 4,
+  },
+  sectionHint: {
+    fontSize: scaleFontSize(11), color: '#CBD5E1', marginBottom: 14,
+  },
+  featureCard: {
+    backgroundColor: '#fff', borderRadius: 16, padding: 18, marginBottom: 12,
+    ...shadow(2, 12, 0.06),
+  },
+  featureCardExpanded: {
+    ...shadow(4, 18, 0.1),
+  },
+  featureCardRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
   },
   featureIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 50, height: 50, borderRadius: 15,
+    justifyContent: 'center', alignItems: 'center',
   },
-  featureText: {
-    fontSize: scaleFontSize(11),
-    color: 'rgba(255,255,255,0.65)',
-    fontWeight: '600',
-    letterSpacing: 0.2,
+  featureText: { flex: 1 },
+  featureTitle: { fontSize: scaleFontSize(15), fontWeight: '700', color: '#1A1A2E', marginBottom: 2 },
+  featureDesc: { fontSize: scaleFontSize(12), color: '#94A3B8', lineHeight: 18 },
+  featureDetail: {
+    flexDirection: 'row', marginTop: 14, paddingTop: 14,
+    borderTopWidth: 1, borderTopColor: '#F1F5F9', gap: 12,
   },
-  bottomSection: {
-    paddingHorizontal: 32,
-    paddingBottom: Platform.OS === 'web' ? 40 : 24,
-    alignItems: 'center',
+  featureDetailBar: { width: 3, borderRadius: 2, minHeight: 20 },
+  featureDetailText: { flex: 1, fontSize: scaleFontSize(12.5), color: '#64748B', lineHeight: 20 },
+
+  /* ── Steps ── */
+  stepsSection: { paddingHorizontal: 24, marginTop: 24 },
+  stepRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 },
+  stepNumberWrap: { alignItems: 'center', width: 28 },
+  stepNumber: {
+    width: 24, height: 24, borderRadius: 12, backgroundColor: COLORS.primary,
+    color: '#fff', fontSize: 12, fontWeight: '800', textAlign: 'center', lineHeight: 24,
+    overflow: 'hidden',
   },
+  stepLine: { width: 2, height: 28, backgroundColor: '#E2E8F0', marginTop: 4 },
+  stepIconWrap: {
+    width: 40, height: 40, borderRadius: 12, backgroundColor: '#EEF2FF',
+    justifyContent: 'center', alignItems: 'center', marginHorizontal: 12,
+  },
+  stepText: { flex: 1, fontSize: scaleFontSize(13.5), color: '#475569', fontWeight: '600', paddingTop: 9 },
+
+  /* ── CTA ── */
+  ctaWrap: { paddingHorizontal: 24, marginTop: 28, alignItems: 'center' },
   ctaButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    backgroundColor: COLORS.secondary,
-    width: '100%',
-    paddingVertical: 18,
-    borderRadius: 16,
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0 6px 24px rgba(212,160,23,0.4)' }
-      : { shadowColor: COLORS.secondary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 }),
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 12, backgroundColor: COLORS.primary, width: '100%',
+    paddingVertical: 18, borderRadius: 16,
+    ...shadow(6, 24, 0.22),
   },
-  ctaButtonText: {
-    color: '#fff',
-    fontSize: scaleFontSize(18),
-    fontWeight: '800',
-    letterSpacing: 0.5,
+  ctaText: { color: '#fff', fontSize: scaleFontSize(17), fontWeight: '800', letterSpacing: 0.4 },
+  ctaArrow: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center',
   },
-  version: {
-    marginTop: 20,
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.35)',
-    letterSpacing: 0.3,
+  footerNote: {
+    marginTop: 18, fontSize: scaleFontSize(13), color: '#64748B', fontWeight: '500',
   },
+  version: { marginTop: 8, fontSize: 11, color: '#CBD5E1', letterSpacing: 0.3 },
 });

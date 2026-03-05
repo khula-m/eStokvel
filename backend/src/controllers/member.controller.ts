@@ -1,6 +1,7 @@
 ﻿import { Request, Response } from 'express';
 import { MemberService } from '../services/member.service';
 import { CreateMemberInput, UpdateMemberInput } from '../models/Member.model';
+import logger from '../utils/logger';
 
 const memberService = new MemberService();
 
@@ -40,7 +41,7 @@ export class MemberController {
       }
       
     } catch (error: any) {
-      console.error('Add member error:', error);
+      logger.error('Add member error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -67,7 +68,7 @@ export class MemberController {
       }
       
     } catch (error: any) {
-      console.error('Get member error:', error);
+      logger.error('Get member error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -103,7 +104,7 @@ export class MemberController {
       }
       
     } catch (error: any) {
-      console.error('Update member error:', error);
+      logger.error('Update member error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -145,7 +146,7 @@ export class MemberController {
       }
       
     } catch (error: any) {
-      console.error('Remove member error:', error);
+      logger.error('Remove member error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -186,7 +187,7 @@ export class MemberController {
       }
       
     } catch (error: any) {
-      console.error('Get group members error:', error);
+      logger.error('Get group members error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -222,7 +223,7 @@ export class MemberController {
       }
       
     } catch (error: any) {
-      console.error('Get member stats error:', error);
+      logger.error('Get member stats error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -262,7 +263,7 @@ export class MemberController {
       }
       
     } catch (error: any) {
-      console.error('Join group error:', error);
+      logger.error('Join group error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -295,7 +296,7 @@ export class MemberController {
       }
       
     } catch (error: any) {
-      console.error('Get my memberships error:', error);
+      logger.error('Get my memberships error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',

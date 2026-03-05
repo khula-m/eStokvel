@@ -13,6 +13,10 @@ import {
 // Import payout scheduler
 import { startPayoutScheduler } from "./src/jobs/payout.job";
 
+// Import Redis + logger
+import { getRedisClient, disconnectRedis } from "./src/utils/redis";
+import logger from "./src/utils/logger";
+
 const app = express();
 const PORT = parseInt(process.env.PORT || "5000", 10);
 
@@ -51,12 +55,14 @@ app.get("/", (_req: Request, res: Response) => {
 });
 
 app.get("/health", (_req: Request, res: Response) => {
+  const { isRedisReady } = require("./src/utils/redis");
   res.json({
     success: true,
     status: "healthy",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     memory: process.memoryUsage(),
+    redis: isRedisReady() ? "connected" : "disconnected",
   });
 });
 
@@ -102,11 +108,14 @@ export default app;
 
 // Start server
 if (!process.env.JEST_WORKER_ID) {
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log("\n🚀 eStokvel Backend Server");
-    console.log("📡 Port: " + PORT);
-    console.log("🌍 Environment: " + (process.env.NODE_ENV || "development"));
-    console.log("⏰ Started: " + new Date().toLocaleString());
+  // Initialize Redis (non-blocking, graceful degradation)
+  getRedisClient();
+
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    logger.info(`\n🚀 eStokvel Backend Server`);
+    logger.info(`📡 Port: ${PORT}`);
+    logger.info(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
+    logger.info(`⏰ Started: ${new Date().toLocaleString()}`);
     console.log("\n🔗 Available Endpoints:");
     console.log("   http://localhost:" + PORT + "/");
     console.log("   http://localhost:" + PORT + "/health");
@@ -134,4 +143,25 @@ if (!process.env.JEST_WORKER_ID) {
     // Start automatic payout scheduler
     startPayoutScheduler();
   });
+
+  // Graceful shutdown
+  const shutdown = async (signal: string) => {
+    logger.info(`\n${signal} received. Shutting down gracefully...`);
+    server.close(async () => {
+      await disconnectRedis();
+      const { prisma } = require("./src/utils/prisma");
+      await prisma.$disconnect();
+      logger.info("Server shut down gracefully");
+      process.exit(0);
+    });
+
+    // Force exit after 10s
+    setTimeout(() => {
+      logger.error("Forced shutdown after timeout");
+      process.exit(1);
+    }, 10000);
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }

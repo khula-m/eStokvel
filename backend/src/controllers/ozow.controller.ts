@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { ozowService } from '../services/ozow.service';
+import logger from '../utils/logger';
 
 class OzowController {
   /**
@@ -37,7 +38,7 @@ class OzowController {
         return res.status(400).json(result);
       }
     } catch (error: any) {
-      console.error('Ozow initiatePayment controller error:', error);
+      logger.error('Ozow initiatePayment controller error:', error);
       return res.status(500).json({ success: false, message: 'Internal server error' });
     }
   }
@@ -49,14 +50,14 @@ class OzowController {
    */
   async handleNotification(req: Request, res: Response) {
     try {
-      console.log('Ozow notification received:', JSON.stringify(req.body));
+      logger.info('Ozow notification received:', JSON.stringify(req.body));
 
       const result = await ozowService.handleNotification(req.body);
 
       // Ozow expects a 200 OK response regardless of processing outcome
       return res.status(200).json(result);
     } catch (error: any) {
-      console.error('Ozow notification controller error:', error);
+      logger.error('Ozow notification controller error:', error);
       // Still return 200 to Ozow so they don't retry endlessly
       return res.status(200).json({ success: false, message: 'Error processing notification' });
     }
@@ -68,12 +69,12 @@ class OzowController {
    */
   async handlePayoutNotification(req: Request, res: Response) {
     try {
-      console.log('Ozow payout notification received:', JSON.stringify(req.body));
+      logger.info('Ozow payout notification received:', JSON.stringify(req.body));
 
       const result = await ozowService.handlePayoutNotification(req.body);
       return res.status(200).json(result);
     } catch (error: any) {
-      console.error('Ozow payout notification error:', error);
+      logger.error('Ozow payout notification error:', error);
       return res.status(200).json({ success: false, message: 'Error processing payout notification' });
     }
   }

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { announcementService } from '../services/announcement.service';
+import logger from '../utils/logger';
 
 export class AnnouncementController {
   async create(req: Request, res: Response) {
@@ -15,7 +16,7 @@ export class AnnouncementController {
       });
       return res.status(result.success ? 201 : 400).json(result);
     } catch (error: any) {
-      console.error('Create announcement error:', error);
+      logger.error('Create announcement error:', error);
       return res.status(500).json({ success: false, message: 'Internal server error' });
     }
   }
@@ -28,7 +29,7 @@ export class AnnouncementController {
       const result = await announcementService.getGroupAnnouncements(groupId, (req as any).user.id, page, limit);
       return res.status(result.success ? 200 : 400).json(result);
     } catch (error: any) {
-      console.error('Get announcements error:', error);
+      logger.error('Get announcements error:', error);
       return res.status(500).json({ success: false, message: 'Internal server error' });
     }
   }
@@ -39,7 +40,7 @@ export class AnnouncementController {
       const result = await announcementService.markAsRead(id, (req as any).user.id);
       return res.status(result.success ? 200 : 400).json(result);
     } catch (error: any) {
-      console.error('Mark announcement read error:', error);
+      logger.error('Mark announcement read error:', error);
       return res.status(500).json({ success: false, message: 'Internal server error' });
     }
   }
@@ -51,7 +52,7 @@ export class AnnouncementController {
       const result = await announcementService.updateAnnouncement(id, (req as any).user.id, { title, content, pinned });
       return res.status(result.success ? 200 : 400).json(result);
     } catch (error: any) {
-      console.error('Update announcement error:', error);
+      logger.error('Update announcement error:', error);
       return res.status(500).json({ success: false, message: 'Internal server error' });
     }
   }
@@ -62,7 +63,7 @@ export class AnnouncementController {
       const result = await announcementService.deleteAnnouncement(id, (req as any).user.id);
       return res.status(result.success ? 200 : 400).json(result);
     } catch (error: any) {
-      console.error('Delete announcement error:', error);
+      logger.error('Delete announcement error:', error);
       return res.status(500).json({ success: false, message: 'Internal server error' });
     }
   }

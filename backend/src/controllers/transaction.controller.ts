@@ -2,6 +2,7 @@
 import { TransactionService } from '../services/transaction.service';
 import { CreateTransactionInput, UpdateTransactionInput } from '../models/Transaction.model';
 import { PaymentMethod, TransactionType } from '../utils/enums';
+import logger from '../utils/logger';
 
 const transactionService = new TransactionService();
 
@@ -54,7 +55,7 @@ export class TransactionController {
       }
       
     } catch (error: any) {
-      console.error('Create transaction error:', error);
+      logger.error('Create transaction error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -94,7 +95,7 @@ export class TransactionController {
         return res.status(400).json(result);
       }
     } catch (error: any) {
-      console.error('Member contribute error:', error);
+      logger.error('Member contribute error:', error);
       return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
     }
   }
@@ -124,7 +125,7 @@ export class TransactionController {
         return res.status(statusCode).json(result);
       }
     } catch (error: any) {
-      console.error('Get transaction error:', error);
+      logger.error('Get transaction error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -158,7 +159,7 @@ export class TransactionController {
       }
       
     } catch (error: any) {
-      console.error('Update transaction error:', error);
+      logger.error('Update transaction error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -218,7 +219,7 @@ export class TransactionController {
       }
       
     } catch (error: any) {
-      console.error('Get transactions error:', error);
+      logger.error('Get transactions error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -264,7 +265,7 @@ export class TransactionController {
       }
       
     } catch (error: any) {
-      console.error('Get transaction stats error:', error);
+      logger.error('Get transaction stats error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -320,7 +321,7 @@ export class TransactionController {
       }
       
     } catch (error: any) {
-      console.error('Record contribution error:', error);
+      logger.error('Record contribution error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -376,7 +377,7 @@ export class TransactionController {
       }
       
     } catch (error: any) {
-      console.error('Record payout error:', error);
+      logger.error('Record payout error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -428,7 +429,7 @@ export class TransactionController {
       }
       
     } catch (error: any) {
-      console.error('Get my transactions error:', error);
+      logger.error('Get my transactions error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -467,7 +468,7 @@ export class TransactionController {
         return res.status(400).json(dashboardData);
       }
     } catch (error: any) {
-      console.error('Get dashboard data error:', error);
+      logger.error('Get dashboard data error:', error);
       return res.status(500).json({
         success: false,
         message: 'Internal server error',

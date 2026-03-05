@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { notificationService } from '../services/notification.service';
 import { smsService } from '../services/sms.service';
+import logger from '../utils/logger';
 
 export class NotificationController {
   /**
@@ -25,7 +26,7 @@ export class NotificationController {
         message: 'Notifications retrieved successfully'
       });
     } catch (error: any) {
-      console.error('Get notifications error:', error);
+      logger.error('Get notifications error:', error);
       return res.status(500).json({
         success: false,
         message: 'Failed to retrieve notifications'
@@ -73,7 +74,7 @@ export class NotificationController {
         });
       }
     } catch (error: any) {
-      console.error('Send SMS error:', error);
+      logger.error('Send SMS error:', error);
       return res.status(500).json({
         success: false,
         message: 'Failed to send SMS notification'
@@ -110,7 +111,7 @@ export class NotificationController {
         message: 'Contribution reminders sent successfully'
       });
     } catch (error: any) {
-      console.error('Send reminders error:', error);
+      logger.error('Send reminders error:', error);
       return res.status(500).json({
         success: false,
         message: 'Failed to send reminders'
@@ -147,7 +148,7 @@ export class NotificationController {
         message: 'Meeting reminders sent successfully'
       });
     } catch (error: any) {
-      console.error('Send meeting reminder error:', error);
+      logger.error('Send meeting reminder error:', error);
       return res.status(500).json({
         success: false,
         message: 'Failed to send meeting reminders'

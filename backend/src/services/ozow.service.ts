@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { prisma } from '../utils/prisma';
 import { TransactionStatus, TransactionType, PaymentMethod } from '../utils/enums';
+import logger from '../utils/logger';
 
 // ─── Ozow Configuration ───────────────────────────────────────────
 const OZOW_SITE_CODE = process.env.OZOW_SITE_CODE || '';
@@ -210,7 +211,7 @@ class OzowService {
         message: 'Payment initiated. Redirect user to Ozow.',
       };
     } catch (error: any) {
-      console.error('Ozow initiatePayment error:', error);
+      logger.error('Ozow initiatePayment error:', error);
       return { success: false, message: error.message || 'Failed to initiate Ozow payment' };
     }
   }
@@ -223,7 +224,7 @@ class OzowService {
     try {
       // Verify the hash to prevent tampering
       if (!verifyNotificationHash(data)) {
-        console.error('Ozow notification hash mismatch! Possible tampering.');
+        logger.error('Ozow notification hash mismatch! Possible tampering.');
         return { success: false, message: 'Invalid hash' };
       }
 
@@ -239,7 +240,7 @@ class OzowService {
       });
 
       if (!transaction) {
-        console.error(`Ozow notification: Transaction ${transactionId} not found`);
+        logger.error(`Ozow notification: Transaction ${transactionId} not found`);
         return { success: false, message: 'Transaction not found' };
       }
 
@@ -283,14 +284,14 @@ class OzowService {
         }
       });
 
-      console.log(`Ozow notification: Transaction ${transactionId} → ${newStatus} (Ozow: ${data.Status})`);
+      logger.info(`Ozow notification: Transaction ${transactionId} → ${newStatus} (Ozow: ${data.Status})`);
 
       return {
         success: true,
         message: `Transaction updated to ${newStatus}`
       };
     } catch (error: any) {
-      console.error('Ozow handleNotification error:', error);
+      logger.error('Ozow handleNotification error:', error);
       return { success: false, message: error.message || 'Failed to process notification' };
     }
   }
@@ -336,7 +337,7 @@ class OzowService {
         message: messages[type],
       };
     } catch (error: any) {
-      console.error('Ozow handleRedirect error:', error);
+      logger.error('Ozow handleRedirect error:', error);
       return { success: false, message: 'Failed to process redirect' };
     }
   }
@@ -450,11 +451,11 @@ class OzowService {
         }
       } catch (fetchError: any) {
         // Network error — mark pending, might succeed later via webhook
-        console.error('Ozow payout API call failed:', fetchError.message);
+        logger.error('Ozow payout API call failed:', fetchError.message);
         return { success: false, message: 'Failed to reach Ozow payout API. Transaction saved as pending.' };
       }
     } catch (error: any) {
-      console.error('Ozow initiatePayout error:', error);
+      logger.error('Ozow initiatePayout error:', error);
       return { success: false, message: error.message || 'Failed to initiate payout' };
     }
   }
@@ -492,10 +493,10 @@ class OzowService {
         }
       });
 
-      console.log(`Ozow payout notification: Transaction ${transactionRef} → ${newStatus}`);
+      logger.info(`Ozow payout notification: Transaction ${transactionRef} → ${newStatus}`);
       return { success: true, message: `Payout transaction updated to ${newStatus}` };
     } catch (error: any) {
-      console.error('Ozow payout notification error:', error);
+      logger.error('Ozow payout notification error:', error);
       return { success: false, message: error.message || 'Failed to process payout notification' };
     }
   }
