@@ -18,7 +18,8 @@ export const LedgerScreen = ({ auth }: { auth: AuthState }) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filter, setFilter] = useState<'ALL' | 'CONTRIBUTION' | 'PAYOUT'>('ALL');
   const userRole = auth.user?.role || 'MEMBER';
-  const isAdmin = ['ADMIN', 'SUPERADMIN'].includes(userRole);
+  // Per-group admin: use effectiveRole or global SUPERADMIN
+  const isAdmin = auth.user?.effectiveRole === 'ADMIN' || userRole === 'SUPERADMIN';
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [switchingGroup, setSwitchingGroup] = useState(false);

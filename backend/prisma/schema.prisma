@@ -30,7 +30,6 @@ model User {
   createdUsers         User[]         @relation("CreatedByUser")
   members              Member[]
   createdGroups        StokvelGroup[] @relation("GroupCreator")
-  managedGroups        StokvelGroup[] @relation("GroupAdmin")
   recordedTransactions Transaction[]  @relation("TransactionRecordedBy")
   chatMessages         ChatMessage[]
   chatReplies          ChatReply[]
@@ -55,7 +54,6 @@ model StokvelGroup {
   meetingSchedule       String?
   isActive              Boolean       @default(true)
   createdById           String
-  adminId               String?       // Admin who manages this group
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
   // Bank details for the group
@@ -65,7 +63,6 @@ model StokvelGroup {
   branchCode            String?
   members               Member[]
   createdBy             User          @relation("GroupCreator", fields: [createdById], references: [id])
-  admin                 User?         @relation("GroupAdmin", fields: [adminId], references: [id])
   transactions          Transaction[]
   chatMessages          ChatMessage[]
   announcements         Announcement[]
@@ -139,7 +136,6 @@ enum TransactionType {
 
 enum UserRole {
   SUPERADMIN
-  ADMIN
   MEMBER
 }
 

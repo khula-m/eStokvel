@@ -49,7 +49,7 @@ async function main() {
       email: "john@example.com",
       idNumber: "8001015009087",
       pin: await hashPin("56789"),
-      role: "ADMIN",
+      role: "MEMBER",
       mustChangePin: true,
       isVerified: true,
       language: "en",
@@ -109,7 +109,6 @@ async function main() {
       startDate: startDate,
       endDate: endDate,
       createdById: admin.id,
-      adminId: admin.id,
     },
   });
 

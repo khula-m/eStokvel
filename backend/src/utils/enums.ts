@@ -2,7 +2,6 @@
 
 export enum UserRole {
   SUPERADMIN = 'SUPERADMIN',
-  ADMIN = 'ADMIN',
   MEMBER = 'MEMBER'
 }
 
@@ -56,7 +55,6 @@ export const getMemberRoleLabel = (role: MemberRole): string => {
 export const getUserRoleLabel = (role: UserRole): string => {
   const labels: Record<UserRole, string> = {
     [UserRole.SUPERADMIN]: 'Super Admin',
-    [UserRole.ADMIN]: 'Admin',
     [UserRole.MEMBER]: 'Member'
   };
   return labels[role] || role;

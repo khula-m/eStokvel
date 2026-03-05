@@ -4,7 +4,8 @@ import { prisma } from '../utils/prisma';
 // Helper to extract groupId from request
 const getGroupIdFromRequest = (req: Request): string | null => {
   // Safely access params, query, and body with null checks
-  const paramsGroupId = req.params?.groupId;
+  // Check both :groupId and :id params (groups routes use /:id)
+  const paramsGroupId = req.params?.groupId || req.params?.id;
   const queryGroupId = req.query?.groupId as string;
   const bodyGroupId = req.body?.groupId || req.body?.stokvelGroupId;
   

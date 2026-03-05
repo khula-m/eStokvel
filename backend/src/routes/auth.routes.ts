@@ -23,8 +23,8 @@ router.get("/admin/list", authMiddleware, roleMiddleware(['SUPERADMIN']), authCo
 router.delete("/admin/:adminId", authMiddleware, roleMiddleware(['SUPERADMIN']), authController.deleteAdmin.bind(authController));
 router.get("/system/overview", authMiddleware, roleMiddleware(['SUPERADMIN']), authController.getSystemOverview.bind(authController));
 
-// ADMIN-only routes
-router.post("/member/add", authMiddleware, roleMiddleware(['ADMIN']), authController.addMember.bind(authController));
+// ADMIN-only routes (per-group admin check is done in the service layer)
+router.post("/member/add", authMiddleware, authController.addMember.bind(authController));
 
 // SUPERADMIN-only: Remove a member from a group
 import { MemberController } from '../controllers/member.controller';

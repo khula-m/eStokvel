@@ -1,10 +1,23 @@
+export interface UserMembership {
+  id: string;
+  role: 'ADMIN' | 'MEMBER';
+  groupId: string;
+  groupName: string;
+  groupCode: string;
+  groupActive: boolean;
+  memberCount: number;
+}
+
 export interface User {
   id: string;
   fullName: string;
   phoneNumber: string;
   email?: string;
-  role: string;
+  role: string; // Global role: 'SUPERADMIN' | 'MEMBER'
+  effectiveRole?: string; // Derived: 'ADMIN' if admin of any group, else 'MEMBER'
   mustChangePin?: boolean;
+  memberships?: UserMembership[]; // Per-group roles
+  managedGroups?: any[]; // Backward compat: groups where user is admin
 }
 
 export interface Group {

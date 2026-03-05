@@ -51,6 +51,8 @@ export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState;
   const getRoleColor = (role: string) => ({ SUPERADMIN: '#9C27B0', ADMIN: COLORS.primary, MEMBER: '#607D8B' }[role] || '#607D8B');
   const getRoleLabel = (role: string) => ({ SUPERADMIN: 'System Administrator', ADMIN: 'Group Administrator', MEMBER: 'Member' }[role] || role);
   const formatCurrency = (amount: number | string) => `R ${Number(amount || 0).toFixed(2)}`;
+  // Use effectiveRole for display (shows ADMIN if admin of any group)
+  const displayRole = auth.user?.role === 'SUPERADMIN' ? 'SUPERADMIN' : (auth.user?.effectiveRole || auth.user?.role || 'MEMBER');
 
   if (loading) {
     return <View style={styles.centered}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
@@ -60,12 +62,12 @@ export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState;
     <ScrollView style={styles.screenContainer} showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchProfileData(); }} colors={[COLORS.primary]} />}>
       <View style={styles.profileHeaderCard}>
-        <View style={[styles.profileAvatar, { backgroundColor: getRoleColor(auth.user?.role || 'MEMBER') }]}>
+        <View style={[styles.profileAvatar, { backgroundColor: getRoleColor(displayRole) }]}>
           <Text style={styles.profileAvatarText}>{getInitials(auth.user?.fullName || '')}</Text>
         </View>
         <Text style={styles.profileFullName}>{auth.user?.fullName}</Text>
-        <View style={[styles.profileRoleBadge, { backgroundColor: getRoleColor(auth.user?.role || 'MEMBER') }]}>
-          <Text style={styles.profileRoleBadgeText}>{getRoleLabel(auth.user?.role || 'MEMBER')}</Text>
+        <View style={[styles.profileRoleBadge, { backgroundColor: getRoleColor(displayRole) }]}>
+          <Text style={styles.profileRoleBadgeText}>{getRoleLabel(displayRole)}</Text>
         </View>
         {!isSuperAdmin && (
           <View style={styles.profileStatsRow}>
@@ -119,7 +121,7 @@ export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState;
           <View style={[styles.profileInfoIcon, { backgroundColor: '#FFF3E0' }]}><Icon name="person" size={18} color={COLORS.accent} /></View>
           <View style={styles.profileInfoContent}>
             <Text style={styles.profileInfoLabel}>Account Type</Text>
-            <Text style={styles.profileInfoValue}>{getRoleLabel(auth.user?.role || 'MEMBER')}</Text>
+            <Text style={styles.profileInfoValue}>{getRoleLabel(displayRole)}</Text>
           </View>
         </View>
       </View>

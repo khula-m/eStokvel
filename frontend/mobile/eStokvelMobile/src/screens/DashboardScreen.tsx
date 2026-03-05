@@ -26,7 +26,8 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
   const [refreshing, setRefreshing] = useState(false);
   const userRole = auth.user?.role || 'MEMBER';
   const isSuperAdmin = userRole === 'SUPERADMIN';
-  const isAdmin = userRole === 'ADMIN';
+  // Per-group admin: use effectiveRole (ADMIN if admin of any group)
+  const isAdmin = auth.user?.effectiveRole === 'ADMIN' || userRole === 'ADMIN';
   const headers = { Authorization: `Bearer ${auth.token}` };
   const formatCurrency = (amount: number | string) => `R ${Number(amount || 0).toFixed(2)}`;
   const formatDate = (date: string) => new Date(date).toLocaleDateString('en-ZA');

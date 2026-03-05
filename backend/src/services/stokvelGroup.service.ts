@@ -107,8 +107,6 @@ export class StokvelGroupService {
 
           createdById,
 
-          adminId: createdById,
-
           startDate,
 
           endDate,
@@ -509,7 +507,7 @@ export class StokvelGroupService {
 
     try {
 
-      // Get groups where user is a member (exclude deactivated groups)
+      // Get all groups where user is a member (includes groups they admin)
 
       const memberGroups = await prisma.member.findMany({
 
@@ -557,83 +555,17 @@ export class StokvelGroupService {
 
 
 
-      // Get groups created by user (exclude deactivated groups)
+      // Format — userRole comes from Member.role (per-group)
 
-      const createdGroups = await prisma.stokvelGroup.findMany({
+      const groups = memberGroups.map((member: any) => ({
 
-        where: { createdById: userId, isActive: true },
+        ...member.group,
 
-        include: {
+        userRole: member.role, // 'ADMIN' or 'MEMBER' for this specific group
 
-          createdBy: {
+        isCreator: member.group.createdById === userId,
 
-            select: {
-
-              id: true,
-
-              fullName: true,
-
-              phoneNumber: true,
-
-            }
-
-          },
-
-          _count: {
-
-            select: {
-
-              members: true,
-
-              transactions: true,
-
-            }
-
-          }
-
-        }
-
-      });
-
-
-
-      // Combine and format — memberGroups first, then createdGroups
-
-      // Map keeps the LAST entry, so createdGroups (ADMIN/creator) overwrites member entries
-
-      const groups = [
-
-        ...memberGroups.map((member: any) => ({
-
-          ...member.group,
-
-          userRole: member.role,
-
-          isCreator: false
-
-        })),
-
-        ...createdGroups.map((group: any) => ({
-
-          ...group,
-
-          userRole: MemberRole.ADMIN,
-
-          isCreator: true
-
-        }))
-
-      ];
-
-
-
-      // Remove duplicates (if user is both creator and member)
-
-      const uniqueGroups = Array.from(
-
-        new Map(groups.map(group => [group.id, group])).values()
-
-      );
+      }));
 
 
 
@@ -641,7 +573,7 @@ export class StokvelGroupService {
 
         success: true,
 
-        data: uniqueGroups,
+        data: groups,
 
         message: 'User groups retrieved successfully'
 
@@ -733,9 +665,15 @@ export class StokvelGroupService {
 
 
 
-      // ADMIN: must be the group creator/admin
+      // ADMIN: must be a group admin (via Member.role)
 
-      if (group.createdById !== userId && group.adminId !== userId) {
+      const isGroupAdmin = group.members.some(
+
+        (m: any) => m.userId === userId && m.role === 'ADMIN'
+
+      );
+
+      if (!isGroupAdmin) {
 
         return {
 

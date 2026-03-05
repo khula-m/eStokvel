@@ -1,7 +1,6 @@
 import express from "express";
 import { authMiddleware } from "../middleware/auth.middleware";
 import { AuthController } from "../controllers/auth.controller";
-import { roleMiddleware } from "../middleware/role.middleware";
 
 const router = express.Router();
 const controller = new AuthController();
@@ -9,11 +8,10 @@ const controller = new AuthController();
 // Get current user profile (protected - requires valid JWT)
 router.get("/me", authMiddleware, controller.getCurrentUser.bind(controller));
 
-// Get all users in user's groups (role-based access control)
+// Get all users in user's groups (any authenticated user can see their group members)
 router.get(
   "/",
   authMiddleware,
-  roleMiddleware(["ADMIN", "SUPERADMIN"]),
   async (req, res): Promise<void> => {
     try {
       const userId = req.user?.id;

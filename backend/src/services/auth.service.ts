@@ -14,6 +14,7 @@ const SUPERADMIN_TOKEN_EXPIRY = '2h'; // Shorter expiry for superadmin
 interface CreateAdminInput {
   phoneNumber: string;
   fullName: string;
+  groupId?: string; // Optional: immediately assign as admin of a group
 }
 
 interface AddMemberInput {
@@ -86,18 +87,46 @@ export class AuthService {
 
     const existing = await prisma.user.findUnique({ where: { phoneNumber } });
     if (existing) {
+      // User exists — if a groupId is specified, assign them as admin of that group
+      if (data.groupId) {
+        const existingMember = await prisma.member.findUnique({
+          where: { userId_stokvelGroupId: { userId: existing.id, stokvelGroupId: data.groupId } }
+        });
+        if (existingMember) {
+          // Already a member — promote to ADMIN
+          await prisma.member.update({
+            where: { id: existingMember.id },
+            data: { role: 'ADMIN' }
+          });
+          return {
+            success: true,
+            data: { admin: existing },
+            message: `"${existing.fullName}" has been promoted to admin for this group`
+          };
+        }
+        // Not a member yet — add as ADMIN
+        await prisma.member.create({
+          data: { userId: existing.id, stokvelGroupId: data.groupId, role: 'ADMIN' }
+        });
+        return {
+          success: true,
+          data: { admin: existing },
+          message: `"${existing.fullName}" added as admin for this group`
+        };
+      }
       return { success: false, message: 'User with this phone number already exists' };
     }
 
     const tempPin = this.generateTempPin();
     const hashedPin = await bcrypt.hash(tempPin, 10);
 
+    // Create user as regular MEMBER (global role). Admin status is per-group.
     const admin = await prisma.user.create({
       data: {
         phoneNumber,
         fullName: data.fullName.trim(),
         pin: hashedPin,
-        role: 'ADMIN',
+        role: 'MEMBER',
         mustChangePin: true,
         isVerified: true,
         createdById,
@@ -110,6 +139,13 @@ export class AuthService {
         createdAt: true,
       }
     });
+
+    // If groupId specified, immediately add as ADMIN of that group
+    if (data.groupId) {
+      await prisma.member.create({
+        data: { userId: admin.id, stokvelGroupId: data.groupId, role: 'ADMIN' }
+      });
+    }
 
     return {
       success: true,
@@ -135,7 +171,7 @@ export class AuthService {
     // Verify group exists and is active
     const group = await prisma.stokvelGroup.findUnique({
       where: { id: data.groupId },
-      select: { id: true, name: true, isActive: true, adminId: true, contributionAmount: true, durationMonths: true }
+      select: { id: true, name: true, isActive: true, contributionAmount: true, durationMonths: true }
     });
     if (!group) {
       return { success: false, message: 'Group not found' };
@@ -143,8 +179,11 @@ export class AuthService {
     if (!group.isActive) {
       return { success: false, message: 'This group is no longer active' };
     }
-    // Verify caller is the admin of this group
-    if (group.adminId !== createdById) {
+    // Verify caller is an admin of this group (per-group role check)
+    const callerMembership = await prisma.member.findFirst({
+      where: { userId: createdById, stokvelGroupId: data.groupId, role: 'ADMIN' }
+    });
+    if (!callerMembership) {
       return { success: false, message: 'Only the group admin can add members' };
     }
 
@@ -288,9 +327,8 @@ export class AuthService {
 
     const token = this.generateToken(user.id, user.phoneNumber, user.role);
 
-    // Fetch memberships for ADMIN and MEMBER roles
-    let memberships: any[] = [];
-    memberships = await prisma.member.findMany({
+    // Fetch memberships with per-group roles
+    const memberships = await prisma.member.findMany({
         where: { userId: user.id },
         include: {
           group: {
@@ -298,24 +336,16 @@ export class AuthService {
               id: true, name: true, code: true,
               contributionAmount: true, contributionFrequency: true,
               durationMonths: true, startDate: true, endDate: true,
+              isActive: true,
+              _count: { select: { members: true, transactions: true } }
             }
           }
         }
       });
 
-    // For ADMIN, also fetch managed groups
-    let managedGroups: any[] = [];
-    if (user.role === 'ADMIN') {
-      managedGroups = await prisma.stokvelGroup.findMany({
-        where: { adminId: user.id },
-        select: {
-          id: true, name: true, code: true,
-          contributionAmount: true, durationMonths: true,
-          startDate: true, endDate: true, isActive: true,
-          _count: { select: { members: true, transactions: true } }
-        }
-      });
-    }
+    // Derive if the user is an admin of any group (for backward compatibility)
+    const adminMemberships = memberships.filter((m: any) => m.role === 'ADMIN');
+    const isGroupAdmin = adminMemberships.length > 0;
 
     return {
       success: true,
@@ -325,20 +355,39 @@ export class AuthService {
           phoneNumber: user.phoneNumber,
           fullName: user.fullName,
           role: user.role,
+          // Effective role: SUPERADMIN for superadmins, otherwise derive from memberships
+          effectiveRole: isGroupAdmin ? 'ADMIN' : 'MEMBER',
           mustChangePin: user.mustChangePin,
           email: user.email,
           language: user.language,
           createdAt: user.createdAt,
           lastLogin: user.lastLogin,
-          memberships: memberships.map(m => ({
+          memberships: memberships.map((m: any) => ({
             id: m.id,
-            role: m.role,
+            role: m.role, // Per-group role: 'ADMIN' or 'MEMBER'
             groupId: m.stokvelGroupId,
             groupName: m.group.name,
             groupCode: m.group.code,
+            groupActive: m.group.isActive,
+            memberCount: m.group._count.members,
           })),
-          managedGroup: managedGroups.length > 0 ? managedGroups[0] : null,
-          managedGroups,
+          // Backward-compatible fields
+          managedGroups: adminMemberships.map((m: any) => ({
+            id: m.group.id,
+            name: m.group.name,
+            code: m.group.code,
+            contributionAmount: m.group.contributionAmount,
+            durationMonths: m.group.durationMonths,
+            startDate: m.group.startDate,
+            endDate: m.group.endDate,
+            isActive: m.group.isActive,
+            _count: m.group._count,
+          })),
+          managedGroup: adminMemberships.length > 0 ? {
+            id: adminMemberships[0].group.id,
+            name: adminMemberships[0].group.name,
+            code: adminMemberships[0].group.code,
+          } : null,
         },
         token,
       },
@@ -363,8 +412,12 @@ export class AuthService {
       return { success: false, message: 'Admin not found' };
     }
 
-    if (admin.role !== 'ADMIN') {
-      return { success: false, message: 'User is not an admin' };
+    // Check if this user is an admin of any group
+    const adminMembershipsCheck = await prisma.member.findMany({
+      where: { userId: adminId, role: 'ADMIN' }
+    });
+    if (adminMembershipsCheck.length === 0) {
+      return { success: false, message: 'User is not an admin of any group' };
     }
 
     // Delete in order to satisfy FK constraints
@@ -394,9 +447,7 @@ export class AuthService {
     await prisma.member.deleteMany({ where: { userId: adminId } });
     // 8. Nullify createdById on users this admin created
     await prisma.user.updateMany({ where: { createdById: adminId }, data: { createdById: null } });
-    // 9. Reassign or remove groups (set adminId to null on groups they manage)
-    await prisma.stokvelGroup.updateMany({ where: { adminId: adminId }, data: { adminId: null as any } });
-    // 10. Handle groups they created – set createdById to requester
+    // 9. Handle groups they created – set createdById to requester
     await prisma.stokvelGroup.updateMany({ where: { createdById: adminId }, data: { createdById: requesterId } });
     // 11. Delete transactions recorded by this admin
     await prisma.transaction.updateMany({ where: { recordedById: adminId }, data: { recordedById: requesterId } });
@@ -574,15 +625,20 @@ export class AuthService {
 
   // ============ SUPERADMIN: List all admins ============
   async listAdmins() {
-    const admins = await prisma.user.findMany({
+    // Find users who are ADMIN in at least one group (via Member.role)
+    const adminMembers = await prisma.member.findMany({
       where: { role: 'ADMIN' },
-      select: {
-        id: true,
-        phoneNumber: true,
-        fullName: true,
-        createdAt: true,
-        lastLogin: true,
-        managedGroups: {
+      include: {
+        user: {
+          select: {
+            id: true,
+            phoneNumber: true,
+            fullName: true,
+            createdAt: true,
+            lastLogin: true,
+          }
+        },
+        group: {
           select: {
             id: true,
             name: true,
@@ -590,9 +646,21 @@ export class AuthService {
             _count: { select: { members: true } }
           }
         }
-      },
-      orderBy: { createdAt: 'desc' }
+      }
     });
+
+    // Group by user
+    const adminMap = new Map<string, any>();
+    for (const m of adminMembers) {
+      if (!adminMap.has(m.user.id)) {
+        adminMap.set(m.user.id, {
+          ...m.user,
+          managedGroups: []
+        });
+      }
+      adminMap.get(m.user.id)!.managedGroups.push(m.group);
+    }
+    const admins = Array.from(adminMap.values());
 
     return {
       success: true,
@@ -603,10 +671,11 @@ export class AuthService {
 
   // ============ SUPERADMIN: System overview ============
   async getSystemOverview() {
-    const [adminCount, groupCount, memberCount, transactionAgg] = await Promise.all([
-      prisma.user.count({ where: { role: 'ADMIN' } }),
+    const [adminMemberCount, groupCount, totalUserCount, transactionAgg] = await Promise.all([
+      // Count distinct users who are admin of at least one group
+      prisma.member.groupBy({ by: ['userId'], where: { role: 'ADMIN' } }).then((r: any[]) => r.length),
       prisma.stokvelGroup.count({ where: { isActive: true } }),
-      prisma.user.count({ where: { role: 'MEMBER' } }),
+      prisma.user.count({ where: { role: 'MEMBER' } }), // All non-superadmin users
       prisma.transaction.aggregate({
         where: { status: 'COMPLETED' },
         _sum: { amount: true },
@@ -617,9 +686,9 @@ export class AuthService {
     return {
       success: true,
       data: {
-        admins: adminCount,
+        admins: adminMemberCount,
         groups: groupCount,
-        members: memberCount,
+        members: totalUserCount,
         totalCollected: Number(transactionAgg._sum.amount || 0),
         totalTransactions: transactionAgg._count,
       },
