@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authApi } from './api';
+import { authApi, setApiToken } from './api';
 
 interface User {
   id: string;
@@ -21,27 +21,8 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(sessionStorage.getItem('admin_token'));
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    if (token) {
-      authApi.getMe()
-        .then((res) => {
-          const body = res.data;
-          const user = body.data?.user || body.user;
-          if (body.success && user?.role === 'SUPERADMIN') {
-            setUser(user);
-          } else {
-            logout();
-          }
-        })
-        .catch(() => logout())
-        .finally(() => setIsLoading(false));
-    } else {
-      setIsLoading(false);
-    }
-  }, [token]);
+  const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const login = async (email: string, password: string) => {
     const res = await authApi.login(email, password);
@@ -49,8 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const tokenVal = body.data?.token || body.token;
     const userVal = body.data?.user || body.user;
     if (body.success && tokenVal) {
-      sessionStorage.setItem('admin_token', tokenVal);
-      sessionStorage.setItem('admin_user', JSON.stringify(userVal));
+      setApiToken(tokenVal);
       setToken(tokenVal);
       setUser(userVal);
     } else {
@@ -59,8 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    sessionStorage.removeItem('admin_token');
-    sessionStorage.removeItem('admin_user');
+    setApiToken(null);
     setToken(null);
     setUser(null);
   };

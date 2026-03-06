@@ -10,11 +10,14 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// In-memory token — cleared on refresh for security
+let _token: string | null = null;
+export const setApiToken = (t: string | null) => { _token = t; };
+
 // Attach JWT to every request
 api.interceptors.request.use((config) => {
-  const token = sessionStorage.getItem('admin_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  if (_token) {
+    config.headers.Authorization = `Bearer ${_token}`;
   }
   return config;
 });
@@ -24,8 +27,7 @@ api.interceptors.response.use(
   (res) => res,
   (error) => {
     if (error.response?.status === 401) {
-      sessionStorage.removeItem('admin_token');
-      sessionStorage.removeItem('admin_user');
+      _token = null;
       window.location.href = '/login';
     }
     return Promise.reject(error);
