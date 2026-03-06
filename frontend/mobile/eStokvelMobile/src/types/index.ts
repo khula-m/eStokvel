@@ -104,6 +104,31 @@ export interface GroupMember {
   daysSincePayment: number | null;
 }
 
+export interface AppNotification {
+  id: string;
+  type: string;
+  message: string;
+  status: string;
+  date: string;
+}
+
+export interface PendingPayment {
+  id: string;
+  amount: number | string;
+  status: string;
+  transactionType: string;
+  paymentMethod?: string;
+  referenceNumber?: string;
+  transactionDate: string;
+  recordDate: string;
+  proofUrl?: string;
+  member: {
+    id: string;
+    user: { id: string; fullName: string; phoneNumber: string };
+  };
+  group: { id: string; name: string };
+}
+
 export interface AuthState {
   user: User | null;
   token: string | null;

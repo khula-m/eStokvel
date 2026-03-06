@@ -13,6 +13,7 @@ const allTabs = [
   { key: 'dashboard', label: 'Home' },
   { key: 'ledger', label: 'Ledger' },
   { key: 'chat', label: 'Chat' },
+  { key: 'notifications', label: 'Alerts' },
   { key: 'profile', label: 'Profile' },
 ];
 

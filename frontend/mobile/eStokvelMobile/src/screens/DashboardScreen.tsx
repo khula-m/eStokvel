@@ -96,6 +96,11 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
   const [rsvpingMeetingId, setRsvpingMeetingId] = useState<string | null>(null);
   const [deletingAnnouncementId, setDeletingAnnouncementId] = useState<string | null>(null);
 
+  // ---- JOIN GROUP STATE ----
+  const [showJoinGroupModal, setShowJoinGroupModal] = useState(false);
+  const [joinGroupCode, setJoinGroupCode] = useState('');
+  const [joiningGroup, setJoiningGroup] = useState(false);
+
   // ---- OZOW PAYMENT STATE ----
   const [showOzowWebView, setShowOzowWebView] = useState(false);
   const [ozowUrl, setOzowUrl] = useState('');
@@ -330,6 +335,32 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
         } catch (e: any) { showAlert('Error', e.response?.data?.message || 'Failed to delete group'); }
       }},
     ]);
+  };
+
+  // ========== JOIN GROUP BY CODE ==========
+  const handleJoinByCode = async () => {
+    const code = joinGroupCode.trim().toUpperCase();
+    if (!code) { showAlert('Error', 'Please enter a group invite code'); return; }
+    setJoiningGroup(true);
+    try {
+      // Look up group by code
+      const lookupRes = await axios.get(`${API_URL}/api/groups/code/${code}`, { headers });
+      const group = lookupRes.data.data;
+      if (!group?.id) { showAlert('Error', 'Group not found. Please check the code and try again.'); return; }
+      // Join the group
+      const joinRes = await axios.post(`${API_URL}/api/groups/${group.id}/join`, {}, { headers });
+      if (joinRes.data.success) {
+        showAlert('Success', `You have joined "${group.name}"! 🎉`);
+        setShowJoinGroupModal(false);
+        setJoinGroupCode('');
+        fetchDashboardData();
+      } else {
+        showAlert('Error', joinRes.data.message || 'Failed to join group');
+      }
+    } catch (e: any) {
+      const msg = e.response?.data?.message || 'Failed to join group. Check the code and try again.';
+      showAlert('Error', msg);
+    } finally { setJoiningGroup(false); }
   };
 
   // ========== MEMBER HANDLERS ==========
@@ -1157,7 +1188,15 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
           <View style={[styles.emptyStateCard, { margin: 16 }]}>
             <Icon name="groups" size={48} color="#ccc" />
             <Text style={styles.emptyTitle}>Not in a Group</Text>
-            <Text style={styles.emptyText}>Ask your group admin to invite you</Text>
+            <Text style={styles.emptyText}>Join a stokvel using an invite code from your group admin</Text>
+            <TouchableOpacity
+              style={[styles.primaryButton, { marginTop: 16, width: '80%' }]}
+              onPress={() => { setJoinGroupCode(''); setShowJoinGroupModal(true); }}
+              accessibilityLabel="Join group by code" accessibilityRole="button"
+            >
+              <Icon name="qr-code" size={18} color="#fff" />
+              <Text style={[styles.primaryButtonText, { marginLeft: 8 }]}>Join with Invite Code</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <>
@@ -1360,6 +1399,51 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
         onClose={() => setShowOzowWebView(false)}
         apiUrl={API_URL}
       />
+
+      {/* Join Group by Code Modal */}
+      <Modal visible={showJoinGroupModal} transparent animationType="slide" onRequestClose={() => setShowJoinGroupModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Join a Stokvel</Text>
+              <TouchableOpacity onPress={() => setShowJoinGroupModal(false)} accessibilityLabel="Close" accessibilityRole="button">
+                <Icon name="close" size={24} color={COLORS.textLight} />
+              </TouchableOpacity>
+            </View>
+            <Text style={{ color: COLORS.textLight, fontSize: 13, marginBottom: 16 }}>
+              Enter the invite code shared by your group admin to join their stokvel.
+            </Text>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Invite Code</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. ABC123"
+                value={joinGroupCode}
+                onChangeText={setJoinGroupCode}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={10}
+                accessibilityLabel="Group invite code"
+              />
+            </View>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowJoinGroupModal(false)}>
+                <Text style={{ color: COLORS.textLight, fontWeight: '600' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.primaryButton, { flex: 1, opacity: joiningGroup ? 0.6 : 1 }]}
+                onPress={handleJoinByCode}
+                disabled={joiningGroup}
+                accessibilityLabel="Join group" accessibilityRole="button"
+              >
+                {joiningGroup ? <ActivityIndicator size="small" color="#fff" /> : (
+                  <Text style={styles.primaryButtonText}>Join Group</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 };

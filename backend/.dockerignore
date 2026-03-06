@@ -1,0 +1,34 @@
+# Dependency directories
+node_modules
+npm-debug.log*
+
+# Build output
+dist
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Test files
+src/__tests__
+jest.config.js
+*.test.ts
+coverage
+
+# Dev tools
+nodemon.json
+postman
+TEST_REPORT.md
+test-flows.js
+
+# Prisma migrations (included separately)
+prisma/migrations
+
+# IDE / OS
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

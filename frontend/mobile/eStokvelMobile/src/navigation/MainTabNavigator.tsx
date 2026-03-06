@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import { LedgerScreen } from '../screens/LedgerScreen';
 import { ChatScreen } from '../screens/ChatScreen';
+import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { BottomTabBar } from '../components/BottomTabBar';
 import { styles } from '../styles';
@@ -30,6 +31,7 @@ export const MainTabNavigator = ({ auth, onLogout, onNavigate }: MainTabNavigato
         {currentTab === 'dashboard' && <DashboardScreen auth={auth} onLogout={onLogout} onNavigateTab={navigateTab} />}
         {currentTab === 'ledger' && <LedgerScreen auth={auth} />}
         {currentTab === 'chat' && <ChatScreen auth={auth} initialGroupId={chatGroupId} />}
+        {currentTab === 'notifications' && <NotificationsScreen auth={auth} />}
         {currentTab === 'profile' && <ProfileScreen auth={auth} onLogout={onLogout} onNavigate={onNavigate} />}
       </View>
       <BottomTabBar currentTab={currentTab} onTabChange={setCurrentTab} userRole={auth.user?.role || 'MEMBER'} />

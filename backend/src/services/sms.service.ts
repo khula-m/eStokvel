@@ -101,16 +101,30 @@ export class SMSService {
     }
 
     try {
+      if (!this._apiKey) {
+        logger.warn('SMS_ENABLED=true but AT_API_KEY not set — skipping SMS');
+        return { success: true, messageId: 'no-key-' + Date.now() };
+      }
+
       // Africa's Talking SMS API
-      // In production, use: npm install africastalking
-      // const AfricasTalking = require('africastalking')
-      // const at = AfricasTalking({ apiKey: this._apiKey, username: this._username })
-      // const sms = at.SMS
-      // const result = await sms.send({ to: [formattedNumber], message, from: this._senderId })
+      const AfricasTalking = require('africastalking');
+      const at = AfricasTalking({ apiKey: this._apiKey, username: this._username });
+      const sms = at.SMS;
+      const result = await sms.send({
+        to: [formattedNumber],
+        message,
+        from: this._senderId !== 'eStokvel' ? this._senderId : undefined,
+      });
       
-      // For now, return mock success in production without API key
-      logger.info('SMS sent:', { to: formattedNumber, message: message.substring(0, 50) + '...', sender: this._senderId });
-      return { success: true, messageId: 'sms-' + Date.now() };
+      const msgData = result?.SMSMessageData?.Recipients?.[0];
+      if (msgData?.statusCode === 101) {
+        logger.info('SMS sent:', { to: formattedNumber, messageId: msgData.messageId });
+        return { success: true, messageId: msgData.messageId };
+      } else {
+        const status = msgData?.status || 'Unknown error';
+        logger.warn('SMS delivery issue:', { to: formattedNumber, status });
+        return { success: false, error: status };
+      }
     } catch (error: any) {
       logger.error('SMS Error:', error);
       return { success: false, error: error.message };

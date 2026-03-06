@@ -6,6 +6,7 @@ const iconMap: Record<string, string> = {
   dashboard: 'dashboard',
   ledger: 'menu-book',
   chat: 'chat-bubble',
+  notifications: 'notifications',
   profile: 'person',
 };
 
