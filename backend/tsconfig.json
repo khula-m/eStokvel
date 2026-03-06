@@ -28,6 +28,7 @@
     "moduleResolution": "node"
   },
   "include": [
+    "server.ts",
     "src/**/*",
     "scripts/**/*",
     "prisma/**/*"
