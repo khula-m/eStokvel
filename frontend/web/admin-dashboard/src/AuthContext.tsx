@@ -21,7 +21,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('admin_token'));
+  const [token, setToken] = useState<string | null>(sessionStorage.getItem('admin_token'));
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -49,8 +49,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const tokenVal = body.data?.token || body.token;
     const userVal = body.data?.user || body.user;
     if (body.success && tokenVal) {
-      localStorage.setItem('admin_token', tokenVal);
-      localStorage.setItem('admin_user', JSON.stringify(userVal));
+      sessionStorage.setItem('admin_token', tokenVal);
+      sessionStorage.setItem('admin_user', JSON.stringify(userVal));
       setToken(tokenVal);
       setUser(userVal);
     } else {
@@ -59,8 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    localStorage.removeItem('admin_token');
-    localStorage.removeItem('admin_user');
+    sessionStorage.removeItem('admin_token');
+    sessionStorage.removeItem('admin_user');
     setToken(null);
     setUser(null);
   };
