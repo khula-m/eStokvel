@@ -25,6 +25,11 @@ const PORT = parseInt(process.env.PORT || "5000", 10);
 // SECURITY & PERFORMANCE MIDDLEWARE
 // ============================================
 
+// 0. Trust proxy — MUST be before rate limiter on Railway/Heroku/etc.
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
+
 // 1. Helmet - Security headers (must be first)
 app.use(configureHelmet());
 
@@ -40,11 +45,6 @@ app.use(generalLimiter);
 // 5. Body parsers with size limits
 app.use(express.json({ limit: jsonLimit }));
 app.use(express.urlencoded({ extended: true, limit: urlEncodedLimit }));
-
-// Trust proxy for rate limiting behind reverse proxy
-if (process.env.NODE_ENV === "production") {
-  app.set("trust proxy", 1);
-}
 
 // Basic routes
 app.get("/", (_req: Request, res: Response) => {
