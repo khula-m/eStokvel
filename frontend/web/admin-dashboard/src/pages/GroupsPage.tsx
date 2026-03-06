@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { groupApi } from '../api';
-import { Building2, Users, Coins, ChevronRight, Search, AlertCircle } from 'lucide-react';
+import { Building2, Users, Coins, ChevronRight, Search, AlertCircle, X, AlertTriangle } from 'lucide-react';
 
 interface Group {
   id: string;
@@ -21,6 +21,9 @@ export default function GroupsPage() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [actionError, setActionError] = useState('');
+  const [actionSuccess, setActionSuccess] = useState('');
 
   const fetchGroups = async () => {
     setLoading(true);
@@ -38,14 +41,18 @@ export default function GroupsPage() {
 
   useEffect(() => { fetchGroups(); }, []);
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete group "${name}"? This action cannot be undone.`)) return;
-    setDeleting(id);
+  const handleDelete = async () => {
+    if (!deleteConfirm) return;
+    setDeleting(deleteConfirm.id);
+    setActionError('');
     try {
-      await groupApi.delete(id);
-      setGroups(groups.filter(g => g.id !== id));
+      await groupApi.delete(deleteConfirm.id);
+      setGroups(groups.filter(g => g.id !== deleteConfirm.id));
+      setActionSuccess(`Group "${deleteConfirm.name}" deleted successfully`);
+      setDeleteConfirm(null);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to delete group');
+      setActionError(err.response?.data?.message || 'Failed to delete group');
+      setDeleteConfirm(null);
     } finally {
       setDeleting(null);
     }
@@ -92,6 +99,20 @@ export default function GroupsPage() {
         </div>
       )}
 
+      {actionError && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm flex items-center justify-between">
+          <div className="flex items-center gap-2"><AlertCircle className="w-4 h-4" /> {actionError}</div>
+          <button onClick={() => setActionError('')} className="text-red-600 hover:text-red-800"><X className="w-4 h-4" /></button>
+        </div>
+      )}
+
+      {actionSuccess && (
+        <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-800 rounded-lg text-sm flex items-center justify-between">
+          <span>{actionSuccess}</span>
+          <button onClick={() => setActionSuccess('')} className="text-green-600 hover:text-green-800"><X className="w-4 h-4" /></button>
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <Building2 className="w-12 h-12 mx-auto mb-3 opacity-50" />
@@ -134,7 +155,7 @@ export default function GroupsPage() {
                     <ChevronRight className="w-3.5 h-3.5" />
                   </Link>
                   <button
-                    onClick={() => handleDelete(group.id, group.name)}
+                    onClick={() => setDeleteConfirm({ id: group.id, name: group.name })}
                     disabled={deleting === group.id}
                     className="px-3 py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50 transition-colors"
                   >
@@ -144,6 +165,23 @@ export default function GroupsPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-red-100 p-2 rounded-full"><AlertTriangle className="w-5 h-5 text-red-600" /></div>
+              <h3 className="font-semibold text-gray-900">Delete Group</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-6">Are you sure you want to delete <strong>{deleteConfirm.name}</strong>? This action cannot be undone.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Cancel</button>
+              <button onClick={handleDelete} disabled={!!deleting} className="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-60 transition-colors">{deleting ? 'Deleting...' : 'Delete'}</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

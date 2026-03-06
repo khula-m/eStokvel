@@ -413,12 +413,9 @@ export class AuthService {
       return { success: false, message: 'Admin not found' };
     }
 
-    // Check if this user is an admin of any group
-    const adminMembershipsCheck = await prisma.member.findMany({
-      where: { userId: adminId, role: 'ADMIN' }
-    });
-    if (adminMembershipsCheck.length === 0) {
-      return { success: false, message: 'User is not an admin of any group' };
+    // Prevent deleting other superadmins
+    if (admin.role === 'SUPERADMIN') {
+      return { success: false, message: 'Cannot delete a SUPERADMIN account' };
     }
 
     try {

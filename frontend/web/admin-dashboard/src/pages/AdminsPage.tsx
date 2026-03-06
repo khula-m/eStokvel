@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { adminApi } from '../api';
-import { Users, Plus, Trash2, AlertCircle, Phone, X } from 'lucide-react';
+import { Users, Plus, Trash2, AlertCircle, Phone, X, AlertTriangle } from 'lucide-react';
 
 interface Admin {
   id: string;
@@ -23,6 +23,8 @@ export default function AdminsPage() {
   const [form, setForm] = useState({ phoneNumber: '', fullName: '' });
   const [createError, setCreateError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [deleteError, setDeleteError] = useState('');
 
   const fetchAdmins = async () => {
     setLoading(true);
@@ -64,14 +66,17 @@ export default function AdminsPage() {
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete admin "${name}"? This cannot be undone.`)) return;
-    setDeleting(id);
+  const handleDelete = async () => {
+    if (!deleteConfirm) return;
+    setDeleting(deleteConfirm.id);
+    setDeleteError('');
     try {
-      await adminApi.delete(id);
-      setAdmins(admins.filter(a => a.id !== id));
+      await adminApi.delete(deleteConfirm.id);
+      setAdmins(admins.filter(a => a.id !== deleteConfirm.id));
+      setSuccessMsg(`Admin "${deleteConfirm.name}" deleted successfully`);
+      setDeleteConfirm(null);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to delete admin');
+      setDeleteError(err.response?.data?.message || 'Failed to delete admin');
     } finally {
       setDeleting(null);
     }
@@ -226,7 +231,7 @@ export default function AdminsPage() {
                     <td className="px-6 py-3 text-right">
                       {admin.role !== 'SUPERADMIN' && (
                         <button
-                          onClick={() => handleDelete(admin.id, admin.fullName)}
+                          onClick={() => setDeleteConfirm({ id: admin.id, name: admin.fullName })}
                           disabled={deleting === admin.id}
                           className="text-red-500 hover:text-red-700 disabled:opacity-50 p-1"
                           title="Delete admin"
@@ -242,6 +247,26 @@ export default function AdminsPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-red-100 p-2 rounded-full"><AlertTriangle className="w-5 h-5 text-red-600" /></div>
+              <h3 className="font-semibold text-gray-900">Delete Admin</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-6">Are you sure you want to delete <strong>{deleteConfirm.name}</strong>? This action cannot be undone.</p>
+            {deleteError && (
+              <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">{deleteError}</div>
+            )}
+            <div className="flex gap-3">
+              <button onClick={() => { setDeleteConfirm(null); setDeleteError(''); }} className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Cancel</button>
+              <button onClick={handleDelete} disabled={!!deleting} className="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-60 transition-colors">{deleting ? 'Deleting...' : 'Delete'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

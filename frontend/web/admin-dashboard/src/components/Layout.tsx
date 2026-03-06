@@ -111,7 +111,7 @@ export default function Layout() {
           </button>
           <div className="flex items-center gap-2">
             <Shield className="w-5 h-5 text-[#0A2463]" />
-            <span className="font-semibold text-[#0A2463]">eStokvel Admin</span>
+            <span className="font-semibold text-[#0A2463]">eStokvel SuperAdmin</span>
           </div>
         </header>
 

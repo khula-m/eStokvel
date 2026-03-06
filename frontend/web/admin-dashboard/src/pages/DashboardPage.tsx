@@ -109,28 +109,6 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Platform info */}
-      <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Platform Information</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-          <div className="flex justify-between py-2 border-b border-gray-50">
-            <span className="text-gray-500">Platform</span>
-            <span className="font-medium text-gray-900">eStokvel MVP</span>
-          </div>
-          <div className="flex justify-between py-2 border-b border-gray-50">
-            <span className="text-gray-500">Version</span>
-            <span className="font-medium text-gray-900">1.0.0</span>
-          </div>
-          <div className="flex justify-between py-2 border-b border-gray-50">
-            <span className="text-gray-500">Auth Model</span>
-            <span className="font-medium text-gray-900">SUPERADMIN → ADMIN → MEMBER</span>
-          </div>
-          <div className="flex justify-between py-2 border-b border-gray-50">
-            <span className="text-gray-500">Currency</span>
-            <span className="font-medium text-gray-900">ZAR (South African Rand)</span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
