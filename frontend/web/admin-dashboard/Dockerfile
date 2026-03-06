@@ -20,8 +20,8 @@ FROM nginx:1.27-alpine AS production
 # Remove default nginx config
 RUN rm /etc/nginx/conf.d/default.conf
 
-# Copy nginx config as template (envsubst will substitute $PORT)
-COPY nginx.conf /etc/nginx/templates/default.conf.template
+# Copy nginx config as template
+COPY nginx.conf /etc/nginx/nginx.conf.template
 
 # Copy built SPA from builder
 COPY --from=builder /app/dist /usr/share/nginx/html
@@ -31,11 +31,11 @@ RUN chown -R nginx:nginx /usr/share/nginx/html
 
 # Railway injects PORT env var; default to 80
 ENV PORT=80
-ENV NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/conf.d
 
-EXPOSE ${PORT}
+EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget -qO- http://localhost:${PORT}/nginx-health || exit 1
+    CMD wget -qO- http://localhost/nginx-health || exit 1
 
-CMD ["nginx", "-g", "daemon off;"]
+# Only substitute $PORT — preserve nginx variables like $uri, $host
+CMD sh -c "envsubst '\$PORT' < /etc/nginx/nginx.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
