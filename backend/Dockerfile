@@ -12,6 +12,7 @@ COPY prisma ./prisma
 RUN npx prisma generate
 
 # Copy source and compile TypeScript
+ARG CACHEBUST=1
 COPY tsconfig.json ./
 COPY server.ts ./
 COPY src ./src
