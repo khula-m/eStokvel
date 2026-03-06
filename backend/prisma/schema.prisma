@@ -37,6 +37,9 @@ model User {
   announcementReads    AnnouncementRead[]
   meetings             Meeting[]       @relation("MeetingAuthor")
   meetingAttendance    MeetingAttendance[]
+
+  @@index([role])         // fast SUPERADMIN/MEMBER filtering at scale
+  @@index([createdAt])    // user listing sorted by signup date
 }
 
 model StokvelGroup {
@@ -68,6 +71,8 @@ model StokvelGroup {
   announcements         Announcement[]
   meetings              Meeting[]
 
+  @@index([isActive])     // filter active/inactive groups
+  @@index([createdById])  // groups by creator for admin views
   @@map("stokvel_groups")
 }
 
@@ -125,6 +130,9 @@ model Transaction {
   @@index([transactionDate])
   @@index([stokvelGroupId, transactionDate])
   @@index([status])
+  @@index([stokvelGroupId, status])          // group financial summaries
+  @@index([memberId, transactionDate])       // member transaction history
+  @@index([ozowTransactionId])               // payment gateway lookups
 }
 
 enum TransactionType {

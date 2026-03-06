@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+/* eStokvel Admin Dashboard - Custom styles */
+
+:root {
+  --primary: #0A2463;
+  --primary-light: #1E3A8A;
+  --secondary: #D4A017;
+  --accent: #059669;
+  --danger: #DC2626;
+  --bg: #F8FAFC;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+}
+
+/* Smooth page transitions */
+.page-enter {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 200ms, transform 200ms;
+}

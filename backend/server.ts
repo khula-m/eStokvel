@@ -1,4 +1,5 @@
 ﻿import express, { Request, Response } from "express";
+import compression from 'compression';
 require("dotenv").config();
 
 // Import security middleware
@@ -21,7 +22,7 @@ const app = express();
 const PORT = parseInt(process.env.PORT || "5000", 10);
 
 // ============================================
-// SECURITY MIDDLEWARE (Order matters!)
+// SECURITY & PERFORMANCE MIDDLEWARE
 // ============================================
 
 // 1. Helmet - Security headers (must be first)
@@ -30,10 +31,13 @@ app.use(configureHelmet());
 // 2. CORS - Cross-origin resource sharing
 app.use(configureCors());
 
-// 3. Rate limiting - Apply general limiter to all routes
+// 3. Response compression (gzip/brotli) — reduces payload ~70%
+app.use(compression());
+
+// 4. Rate limiting - Apply general limiter to all routes
 app.use(generalLimiter);
 
-// 4. Body parsers with size limits
+// 5. Body parsers with size limits
 app.use(express.json({ limit: jsonLimit }));
 app.use(express.urlencoded({ extended: true, limit: urlEncodedLimit }));
 
@@ -56,12 +60,18 @@ app.get("/", (_req: Request, res: Response) => {
 
 app.get("/health", (_req: Request, res: Response) => {
   const { isRedisReady } = require("./src/utils/redis");
+  const mem = process.memoryUsage();
   res.json({
     success: true,
     status: "healthy",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    memory: process.memoryUsage(),
+    pid: process.pid,
+    memory: {
+      rss: `${Math.round(mem.rss / 1024 / 1024)}MB`,
+      heapUsed: `${Math.round(mem.heapUsed / 1024 / 1024)}MB`,
+      heapTotal: `${Math.round(mem.heapTotal / 1024 / 1024)}MB`,
+    },
     redis: isRedisReady() ? "connected" : "disconnected",
   });
 });
@@ -106,62 +116,55 @@ app.use((_req: Request, res: Response) => {
 // Export for testing
 export default app;
 
-// Start server
+// Start server (with optional clustering for multi-core scaling)
 if (!process.env.JEST_WORKER_ID) {
-  // Initialize Redis (non-blocking, graceful degradation)
-  getRedisClient();
+  const cluster = require('cluster');
+  const os = require('os');
+  const WORKERS = parseInt(process.env.WEB_CONCURRENCY || '0', 10) || Math.min(os.cpus().length, 4);
+  const USE_CLUSTER = process.env.NODE_ENV === 'production' && WORKERS > 1;
 
-  const server = app.listen(PORT, '0.0.0.0', () => {
-    logger.info(`\n🚀 eStokvel Backend Server`);
-    logger.info(`📡 Port: ${PORT}`);
-    logger.info(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
-    logger.info(`⏰ Started: ${new Date().toLocaleString()}`);
-    console.log("\n🔗 Available Endpoints:");
-    console.log("   http://localhost:" + PORT + "/");
-    console.log("   http://localhost:" + PORT + "/health");
-    if (process.env.NODE_ENV === "development") {
-      console.log("   http://localhost:" + PORT + "/dev/status");
-    }
-    console.log("\n   🔐 AUTH:");
-    console.log("   POST http://localhost:" + PORT + "/api/auth/login");
-    console.log("   GET  http://localhost:" + PORT + "/api/auth/me (requires token)");
-    console.log("   POST http://localhost:" + PORT + "/api/auth/change-pin (requires token)");
-    console.log("   POST http://localhost:" + PORT + "/api/auth/admin/create (SUPERADMIN only)");
-    console.log("   POST http://localhost:" + PORT + "/api/auth/member/add (ADMIN only)");
-    console.log("\n   👥 GROUPS:");
-    console.log("   http://localhost:" + PORT + "/api/groups (GET/POST - requires token)");
-    console.log("   http://localhost:" + PORT + "/api/groups/:id (GET - requires token)");
-    console.log("\n   💰 TRANSACTIONS:");
-    console.log("   http://localhost:" + PORT + "/api/transactions (GET/POST - requires token)");
-    console.log("\n🔑 Test Credentials (after seed):");
-    console.log("   SUPERADMIN: admin@estokvel.co.za / Password: Admin@2026!");
-    console.log("   ADMIN:      0831234567 / PIN: 56789 (must change)");
-    console.log("   MEMBERS:    0831234568-72 / PIN: 94716 (must change)");
-    console.log("\n📚 eStokvel MVP - PIN-based Auth | Role: SUPERADMIN > ADMIN > MEMBER");
-    console.log("");
+  if (USE_CLUSTER && cluster.isPrimary) {
+    logger.info(`Primary ${process.pid} forking ${WORKERS} workers...`);
+    for (let i = 0; i < WORKERS; i++) cluster.fork();
+    cluster.on('exit', (worker: any, code: number) => {
+      logger.warn(`Worker ${worker.process.pid} exited (code ${code}), respawning...`);
+      cluster.fork();
+    });
+  } else {
+    // Single worker (or dev mode)
+    getRedisClient();
 
-    // Start automatic payout scheduler
-    startPayoutScheduler();
-  });
-
-  // Graceful shutdown
-  const shutdown = async (signal: string) => {
-    logger.info(`\n${signal} received. Shutting down gracefully...`);
-    server.close(async () => {
-      await disconnectRedis();
-      const { prisma } = require("./src/utils/prisma");
-      await prisma.$disconnect();
-      logger.info("Server shut down gracefully");
-      process.exit(0);
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      logger.info(`\n🚀 eStokvel Backend Server`);
+      logger.info(`📡 Port: ${PORT} | PID: ${process.pid}`);
+      logger.info(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
+      logger.info(`⏰ Started: ${new Date().toLocaleString()}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log("\n🔗 http://localhost:" + PORT + "/health");
+        console.log("🔑 SUPERADMIN: admin@estokvel.co.za / Admin@2026!");
+        console.log("🔑 ADMIN: 0831234567 / PIN: 56789\n");
+      }
+      startPayoutScheduler();
     });
 
-    // Force exit after 10s
-    setTimeout(() => {
-      logger.error("Forced shutdown after timeout");
-      process.exit(1);
-    }, 10000);
-  };
+    // Keep-alive for long-lived connections
+    server.keepAliveTimeout = 65000;
+    server.headersTimeout = 66000;
 
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
+    // Graceful shutdown
+    const shutdown = async (signal: string) => {
+      logger.info(`\n${signal} received. Shutting down gracefully...`);
+      server.close(async () => {
+        await disconnectRedis();
+        const { prisma } = require("./src/utils/prisma");
+        await prisma.$disconnect();
+        logger.info("Server shut down gracefully");
+        process.exit(0);
+      });
+      setTimeout(() => { logger.error("Forced shutdown after timeout"); process.exit(1); }, 10000);
+    };
+
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+  }
 }

@@ -1,25 +1,59 @@
 {
   "expo": {
-    "name": "eStokvelMobile",
+    "name": "eStokvel",
     "slug": "eStokvelMobile",
     "version": "1.0.0",
     "orientation": "portrait",
+    "scheme": "estokvel",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0A2463"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.khulam.eStokvel",
+      "buildNumber": "1",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSCameraUsageDescription": "eStokvel needs camera access to take profile photos and scan documents.",
+        "NSPhotoLibraryUsageDescription": "eStokvel needs photo library access to select a profile picture.",
+        "UIBackgroundModes": ["remote-notification"],
+        "LSApplicationQueriesSchemes": ["tel", "sms"],
+        "CFBundleAllowMixedLocalizations": true
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0A2463"
       },
-      "package": "com.khula_m.eStokvelMobile"
+      "package": "com.khula_m.eStokvelMobile",
+      "versionCode": 1,
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ],
+      "allowBackup": false,
+      "softwareKeyboardLayoutMode": "pan",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [{ "scheme": "estokvel" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -30,8 +64,55 @@
         "projectId": "9fe59a54-f40e-4600-acc5-764e3ac4f66c"
       }
     },
+    "owner": "khula_m",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/9fe59a54-f40e-4600-acc5-764e3ac4f66c",
+      "fallbackToCacheTimeout": 5000
+    },
     "plugins": [
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "eStokvel needs photo access to set your profile picture.",
+          "cameraPermission": "eStokvel needs camera access to take photos."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#0A2463",
+          "defaultChannel": "default",
+          "sounds": []
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "minSdkVersion": 24,
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          },
+          "ios": {
+            "deploymentTarget": "15.0",
+            "flipper": false
+          }
+        }
+      ],
+      [
+        "expo-font",
+        {
+          "fonts": []
+        }
+      ]
     ]
   }
 }

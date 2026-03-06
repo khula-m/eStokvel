@@ -1,7 +1,8 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, Platform, LogBox } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as SplashScreen from 'expo-splash-screen';
 import 'react-native-get-random-values';
 import { showAlert } from './src/utils/alert';
 import { GlobalOverlay } from './src/components/GlobalOverlay';
@@ -9,12 +10,44 @@ import { LandingScreen } from './src/screens/LandingScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { ChangePinScreen } from './src/screens/ChangePinScreen';
 import { MainTabNavigator } from './src/navigation/MainTabNavigator';
+import { registerForPushNotifications } from './src/utils/notifications';
 import { AuthState } from './src/types';
+
+// Keep splash screen visible until we finish loading
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// Suppress common non-critical warnings in production
+if (__DEV__) {
+  LogBox.ignoreLogs([
+    'Non-serializable values were found in the navigation state',
+  ]);
+}
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState('landing');
   const [auth, setAuth] = useState<AuthState>({ user: null, token: null });
+  const [isReady, setIsReady] = useState(false);
   const appState = useRef(AppState.currentState);
+
+  // Initialization: push notifications + splash screen
+  useEffect(() => {
+    async function init() {
+      try {
+        // Register for push notifications on physical devices
+        const pushToken = await registerForPushNotifications();
+        if (pushToken) {
+          console.log('Push token:', pushToken);
+          // TODO: Send token to backend for storage
+        }
+      } catch (e) {
+        console.warn('Init error:', e);
+      } finally {
+        setIsReady(true);
+        await SplashScreen.hideAsync().catch(() => {});
+      }
+    }
+    init();
+  }, []);
 
   // Force re-login when app comes back from background
   useEffect(() => {
@@ -43,9 +76,15 @@ export default function App() {
     ]);
   };
 
+  if (!isReady) return null;
+
   return (
     <SafeAreaProvider>
-      <StatusBar style={currentScreen === 'landing' ? 'light' : 'dark'} />
+      <StatusBar
+        style={currentScreen === 'landing' ? 'light' : 'dark'}
+        backgroundColor={Platform.OS === 'android' ? (currentScreen === 'landing' ? '#0A2463' : '#FFFFFF') : undefined}
+        translucent={Platform.OS === 'android'}
+      />
       {currentScreen === 'landing' && <LandingScreen onGetStarted={() => navigate('login')} />}
       {currentScreen === 'login' && <LoginScreen onNavigate={navigate} onLogin={handleLogin} />}
       {currentScreen === 'change-pin' && <ChangePinScreen auth={auth} onNavigate={navigate} />}
