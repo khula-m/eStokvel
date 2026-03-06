@@ -509,14 +509,27 @@ export class StokvelGroupService {
 
   }
 
-
+  /**
+  * Get ALL groups (SUPERADMIN only)
+  */
+  async getAllGroups() {
+    try {
+      const groups = await prisma.stokvelGroup.findMany({
+        include: {
+          createdBy: { select: { id: true, fullName: true, phoneNumber: true } },
+          _count: { select: { members: true, transactions: true } }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+      return { success: true, data: groups, message: `Found ${groups.length} group(s)` };
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to retrieve groups' };
+    }
+  }
 
   /**
-
   * Get all groups for a user (created by or member of)
-
   */
-
   async getUserGroups(userId: string) {
 
     try {

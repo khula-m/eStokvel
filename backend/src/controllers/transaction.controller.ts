@@ -209,8 +209,11 @@ export class TransactionController {
       const pageNum = parseInt(page as string, 10);
       const limitNum = parseInt(limit as string, 10);
 
-      // SECURE: Use getUserTransactions to ensure user only sees their own data
-      const result = await transactionService.getUserTransactions(userId, filters, pageNum, limitNum);
+      // SECURE: SUPERADMIN sees all transactions, others only see their own
+      const userRole = (req as any).user?.role;
+      const result = userRole === 'SUPERADMIN'
+        ? await transactionService.getAllTransactions(filters, pageNum, limitNum)
+        : await transactionService.getUserTransactions(userId, filters, pageNum, limitNum);
       
       if (result.success) {
         return res.status(200).json(result);

@@ -26,7 +26,9 @@ export default function GroupsPage() {
     setLoading(true);
     try {
       const res = await groupApi.list();
-      setGroups(res.data.data || res.data.groups || []);
+      const body = res.data;
+      const list = body.data?.groups || body.data || body.groups || [];
+      setGroups(Array.isArray(list) ? list : []);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load groups');
     } finally {

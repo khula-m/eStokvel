@@ -883,6 +883,50 @@ export class TransactionService {
   }
 
   /**
+   * Get ALL transactions (SUPERADMIN only)
+   */
+  async getAllTransactions(filters: any = {}, page: number = 1, limit: number = 20) {
+    try {
+      const whereClause: any = {};
+      if (filters.stokvelGroupId) whereClause.stokvelGroupId = filters.stokvelGroupId;
+      if (filters.transactionType) whereClause.transactionType = filters.transactionType;
+      if (filters.status) whereClause.status = filters.status;
+      if (filters.startDate || filters.endDate) {
+        whereClause.transactionDate = {};
+        if (filters.startDate) whereClause.transactionDate.gte = filters.startDate;
+        if (filters.endDate) whereClause.transactionDate.lte = filters.endDate;
+      }
+
+      const skip = (page - 1) * limit;
+      const [transactions, total] = await Promise.all([
+        prisma.transaction.findMany({
+          where: whereClause,
+          include: {
+            group: { select: { id: true, name: true, currency: true } },
+            member: { include: { user: { select: { id: true, fullName: true, phoneNumber: true } } } },
+            recordedBy: { select: { id: true, fullName: true } }
+          },
+          orderBy: { transactionDate: 'desc' },
+          skip,
+          take: limit
+        }),
+        prisma.transaction.count({ where: whereClause })
+      ]);
+
+      return {
+        success: true,
+        data: {
+          transactions,
+          pagination: { page, limit, total, pages: Math.ceil(total / limit), hasNext: page * limit < total, hasPrev: page > 1 }
+        },
+        message: 'All transactions retrieved'
+      };
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to retrieve transactions' };
+    }
+  }
+
+  /**
    * Get transactions for groups where user is a member (SECURE)
    * This ensures users can only see transactions from groups they belong to
    */

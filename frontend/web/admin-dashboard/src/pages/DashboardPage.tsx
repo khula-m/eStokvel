@@ -11,13 +11,18 @@ import {
 } from 'lucide-react';
 
 interface OverviewData {
-  totalUsers: number;
-  totalGroups: number;
-  totalContributions: number;
-  totalTransactions: number;
-  activeGroups: number;
-  pendingTransactions: number;
-  recentActivity?: any[];
+  // Backend field names
+  admins?: number;
+  groups?: number;
+  members?: number;
+  totalCollected?: number;
+  totalTransactions?: number;
+  // Aliased field names (legacy)
+  totalUsers?: number;
+  totalGroups?: number;
+  totalContributions?: number;
+  activeGroups?: number;
+  pendingTransactions?: number;
 }
 
 export default function DashboardPage() {
@@ -63,12 +68,11 @@ export default function DashboardPage() {
   }
 
   const stats = [
-    { label: 'Total Users', value: data?.totalUsers || 0, icon: Users, color: 'bg-blue-500', lightColor: 'bg-blue-50' },
-    { label: 'Total Groups', value: data?.totalGroups || 0, icon: Building2, color: 'bg-emerald-500', lightColor: 'bg-emerald-50' },
-    { label: 'Contributions (ZAR)', value: `R ${(data?.totalContributions || 0).toLocaleString()}`, icon: Coins, color: 'bg-amber-500', lightColor: 'bg-amber-50' },
+    { label: 'Total Members', value: data?.members || data?.totalUsers || 0, icon: Users, color: 'bg-blue-500', lightColor: 'bg-blue-50' },
+    { label: 'Total Groups', value: data?.groups || data?.totalGroups || 0, icon: Building2, color: 'bg-emerald-500', lightColor: 'bg-emerald-50' },
+    { label: 'Total Collected (ZAR)', value: `R ${(data?.totalCollected || data?.totalContributions || 0).toLocaleString()}`, icon: Coins, color: 'bg-amber-500', lightColor: 'bg-amber-50' },
     { label: 'Transactions', value: data?.totalTransactions || 0, icon: TrendingUp, color: 'bg-purple-500', lightColor: 'bg-purple-50' },
-    { label: 'Active Groups', value: data?.activeGroups || 0, icon: Activity, color: 'bg-teal-500', lightColor: 'bg-teal-50' },
-    { label: 'Pending Txns', value: data?.pendingTransactions || 0, icon: AlertCircle, color: 'bg-red-500', lightColor: 'bg-red-50' },
+    { label: 'Admins', value: data?.admins || 0, icon: Activity, color: 'bg-teal-500', lightColor: 'bg-teal-50' },
   ];
 
   return (

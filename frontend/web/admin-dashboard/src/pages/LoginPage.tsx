@@ -54,7 +54,7 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@estokvel.co.za"
+                placeholder="email@example.com"
                 required
                 autoFocus
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0A2463] focus:border-transparent outline-none text-sm transition-shadow"

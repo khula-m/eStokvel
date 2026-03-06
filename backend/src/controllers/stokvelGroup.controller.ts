@@ -135,16 +135,23 @@ export class StokvelGroupController {
   }
 
   /**
-   * Get all groups for the current user
+   * Get all groups for the current user (SUPERADMIN sees all groups)
    */
   async getUserGroups(req: Request, res: Response) {
     try {
       const userId = (req as any).user?.id;
+      const userRole = (req as any).user?.role;
       if (!userId) {
         return res.status(401).json({
           success: false,
           message: 'Authentication required'
         });
+      }
+
+      // SUPERADMIN sees all groups
+      if (userRole === 'SUPERADMIN') {
+        const result = await stokvelGroupService.getAllGroups();
+        return res.status(result.success ? 200 : 400).json(result);
       }
 
       const result = await stokvelGroupService.getUserGroups(userId);

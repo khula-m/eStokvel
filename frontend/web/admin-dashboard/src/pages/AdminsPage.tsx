@@ -27,7 +27,9 @@ export default function AdminsPage() {
     setLoading(true);
     try {
       const res = await adminApi.list();
-      setAdmins(res.data.data || res.data.admins || []);
+      const body = res.data;
+      const list = body.data?.admins || body.data || body.admins || [];
+      setAdmins(Array.isArray(list) ? list : []);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load admins');
     } finally {

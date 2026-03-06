@@ -29,7 +29,9 @@ export default function TransactionsPage() {
     setLoading(true);
     try {
       const res = await transactionApi.list({ page, limit: 50 });
-      setTransactions(res.data.data || res.data.transactions || []);
+      const body = res.data;
+      const list = body.data?.transactions || body.data || body.transactions || [];
+      setTransactions(Array.isArray(list) ? list : []);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load transactions');
     } finally {
