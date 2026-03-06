@@ -112,8 +112,9 @@ const getAllowedOrigins = (): string[] => {
     );
   }
   
-  // Always allow Railway domain for web dashboard & Expo web
+  // Always allow Railway domains
   origins.push('https://estokvel-production.up.railway.app');
+  origins.push('https://admin-dashboard-service-production-524e.up.railway.app');
   
   // Add production origins from environment variable
   // Format: ALLOWED_ORIGINS=https://app.estokvel.com,https://admin.estokvel.com

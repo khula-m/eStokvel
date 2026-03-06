@@ -21,14 +21,18 @@ import logger from "./src/utils/logger";
 const app = express();
 const PORT = parseInt(process.env.PORT || "5000", 10);
 
+// Normalise NODE_ENV (Railway sometimes injects leading '=')
+if (process.env.NODE_ENV) {
+  process.env.NODE_ENV = process.env.NODE_ENV.replace(/^=/, '').trim();
+}
+
 // ============================================
 // SECURITY & PERFORMANCE MIDDLEWARE
 // ============================================
 
 // 0. Trust proxy — MUST be before rate limiter on Railway/Heroku/etc.
-if (process.env.NODE_ENV === "production") {
-  app.set("trust proxy", 1);
-}
+// Always enable: Railway, Render, Heroku etc. always proxy via load balancer
+app.set("trust proxy", 1);
 
 // 1. Helmet - Security headers (must be first)
 app.use(configureHelmet());

@@ -637,7 +637,7 @@ export class AuthService {
 
   // ============ SUPERADMIN: List all admins ============
   async listAdmins() {
-    // Find users who are ADMIN in at least one group (via Member.role)
+    // 1. Users who are ADMIN of at least one group
     const adminMembers = await prisma.member.findMany({
       where: { role: 'ADMIN' },
       include: {
@@ -646,6 +646,7 @@ export class AuthService {
             id: true,
             phoneNumber: true,
             fullName: true,
+            role: true,
             createdAt: true,
             lastLogin: true,
           }
@@ -672,6 +673,30 @@ export class AuthService {
       }
       adminMap.get(m.user.id)!.managedGroups.push(m.group);
     }
+
+    // 2. Also include SUPERADMIN users and users created by superadmin (not yet assigned to a group)
+    const superAndCreated = await prisma.user.findMany({
+      where: {
+        OR: [
+          { role: 'SUPERADMIN' },
+          { createdById: { not: null } },
+        ]
+      },
+      select: {
+        id: true,
+        phoneNumber: true,
+        fullName: true,
+        role: true,
+        createdAt: true,
+        lastLogin: true,
+      }
+    });
+    for (const u of superAndCreated) {
+      if (!adminMap.has(u.id)) {
+        adminMap.set(u.id, { ...u, managedGroups: [] });
+      }
+    }
+
     const admins = Array.from(adminMap.values());
 
     return {
