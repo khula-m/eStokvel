@@ -104,11 +104,16 @@ const getAllowedOrigins = (): string[] => {
       'http://localhost:3000',
       'http://localhost:5000',
       'http://localhost:8081', // Expo
+      'http://localhost:8082',
+      'http://localhost:19006', // Expo web
       'http://127.0.0.1:3000',
       'http://127.0.0.1:5000',
       'http://127.0.0.1:8081',
     );
   }
+  
+  // Always allow Railway domain for web dashboard & Expo web
+  origins.push('https://estokvel-production.up.railway.app');
   
   // Add production origins from environment variable
   // Format: ALLOWED_ORIGINS=https://app.estokvel.com,https://admin.estokvel.com

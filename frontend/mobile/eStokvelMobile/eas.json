@@ -27,7 +27,7 @@
         "simulator": false
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api-staging.estokvel.co.za"
+        "EXPO_PUBLIC_API_URL": "https://estokvel-production.up.railway.app/api"
       },
       "channel": "preview"
     },
@@ -39,7 +39,7 @@
         "autoIncrement": true
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.estokvel.co.za"
+        "EXPO_PUBLIC_API_URL": "https://estokvel-production.up.railway.app/api"
       },
       "channel": "production",
       "autoIncrement": true
