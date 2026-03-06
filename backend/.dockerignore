@@ -22,8 +22,8 @@ postman
 TEST_REPORT.md
 test-flows.js
 
-# Prisma migrations (included separately)
-prisma/migrations
+# Prisma dev-only files (migrations ARE included for prisma migrate deploy)
+prisma/seed.ts
 
 # IDE / OS
 .vscode

@@ -89,15 +89,15 @@ if (process.env.NODE_ENV === "development") {
 
 // Load routes via centralized index
 if (!process.env.JEST_WORKER_ID) {
-  console.log("Loading routes...");
+  logger.info("Loading routes...");
 }
 
 try {
   const indexRoutes = require("./src/routes/index").default;
   app.use("/api", indexRoutes);
-  if (!process.env.JEST_WORKER_ID) console.log("✅ All routes loaded via index");
+  if (!process.env.JEST_WORKER_ID) logger.info("All routes loaded via index");
 } catch (error: any) {
-  if (!process.env.JEST_WORKER_ID) console.log("❌ Failed to load routes:", error.message);
+  if (!process.env.JEST_WORKER_ID) logger.error("Failed to load routes:", error.message);
 }
 
 // Error handling middleware
@@ -115,6 +115,23 @@ app.use((_req: Request, res: Response) => {
 
 // Export for testing
 export default app;
+
+// ============================================
+// GLOBAL CRASH HANDLERS (must be registered early)
+// ============================================
+process.on('unhandledRejection', (reason: any) => {
+  logger.error('Unhandled Promise Rejection:', reason?.stack || reason);
+  // In production, let the process manager restart us
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+});
+
+process.on('uncaughtException', (error: Error) => {
+  logger.error('Uncaught Exception:', error.stack || error.message);
+  // Always exit on uncaught exceptions — state may be corrupt
+  process.exit(1);
+});
 
 // Start server (with optional clustering for multi-core scaling)
 if (!process.env.JEST_WORKER_ID) {
@@ -135,25 +152,22 @@ if (!process.env.JEST_WORKER_ID) {
     getRedisClient();
 
     const server = app.listen(PORT, '0.0.0.0', () => {
-      logger.info(`\n🚀 eStokvel Backend Server`);
-      logger.info(`📡 Port: ${PORT} | PID: ${process.pid}`);
-      logger.info(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
-      logger.info(`⏰ Started: ${new Date().toLocaleString()}`);
+      logger.info(`eStokvel Backend Server started`);
+      logger.info(`Port: ${PORT} | PID: ${process.pid} | ENV: ${process.env.NODE_ENV || "development"}`);
+      logger.info(`Started: ${new Date().toISOString()}`);
       if (process.env.NODE_ENV !== 'production') {
-        console.log("\n🔗 http://localhost:" + PORT + "/health");
-        console.log("🔑 SUPERADMIN: admin@estokvel.co.za / Admin@2026!");
-        console.log("🔑 ADMIN: 0831234567 / PIN: 56789\n");
+        logger.debug(`Health: http://localhost:${PORT}/health`);
       }
       startPayoutScheduler();
     });
 
-    // Keep-alive for long-lived connections
+    // Keep-alive for long-lived connections (> ALB default 60s)
     server.keepAliveTimeout = 65000;
     server.headersTimeout = 66000;
 
     // Graceful shutdown
     const shutdown = async (signal: string) => {
-      logger.info(`\n${signal} received. Shutting down gracefully...`);
+      logger.info(`${signal} received. Shutting down gracefully...`);
       server.close(async () => {
         await disconnectRedis();
         const { prisma } = require("./src/utils/prisma");

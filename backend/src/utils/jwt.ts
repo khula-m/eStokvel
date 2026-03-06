@@ -3,7 +3,7 @@
 // Single source of truth for JWT configuration
 // In production, JWT_SECRET MUST be set as an environment variable
 const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'dev-secret-estokvel-2026');
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || (process.env.NODE_ENV === 'production' ? '24h' : '7d');
 
 if (!JWT_SECRET) {
   console.error('FATAL: JWT_SECRET environment variable is required in production');

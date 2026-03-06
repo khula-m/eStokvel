@@ -29,12 +29,16 @@ RUN addgroup -S estokvel && adduser -S estokvel -G estokvel
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts
 
-# Copy Prisma schema + generate client for production
+# Copy Prisma schema + migrations + generate client for production
 COPY prisma ./prisma
 RUN npx prisma generate
 
 # Copy compiled output from builder
 COPY --from=builder /app/dist ./dist
+
+# Create entrypoint script that runs migrations then starts the app
+RUN printf '#!/bin/sh\nset -e\nnpx prisma migrate deploy\nexec node dist/server.js\n' > /app/entrypoint.sh \
+    && chmod +x /app/entrypoint.sh
 
 # Set ownership
 RUN chown -R estokvel:estokvel /app
@@ -48,5 +52,5 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD wget -qO- http://localhost:5000/health || exit 1
 
-# Run compiled JS (not ts-node)
-CMD ["node", "dist/server.js"]
+# Run entrypoint: migrate then start
+CMD ["/app/entrypoint.sh"]
