@@ -1,6 +1,3 @@
 {
-  "dependencies": {
-    "expo-image-picker": "^17.0.10",
-    "prisma": "^7.3.0"
-  }
+  "private": true
 }

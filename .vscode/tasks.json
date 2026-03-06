@@ -7,6 +7,36 @@
 			"command": "cd c:\\Users\\khula\\eStokvel\\eStokvel\\backend && npx ts-node --transpile-only server.ts",
 			"isBackground": true,
 			"problemMatcher": []
+		},
+		{
+			"label": "Backend Server",
+			"type": "shell",
+			"command": "cd c:\\Users\\khula\\eStokvel\\eStokvel\\backend && npx ts-node --transpile-only server.ts",
+			"isBackground": true
+		},
+		{
+			"label": "Start Backend",
+			"type": "shell",
+			"command": "Set-Location c:\\Users\\khula\\eStokvel\\eStokvel\\backend; npx ts-node --transpile-only server.ts",
+			"isBackground": true
+		},
+		{
+			"label": "Backend Server Fresh",
+			"type": "shell",
+			"command": "Set-Location c:\\Users\\khula\\eStokvel\\eStokvel\\backend; npx ts-node --transpile-only server.ts",
+			"isBackground": true
+		},
+		{
+			"label": "Backend v2",
+			"type": "shell",
+			"command": "Set-Location c:\\Users\\khula\\eStokvel\\eStokvel\\backend; npx ts-node --transpile-only server.ts",
+			"isBackground": true
+		},
+		{
+			"label": "Backend v3",
+			"type": "shell",
+			"command": "Set-Location c:\\Users\\khula\\eStokvel\\eStokvel\\backend; npx ts-node --transpile-only server.ts",
+			"isBackground": true
 		}
 	]
 }
