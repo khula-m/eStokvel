@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { chatController } from '../controllers/chat.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
+import { validate, sendMessageSchema } from '../middleware/zodValidation.middleware';
 
 const router = Router();
 
@@ -8,7 +9,7 @@ const router = Router();
 router.use(authMiddleware);
 
 // Send a message
-router.post('/messages', chatController.sendMessage.bind(chatController));
+router.post('/messages', validate(sendMessageSchema), chatController.sendMessage.bind(chatController));
 
 // Get messages for a group
 router.get('/groups/:groupId/messages', chatController.getMessages.bind(chatController));

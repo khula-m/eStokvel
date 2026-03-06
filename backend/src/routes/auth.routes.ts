@@ -3,28 +3,36 @@ import { AuthController } from "../controllers/auth.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
 import { roleMiddleware } from "../middleware/role.middleware";
 import { authRateLimiter } from "../middleware/rateLimiter.middleware";
+import {
+  validate,
+  loginSchema,
+  superadminLoginSchema,
+  changePinSchema,
+  createAdminSchema,
+  addMemberSchema,
+} from "../middleware/zodValidation.middleware";
 
 const router = Router();
 const authController = new AuthController();
 
 // Public routes - Mobile PIN login (ADMIN + MEMBER only)
-router.post("/login", authRateLimiter, authController.login.bind(authController));
+router.post("/login", authRateLimiter, validate(loginSchema), authController.login.bind(authController));
 
 // Public routes - Superadmin web portal login (email + password)
-router.post("/superadmin/login", authRateLimiter, authController.superadminLogin.bind(authController));
+router.post("/superadmin/login", authRateLimiter, validate(superadminLoginSchema), authController.superadminLogin.bind(authController));
 
 // Protected routes (any authenticated user)
 router.get("/me", authMiddleware, authController.getCurrentUser.bind(authController));
-router.post("/change-pin", authMiddleware, authController.changePin.bind(authController));
+router.post("/change-pin", authMiddleware, validate(changePinSchema), authController.changePin.bind(authController));
 
 // SUPERADMIN-only routes
-router.post("/admin/create", authMiddleware, roleMiddleware(['SUPERADMIN']), authController.createAdmin.bind(authController));
+router.post("/admin/create", authMiddleware, roleMiddleware(['SUPERADMIN']), validate(createAdminSchema), authController.createAdmin.bind(authController));
 router.get("/admin/list", authMiddleware, roleMiddleware(['SUPERADMIN']), authController.listAdmins.bind(authController));
 router.delete("/admin/:adminId", authMiddleware, roleMiddleware(['SUPERADMIN']), authController.deleteAdmin.bind(authController));
 router.get("/system/overview", authMiddleware, roleMiddleware(['SUPERADMIN']), authController.getSystemOverview.bind(authController));
 
 // ADMIN-only routes (per-group admin check is done in the service layer)
-router.post("/member/add", authMiddleware, authController.addMember.bind(authController));
+router.post("/member/add", authMiddleware, validate(addMemberSchema), authController.addMember.bind(authController));
 
 // SUPERADMIN-only: Remove a member from a group
 import { MemberController } from '../controllers/member.controller';

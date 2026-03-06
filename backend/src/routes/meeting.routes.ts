@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { meetingController } from '../controllers/meeting.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
+import { validate, createMeetingSchema } from '../middleware/zodValidation.middleware';
 
 const router = Router();
 router.use(authMiddleware);
 
 // CRUD for meetings
-router.post('/', meetingController.create.bind(meetingController));
+router.post('/', validate(createMeetingSchema), meetingController.create.bind(meetingController));
 router.get('/group/:groupId', meetingController.getByGroup.bind(meetingController));
 router.put('/:id', meetingController.update.bind(meetingController));
 router.put('/:id/rsvp', meetingController.rsvp.bind(meetingController));

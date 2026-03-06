@@ -1,7 +1,34 @@
 import rateLimit from 'express-rate-limit';
+import { RedisStore } from 'rate-limit-redis';
 import cors, { CorsOptions } from 'cors';
 import helmet from 'helmet';
 import logger from '../utils/logger';
+import { getRedisClient, isRedisReady } from '../utils/redis';
+
+// ============================================
+// REDIS STORE FOR RATE LIMITING
+// ============================================
+
+/**
+ * Create a RedisStore for express-rate-limit if Redis is available.
+ * Falls back to the default in-memory store when Redis is down.
+ */
+function createRedisStore(prefix: string): RedisStore | undefined {
+  try {
+    if (!isRedisReady()) return undefined;
+    const client = getRedisClient();
+    if (!client) return undefined;
+
+    return new RedisStore({
+      // Use ioredis-compatible sendCommand
+      sendCommand: (...args: string[]) => client.call(args[0], ...args.slice(1)) as any,
+      prefix: `rl:${prefix}:`,
+    });
+  } catch (err: any) {
+    logger.warn(`Redis rate-limit store creation failed for ${prefix}, using in-memory:`, err.message);
+    return undefined;
+  }
+}
 
 // ============================================
 // RATE LIMITING CONFIGURATION
@@ -21,6 +48,7 @@ export const generalLimiter = rateLimit({
   },
   standardHeaders: true, // Return rate limit info in headers
   legacyHeaders: false, // Disable X-RateLimit-* headers
+  store: createRedisStore('general'),
 });
 
 /**
@@ -39,6 +67,7 @@ export const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true, // Don't count successful logins
+  store: createRedisStore('auth'),
 });
 
 /**
@@ -55,6 +84,7 @@ export const sensitiveLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  store: createRedisStore('sensitive'),
 });
 
 // ============================================

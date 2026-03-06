@@ -1,11 +1,12 @@
 import express from 'express';
 import { ozowController } from '../controllers/ozow.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
+import { validate, initiateOzowPaymentSchema } from '../middleware/zodValidation.middleware';
 
 const router = express.Router();
 
 // ── Authenticated routes (member initiates payment, checks status) ──
-router.post('/initiate', authMiddleware, ozowController.initiatePayment);
+router.post('/initiate', authMiddleware, validate(initiateOzowPaymentSchema), ozowController.initiatePayment);
 router.get('/status/:transactionId', authMiddleware, ozowController.checkStatus);
 
 // ── Public webhook routes (Ozow server-to-server, verified by hash) ──

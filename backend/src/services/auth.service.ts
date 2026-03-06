@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET, JWT_EXPIRES_IN } from '../utils/jwt';
 import { validatePin } from '../utils/validation';
+import { cacheGetOrSet } from '../utils/redis';
 
 // ============ CONSTANTS ============
 const MAX_FAILED_ATTEMPTS = 5;
@@ -87,13 +88,13 @@ export class AuthService {
 
     const existing = await prisma.user.findUnique({ where: { phoneNumber } });
     if (existing) {
-      // User exists — if a groupId is specified, assign them as admin of that group
+      // User exists ï¿½ if a groupId is specified, assign them as admin of that group
       if (data.groupId) {
         const existingMember = await prisma.member.findUnique({
           where: { userId_stokvelGroupId: { userId: existing.id, stokvelGroupId: data.groupId } }
         });
         if (existingMember) {
-          // Already a member — promote to ADMIN
+          // Already a member ï¿½ promote to ADMIN
           await prisma.member.update({
             where: { id: existingMember.id },
             data: { role: 'ADMIN' }
@@ -104,7 +105,7 @@ export class AuthService {
             message: `"${existing.fullName}" has been promoted to admin for this group`
           };
         }
-        // Not a member yet — add as ADMIN
+        // Not a member yet ï¿½ add as ADMIN
         await prisma.member.create({
           data: { userId: existing.id, stokvelGroupId: data.groupId, role: 'ADMIN' }
         });
@@ -194,7 +195,7 @@ export class AuthService {
     let user = await prisma.user.findUnique({ where: { phoneNumber } });
 
     if (user) {
-      // User exists — check if already a member of this group
+      // User exists ï¿½ check if already a member of this group
       const existingMember = await prisma.member.findUnique({
         where: { userId_stokvelGroupId: { userId: user.id, stokvelGroupId: group.id } }
       });
@@ -240,7 +241,7 @@ export class AuthService {
     };
   }
 
-  // ============ LOGIN (Phone + PIN) — ADMIN & MEMBER ONLY ============
+  // ============ LOGIN (Phone + PIN) ï¿½ ADMIN & MEMBER ONLY ============
   async login(data: LoginInput) {
     if (!data.pin || data.pin.length < 5) {
       return { success: false, message: 'PIN must be 5 digits' };
@@ -319,7 +320,7 @@ export class AuthService {
       };
     }
 
-    // Successful login — reset failed attempts and lockout
+    // Successful login ï¿½ reset failed attempts and lockout
     await prisma.user.update({
       where: { id: user.id },
       data: { lastLogin: new Date(), failedAttempts: 0, lockedUntil: null }
@@ -449,7 +450,7 @@ export class AuthService {
         await tx.member.deleteMany({ where: { userId: adminId } });
         // 8. Nullify createdById on users this admin created
         await tx.user.updateMany({ where: { createdById: adminId }, data: { createdById: null } });
-        // 9. Handle groups they created – set createdById to requester
+        // 9. Handle groups they created ï¿½ set createdById to requester
         await tx.stokvelGroup.updateMany({ where: { createdById: adminId }, data: { createdById: requesterId } });
         // 10. Reassign transactions recorded by this admin
         await tx.transaction.updateMany({ where: { recordedById: adminId }, data: { recordedById: requesterId } });
@@ -525,7 +526,7 @@ export class AuthService {
       return { success: false, message: 'Invalid credentials' };
     }
 
-    // Success — reset failed attempts, log IP
+    // Success ï¿½ reset failed attempts, log IP
     await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -682,28 +683,30 @@ export class AuthService {
 
   // ============ SUPERADMIN: System overview ============
   async getSystemOverview() {
-    const [adminMemberCount, groupCount, totalUserCount, transactionAgg] = await Promise.all([
-      // Count distinct users who are admin of at least one group
-      prisma.member.groupBy({ by: ['userId'], where: { role: 'ADMIN' } }).then((r: any[]) => r.length),
-      prisma.stokvelGroup.count({ where: { isActive: true } }),
-      prisma.user.count({ where: { role: 'MEMBER' } }), // All non-superadmin users
-      prisma.transaction.aggregate({
-        where: { status: 'COMPLETED' },
-        _sum: { amount: true },
-        _count: true,
-      }),
-    ]);
+    return cacheGetOrSet('system:overview', 60, async () => {
+      const [adminMemberCount, groupCount, totalUserCount, transactionAgg] = await Promise.all([
+        // Count distinct users who are admin of at least one group
+        prisma.member.groupBy({ by: ['userId'], where: { role: 'ADMIN' } }).then((r: any[]) => r.length),
+        prisma.stokvelGroup.count({ where: { isActive: true } }),
+        prisma.user.count({ where: { role: 'MEMBER' } }), // All non-superadmin users
+        prisma.transaction.aggregate({
+          where: { status: 'COMPLETED' },
+          _sum: { amount: true },
+          _count: true,
+        }),
+      ]);
 
-    return {
-      success: true,
-      data: {
-        admins: adminMemberCount,
-        groups: groupCount,
-        members: totalUserCount,
-        totalCollected: Number(transactionAgg._sum.amount || 0),
-        totalTransactions: transactionAgg._count,
-      },
-      message: 'System overview retrieved'
-    };
+      return {
+        success: true,
+        data: {
+          admins: adminMemberCount,
+          groups: groupCount,
+          members: totalUserCount,
+          totalCollected: Number(transactionAgg._sum.amount || 0),
+          totalTransactions: transactionAgg._count,
+        },
+        message: 'System overview retrieved'
+      };
+    });
   }
 }

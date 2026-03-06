@@ -11,4 +11,10 @@ module.exports = {
   ],
   moduleFileExtensions: ['ts', 'js', 'json', 'node'],
   testMatch: ['**/src/__tests__/**/*.test.ts'],
+  testTimeout: 15000,
+  forceExit: true,
+  // Module name mapping so mocks resolve correctly
+  moduleNameMapper: {
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+  },
 };

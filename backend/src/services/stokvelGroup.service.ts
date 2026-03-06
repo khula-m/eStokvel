@@ -5,6 +5,7 @@ import { MemberRole } from '../utils/enums';
 
 import { prisma } from '../utils/prisma';
 import logger from '../utils/logger';
+import { cacheGetOrSet, invalidateCache } from '../utils/redis';
 
 
 
@@ -163,6 +164,9 @@ export class StokvelGroupService {
       });
 
 
+
+      // Invalidate system overview cache when groups change
+      await invalidateCache('system:overview');
 
       return {
 
@@ -476,7 +480,8 @@ export class StokvelGroupService {
 
       });
 
-
+      // Invalidate this group's cached stats
+      await invalidateCache(`group:${id}:stats`);
 
       return {
 
@@ -487,9 +492,7 @@ export class StokvelGroupService {
         message: 'Group updated successfully'
 
       };
-
       
-
     } catch (error: any) {
 
       return {
@@ -772,6 +775,8 @@ export class StokvelGroupService {
 
     try {
 
+      return await cacheGetOrSet(`group:${groupId}:stats`, 120, async () => {
+
       // Get total members
 
       const memberCount = await prisma.member.count({
@@ -920,7 +925,7 @@ export class StokvelGroupService {
 
       };
 
-      
+      }); // end cacheGetOrSet
 
     } catch (error: any) {
 

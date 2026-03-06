@@ -2,6 +2,7 @@ import express from 'express';
 import { paymentController } from '../controllers/payment.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { uploadPaymentProof, handleUploadError } from '../middleware/upload.middleware';
+import { validate, updateBankDetailsSchema } from '../middleware/zodValidation.middleware';
 
 const router = express.Router();
 
@@ -13,7 +14,7 @@ router.use(authMiddleware);
  * @desc    Update bank details for a group (ADMIN only)
  * @access  Private (Admin)
  */
-router.put('/groups/:groupId/bank-details', paymentController.updateBankDetails);
+router.put('/groups/:groupId/bank-details', validate(updateBankDetailsSchema), paymentController.updateBankDetails);
 
 /**
  * @route   GET /api/payments/groups/:groupId/bank-details
