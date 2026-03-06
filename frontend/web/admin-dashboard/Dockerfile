@@ -6,6 +6,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
+# Cache bust to force rebuild when source changes
+ARG CACHEBUST=1
+
 COPY . .
 
 # Accept API URL at build time

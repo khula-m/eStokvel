@@ -22,6 +22,7 @@ export default function AdminsPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [form, setForm] = useState({ phoneNumber: '', fullName: '' });
   const [createError, setCreateError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
   const fetchAdmins = async () => {
     setLoading(true);
@@ -45,12 +46,16 @@ export default function AdminsPage() {
     setCreateError('');
     try {
       const res = await adminApi.create(form);
-      if (res.data.success) {
+      const body = res.data;
+      if (body.success) {
         setShowCreate(false);
         setForm({ phoneNumber: '', fullName: '' });
+        const pin = body.data?.tempPin;
+        const msg = body.message || 'Admin created successfully';
+        setSuccessMsg(pin ? `${msg}` : msg);
         fetchAdmins();
       } else {
-        setCreateError(res.data.message);
+        setCreateError(body.message || 'Failed to create admin');
       }
     } catch (err: any) {
       setCreateError(err.response?.data?.message || 'Failed to create admin');
@@ -99,6 +104,17 @@ export default function AdminsPage() {
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm flex items-center gap-2">
           <AlertCircle className="w-4 h-4" /> {error}
+        </div>
+      )}
+
+      {successMsg && (
+        <div className="mb-4 p-4 bg-green-50 border border-green-200 text-green-800 rounded-lg text-sm">
+          <div className="flex items-center justify-between">
+            <span>{successMsg}</span>
+            <button onClick={() => setSuccessMsg('')} className="text-green-600 hover:text-green-800 ml-2">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
 
