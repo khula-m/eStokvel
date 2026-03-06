@@ -28,8 +28,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (token) {
       authApi.getMe()
         .then((res) => {
-          if (res.data.success && res.data.user.role === 'SUPERADMIN') {
-            setUser(res.data.user);
+          const body = res.data;
+          const user = body.data?.user || body.user;
+          if (body.success && user?.role === 'SUPERADMIN') {
+            setUser(user);
           } else {
             logout();
           }
@@ -43,13 +45,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const res = await authApi.login(email, password);
-    if (res.data.success && res.data.token) {
-      localStorage.setItem('admin_token', res.data.token);
-      localStorage.setItem('admin_user', JSON.stringify(res.data.user));
-      setToken(res.data.token);
-      setUser(res.data.user);
+    const body = res.data;
+    const tokenVal = body.data?.token || body.token;
+    const userVal = body.data?.user || body.user;
+    if (body.success && tokenVal) {
+      localStorage.setItem('admin_token', tokenVal);
+      localStorage.setItem('admin_user', JSON.stringify(userVal));
+      setToken(tokenVal);
+      setUser(userVal);
     } else {
-      throw new Error(res.data.message || 'Login failed');
+      throw new Error(body.message || 'Login failed');
     }
   };
 
