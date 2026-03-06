@@ -1,0 +1,10 @@
+[build]
+# Use the Dockerfile instead of Railpack/Nixpacks auto-detection
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 5
