@@ -106,15 +106,21 @@ export class SMSService {
         return { success: true, messageId: 'no-key-' + Date.now() };
       }
 
+      logger.info('SMS attempt:', { to: formattedNumber, username: this._username, hasKey: !!this._apiKey, keyLength: this._apiKey.length });
+
       // Africa's Talking SMS API
       const AfricasTalking = require('africastalking');
       const at = AfricasTalking({ apiKey: this._apiKey, username: this._username });
       const sms = at.SMS;
-      const result = await sms.send({
+      const sendOptions: any = {
         to: [formattedNumber],
         message,
-        from: this._senderId !== 'eStokvel' ? this._senderId : undefined,
-      });
+      };
+      // Only set 'from' if a custom sender ID is registered with AT
+      if (process.env.SMS_SENDER_ID) {
+        sendOptions.from = process.env.SMS_SENDER_ID;
+      }
+      const result = await sms.send(sendOptions);
       
       const msgData = result?.SMSMessageData?.Recipients?.[0];
       if (msgData?.statusCode === 101) {
@@ -126,7 +132,7 @@ export class SMSService {
         return { success: false, error: status };
       }
     } catch (error: any) {
-      logger.error('SMS Error:', error);
+      logger.error('SMS Error:', { message: error.message, status: error.response?.status, data: error.response?.data, username: this._username });
       return { success: false, error: error.message };
     }
   }
