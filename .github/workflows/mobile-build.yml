@@ -1,0 +1,38 @@
+name: Mobile APK Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "eStokvel/frontend/mobile/**"
+  workflow_dispatch: # Allow manual trigger too
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: eStokvel/frontend/mobile/eStokvelMobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: eStokvel/frontend/mobile/eStokvelMobile/package-lock.json
+
+      - run: npm ci
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build Android APK (preview)
+        run: eas build --platform android --profile preview --non-interactive
