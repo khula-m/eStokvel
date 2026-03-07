@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { JWT_SECRET, JWT_EXPIRES_IN } from '../utils/jwt';
 import { validatePin } from '../utils/validation';
 import { cacheGetOrSet } from '../utils/redis';
+import smsService from './sms.service';
 
 // ============ CONSTANTS ============
 const MAX_FAILED_ATTEMPTS = 5;
@@ -121,13 +122,13 @@ export class AuthService {
     const tempPin = this.generateTempPin();
     const hashedPin = await bcrypt.hash(tempPin, 10);
 
-    // Create user as regular MEMBER (global role). Admin status is per-group.
+    // Create user as ADMIN (global role) so they get the admin dashboard on mobile
     const admin = await prisma.user.create({
       data: {
         phoneNumber,
         fullName: data.fullName.trim(),
         pin: hashedPin,
-        role: 'MEMBER',
+        role: 'ADMIN',
         mustChangePin: true,
         isVerified: true,
         createdById,
@@ -148,13 +149,24 @@ export class AuthService {
       });
     }
 
+    // Send SMS with login details to the new admin
+    try {
+      await smsService.sendSMS(
+        phoneNumber,
+        `Welcome to eStokvel, ${admin.fullName}! You have been registered as an Admin. Your login PIN is: ${tempPin}. Please change it on first login. Download the app to get started.`
+      );
+    } catch (smsError) {
+      // Log but don't fail the admin creation if SMS fails
+      logger.warn('Failed to send SMS to new admin:', smsError);
+    }
+
     return {
       success: true,
       data: {
         admin,
         tempPin, // Return to superadmin so they can share with the admin
       },
-      message: `Admin "${admin.fullName}" created. Temp PIN: ${tempPin}. Share this with the admin securely.`
+      message: `Admin "${admin.fullName}" created. Temp PIN: ${tempPin}. An SMS has been sent to ${phoneNumber}.`
     };
   }
 
@@ -230,14 +242,24 @@ export class AuthService {
       }
     });
 
+    // Send SMS with login details to the new member
+    try {
+      await smsService.sendSMS(
+        phoneNumber,
+        `Welcome to eStokvel! You've been added to "${group.name}". Login with your phone number. Your temp PIN is: ${tempPin}. Please change it on first login.`
+      );
+    } catch (smsError) {
+      logger.warn('Failed to send SMS to new member:', smsError);
+    }
+
     return {
       success: true,
       data: {
         member: membership,
         tempPin, // Admin shares this with the member
-        smsMessage: `You've been added to "${group.name}". Download the app and login with your phone number. Your temp PIN is: ${tempPin}`,
+        smsMessage: `You've been added to \"${group.name}\". Download the app and login with your phone number. Your temp PIN is: ${tempPin}`,
       },
-      message: `Member "${data.fullName}" added to "${group.name}". Temp PIN: ${tempPin}`
+      message: `Member \"${data.fullName}\" added to \"${group.name}\". Temp PIN: ${tempPin}. An SMS has been sent to ${phoneNumber}.`
     };
   }
 
@@ -347,6 +369,8 @@ export class AuthService {
     // Derive if the user is an admin of any group (for backward compatibility)
     const adminMemberships = memberships.filter((m: any) => m.role === 'ADMIN');
     const isGroupAdmin = adminMemberships.length > 0;
+    // effectiveRole: use global role ADMIN if set, or derive from per-group memberships
+    const effectiveRole = user.role === 'ADMIN' || isGroupAdmin ? 'ADMIN' : 'MEMBER';
 
     return {
       success: true,
@@ -356,8 +380,8 @@ export class AuthService {
           phoneNumber: user.phoneNumber,
           fullName: user.fullName,
           role: user.role,
-          // Effective role: SUPERADMIN for superadmins, otherwise derive from memberships
-          effectiveRole: isGroupAdmin ? 'ADMIN' : 'MEMBER',
+          // Effective role: ADMIN if global role is ADMIN or admin of any group
+          effectiveRole,
           mustChangePin: user.mustChangePin,
           email: user.email,
           language: user.language,
@@ -710,7 +734,7 @@ export class AuthService {
         // Count distinct users who are admin of at least one group
         prisma.member.groupBy({ by: ['userId'], where: { role: 'ADMIN' } }).then((r: any[]) => r.length),
         prisma.stokvelGroup.count({ where: { isActive: true } }),
-        prisma.user.count({ where: { role: 'MEMBER' } }), // All non-superadmin users
+        prisma.user.count({ where: { role: { in: ['MEMBER', 'ADMIN'] } } }), // All non-superadmin users
         prisma.transaction.aggregate({
           where: { status: 'COMPLETED' },
           _sum: { amount: true },
