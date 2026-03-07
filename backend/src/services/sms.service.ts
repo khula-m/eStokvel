@@ -106,7 +106,7 @@ export class SMSService {
         return { success: true, messageId: 'no-key-' + Date.now() };
       }
 
-      logger.info('SMS attempt:', { to: formattedNumber, username: this._username, hasKey: !!this._apiKey, keyLength: this._apiKey.length });
+      logger.info(`SMS attempt: to=${formattedNumber} username=${this._username} keyLen=${this._apiKey.length}`);
 
       // Africa's Talking SMS API
       const AfricasTalking = require('africastalking');
@@ -122,17 +122,20 @@ export class SMSService {
       }
       const result = await sms.send(sendOptions);
       
+      logger.info(`SMS raw response: ${JSON.stringify(result)}`);
+      
       const msgData = result?.SMSMessageData?.Recipients?.[0];
       if (msgData?.statusCode === 101) {
-        logger.info('SMS sent:', { to: formattedNumber, messageId: msgData.messageId });
+        logger.info(`SMS sent successfully: to=${formattedNumber} messageId=${msgData.messageId}`);
         return { success: true, messageId: msgData.messageId };
       } else {
         const status = msgData?.status || 'Unknown error';
-        logger.warn('SMS delivery issue:', { to: formattedNumber, status });
+        const fullMsg = result?.SMSMessageData?.Message || 'no message';
+        logger.warn(`SMS delivery issue: to=${formattedNumber} status=${status} message=${fullMsg} statusCode=${msgData?.statusCode}`);
         return { success: false, error: status };
       }
     } catch (error: any) {
-      logger.error('SMS Error:', { message: error.message, status: error.response?.status, data: error.response?.data, username: this._username });
+      logger.error(`SMS Error: ${error.message} status=${error.response?.status} data=${JSON.stringify(error.response?.data)} username=${this._username}`);
       return { success: false, error: error.message };
     }
   }
