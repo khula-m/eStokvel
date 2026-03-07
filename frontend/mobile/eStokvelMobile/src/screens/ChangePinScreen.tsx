@@ -48,30 +48,17 @@ export const ChangePinScreen = ({ auth, onNavigate }: ChangePinScreenProps) => {
         backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
         ...(Platform.OS === 'web' ? { boxShadow: '0 1px 4px rgba(0,0,0,0.04)' } : {}) as any,
       }}>
-        {!auth.user?.mustChangePin ? (
-          <TouchableOpacity
-            onPress={() => onNavigate('main')}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingRight: 16 }}
-            activeOpacity={0.6}
-          >
-            <Icon name="arrow-back" size={22} color={COLORS.primary} />
-            <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.primary }}>Back</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={{ width: 60 }} />
-        )}
-        <Text style={{ flex: 1, fontSize: 17, fontWeight: '700', color: COLORS.text, textAlign: 'center', marginRight: auth.user?.mustChangePin ? 0 : 60 }}>
+        <TouchableOpacity
+          onPress={() => onNavigate(auth.user?.mustChangePin ? 'landing' : 'main')}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingRight: 12 }}
+          activeOpacity={0.6}
+        >
+          <Icon name="arrow-back" size={22} color={COLORS.primary} />
+          <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.primary }}>Back</Text>
+        </TouchableOpacity>
+        <Text style={{ flex: 1, fontSize: 17, fontWeight: '700', color: COLORS.text, textAlign: 'center', marginRight: 60 }}>
           Change PIN
         </Text>
-        {auth.user?.mustChangePin && (
-          <TouchableOpacity
-            onPress={() => onNavigate('landing')}
-            style={{ paddingVertical: 4, paddingLeft: 16 }}
-            activeOpacity={0.6}
-          >
-            <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.error }}>Logout</Text>
-          </TouchableOpacity>
-        )}
       </View>
 
       <ScrollView contentContainerStyle={styles.authScrollContent} keyboardShouldPersistTaps="handled">
@@ -109,15 +96,9 @@ export const ChangePinScreen = ({ auth, onNavigate }: ChangePinScreenProps) => {
           </TouchableOpacity>
         </View>
         <View style={styles.authFooter}>
-          {!auth.user?.mustChangePin ? (
-            <TouchableOpacity onPress={() => onNavigate('main')}>
-              <Text style={styles.authFooterLink}>← Back to Dashboard</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity onPress={() => onNavigate('landing')}>
-              <Text style={[styles.authFooterLink, { color: COLORS.error }]}>← Sign Out Instead</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity onPress={() => onNavigate(auth.user?.mustChangePin ? 'landing' : 'main')}>
+            <Text style={styles.authFooterLink}>← {auth.user?.mustChangePin ? 'Back to Login' : 'Back to Dashboard'}</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>

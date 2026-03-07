@@ -78,8 +78,15 @@ export const ChatScreen = ({ auth, initialGroupId }: { auth: AuthState; initialG
     finally { setSending(false); }
   };
 
-  const formatTime = (date: string) => new Date(date).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' });
-  const formatDateHeader = (date: string) => new Date(date).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' });
+  const formatTime = (date: string) => {
+    const d = new Date(date);
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+  const formatDateHeader = (date: string) => {
+    const d = new Date(date);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${String(d.getDate()).padStart(2, '0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  };
 
   if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
 

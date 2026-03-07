@@ -67,7 +67,7 @@ const email = z
 
 const groupId = z
   .string({ error: 'Group ID is required' })
-  .uuid('Invalid group ID format');
+  .min(1, 'Group ID is required');
 
 const positiveAmount = z.coerce
   .number({ error: 'Amount is required' })
@@ -220,10 +220,10 @@ export const createMeetingSchema = z.object({
   description: z.string().trim().max(1000).optional(),
   date: z.coerce.date({ error: 'Date is required' }),
   location: z
-    .string({ error: 'Location is required' })
+    .string()
     .trim()
-    .min(1, 'Location is required')
-    .max(300, 'Location must be at most 300 characters'),
+    .max(300, 'Location must be at most 300 characters')
+    .optional(),
   groupId,
 });
 

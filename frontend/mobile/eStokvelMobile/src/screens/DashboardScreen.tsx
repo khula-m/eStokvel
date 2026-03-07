@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView,
-  Modal, ActivityIndicator, RefreshControl,
+  Modal, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import axios from 'axios';
@@ -30,8 +30,16 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
   const isAdmin = auth.user?.effectiveRole === 'ADMIN' || userRole === 'ADMIN';
   const headers = { Authorization: `Bearer ${auth.token}` };
   const formatCurrency = (amount: number | string) => `R ${Number(amount || 0).toFixed(2)}`;
-  const formatDate = (date: string) => new Date(date).toLocaleDateString('en-ZA');
-  const formatDateTime = (date: string) => new Date(date).toLocaleString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const formatDate = (date: string) => {
+    const d = new Date(date);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${String(d.getDate()).padStart(2, '0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  };
+  const formatDateTime = (date: string) => {
+    const d = new Date(date);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${String(d.getDate()).padStart(2, '0')} ${months[d.getMonth()]} ${d.getFullYear()}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
 
   // ---- ADMIN STATE ----
   const [groups, setGroups] = useState<Group[]>([]);
@@ -49,6 +57,12 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
   const [newMeetDesc, setNewMeetDesc] = useState('');
   const [newMeetDate, setNewMeetDate] = useState('');
   const [newMeetLocation, setNewMeetLocation] = useState('');
+  // Date/time scroll picker state for meetings
+  const [meetDay, setMeetDay] = useState(new Date().getDate());
+  const [meetMonth, setMeetMonth] = useState(new Date().getMonth());
+  const [meetYear, setMeetYear] = useState(new Date().getFullYear());
+  const [meetHour, setMeetHour] = useState(18);
+  const [meetMinute, setMeetMinute] = useState(0);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupDesc, setNewGroupDesc] = useState('');
@@ -200,11 +214,10 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
   };
 
   const handleCreateMeeting = async () => {
-    if (!newMeetTitle.trim() || !newMeetDate.trim() || !selectedGroup) { showAlert('Error', 'Title and date are required'); return; }
-    // Validate date: support both "YYYY-MM-DD HH:MM" and ISO format
-    const dateStr = newMeetDate.trim().replace(' ', 'T');
-    const parsedDate = new Date(dateStr);
-    if (isNaN(parsedDate.getTime())) { showAlert('Error', 'Invalid date format. Use YYYY-MM-DD HH:MM'); return; }
+    if (!newMeetTitle.trim() || !selectedGroup) { showAlert('Error', 'Title is required'); return; }
+    // Build date from picker values
+    const parsedDate = new Date(meetYear, meetMonth, meetDay, meetHour, meetMinute);
+    if (isNaN(parsedDate.getTime()) || parsedDate <= new Date()) { showAlert('Error', 'Please select a future date and time'); return; }
     setSubmittingMeeting(true);
     try {
       await axios.post(`${API_URL}/api/meetings`, {
@@ -584,30 +597,32 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
               </View>
 
               {/* Create Announcement Modal */}
-              <Modal visible={showAnnouncementForm} animationType="slide" transparent>
-                <View style={styles.modalOverlay}>
-                  <View style={styles.modalContent}>
-                    <View style={styles.modalHeader}>
-                      <Icon name="announcement" size={24} color={COLORS.primary} />
-                      <Text style={styles.modalTitle}>New Announcement</Text>
-                      <TouchableOpacity onPress={() => setShowAnnouncementForm(false)}>
+              <Modal visible={showAnnouncementForm} animationType="slide" transparent={false}>
+                <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#fff' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
+                      <TouchableOpacity onPress={() => setShowAnnouncementForm(false)} style={{ paddingRight: 12 }}>
                         <Icon name="close" size={24} color={COLORS.textLight} />
                       </TouchableOpacity>
+                      <Icon name="announcement" size={22} color={COLORS.primary} />
+                      <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.text, marginLeft: 8, flex: 1 }}>New Announcement</Text>
                     </View>
-                    <View style={styles.inputContainer}>
-                      <Text style={styles.label}>Title *</Text>
-                      <TextInput style={styles.input} value={newAnnTitle} onChangeText={setNewAnnTitle} placeholder="Announcement title" />
-                    </View>
-                    <View style={styles.inputContainer}>
-                      <Text style={styles.label}>Content *</Text>
-                      <TextInput style={[styles.input, { height: 100 }]} value={newAnnContent} onChangeText={setNewAnnContent}
-                        placeholder="Write your announcement..." multiline />
-                    </View>
-                    <TouchableOpacity style={[styles.button, submittingAnnouncement && styles.buttonDisabled]} onPress={handleCreateAnnouncement} disabled={submittingAnnouncement}>
-                      {submittingAnnouncement ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Post Announcement</Text>}
-                    </TouchableOpacity>
+                    <ScrollView style={{ flex: 1, padding: 20 }} keyboardShouldPersistTaps="handled">
+                      <View style={styles.inputContainer}>
+                        <Text style={styles.label}>Title *</Text>
+                        <TextInput style={styles.input} value={newAnnTitle} onChangeText={setNewAnnTitle} placeholder="Announcement title" />
+                      </View>
+                      <View style={styles.inputContainer}>
+                        <Text style={styles.label}>Content *</Text>
+                        <TextInput style={[styles.input, { height: 140, textAlignVertical: 'top' }]} value={newAnnContent} onChangeText={setNewAnnContent}
+                          placeholder="Write your announcement..." multiline />
+                      </View>
+                      <TouchableOpacity style={[styles.button, submittingAnnouncement && styles.buttonDisabled, { marginTop: 20 }]} onPress={handleCreateAnnouncement} disabled={submittingAnnouncement}>
+                        {submittingAnnouncement ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Post Announcement</Text>}
+                      </TouchableOpacity>
+                    </ScrollView>
                   </View>
-                </View>
+                </KeyboardAvoidingView>
               </Modal>
               </>
               )}
@@ -677,37 +692,107 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
               </View>
 
               {/* Schedule Meeting Modal */}
-              <Modal visible={showMeetingForm} animationType="slide" transparent>
-                <View style={styles.modalOverlay}>
-                  <View style={styles.modalContent}>
-                    <View style={styles.modalHeader}>
-                      <Icon name="event" size={24} color={COLORS.primary} />
-                      <Text style={styles.modalTitle}>Schedule Meeting</Text>
-                      <TouchableOpacity onPress={() => setShowMeetingForm(false)}>
+              <Modal visible={showMeetingForm} animationType="slide" transparent={false}>
+                <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#fff' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
+                      <TouchableOpacity onPress={() => setShowMeetingForm(false)} style={{ paddingRight: 12 }}>
                         <Icon name="close" size={24} color={COLORS.textLight} />
                       </TouchableOpacity>
+                      <Icon name="event" size={22} color={COLORS.primary} />
+                      <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.text, marginLeft: 8, flex: 1 }}>Schedule Meeting</Text>
                     </View>
-                    <View style={styles.inputContainer}>
-                      <Text style={styles.label}>Title *</Text>
-                      <TextInput style={styles.input} value={newMeetTitle} onChangeText={setNewMeetTitle} placeholder="Meeting title" />
-                    </View>
-                    <View style={styles.inputContainer}>
-                      <Text style={styles.label}>Description</Text>
-                      <TextInput style={[styles.input, { height: 80 }]} value={newMeetDesc} onChangeText={setNewMeetDesc} placeholder="Description..." multiline />
-                    </View>
-                    <View style={styles.inputContainer}>
-                      <Text style={styles.label}>Date & Time * (YYYY-MM-DD HH:MM)</Text>
-                      <TextInput style={styles.input} value={newMeetDate} onChangeText={setNewMeetDate} placeholder="e.g. 2026-04-15 18:00" />
-                    </View>
-                    <View style={styles.inputContainer}>
-                      <Text style={styles.label}>Location</Text>
-                      <TextInput style={styles.input} value={newMeetLocation} onChangeText={setNewMeetLocation} placeholder="Meeting location" />
-                    </View>
-                    <TouchableOpacity style={[styles.button, submittingMeeting && styles.buttonDisabled]} onPress={handleCreateMeeting} disabled={submittingMeeting}>
-                      {submittingMeeting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Schedule Meeting</Text>}
-                    </TouchableOpacity>
+                    <ScrollView style={{ flex: 1, padding: 20 }} keyboardShouldPersistTaps="handled">
+                      <View style={styles.inputContainer}>
+                        <Text style={styles.label}>Title *</Text>
+                        <TextInput style={styles.input} value={newMeetTitle} onChangeText={setNewMeetTitle} placeholder="Meeting title" />
+                      </View>
+                      <View style={styles.inputContainer}>
+                        <Text style={styles.label}>Description</Text>
+                        <TextInput style={[styles.input, { height: 80, textAlignVertical: 'top' }]} value={newMeetDesc} onChangeText={setNewMeetDesc} placeholder="Description..." multiline />
+                      </View>
+
+                      {/* Date Picker */}
+                      <View style={styles.inputContainer}>
+                        <Text style={[styles.label, { marginBottom: 10 }]}>Date *</Text>
+                        {/* Day selector */}
+                        <Text style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 6 }}>Day</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                          {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                            <TouchableOpacity key={d} onPress={() => setMeetDay(d)}
+                              style={{ width: 40, height: 40, borderRadius: 20, marginRight: 6, alignItems: 'center', justifyContent: 'center',
+                                backgroundColor: meetDay === d ? COLORS.primary : '#F3F4F6', borderWidth: 1, borderColor: meetDay === d ? COLORS.primary : '#E5E7EB' }}>
+                              <Text style={{ fontSize: 14, fontWeight: meetDay === d ? '700' : '500', color: meetDay === d ? '#fff' : COLORS.text }}>{d}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                        {/* Month selector */}
+                        <Text style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 6 }}>Month</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                          {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => (
+                            <TouchableOpacity key={m} onPress={() => setMeetMonth(i)}
+                              style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, marginRight: 6,
+                                backgroundColor: meetMonth === i ? COLORS.primary : '#F3F4F6', borderWidth: 1, borderColor: meetMonth === i ? COLORS.primary : '#E5E7EB' }}>
+                              <Text style={{ fontSize: 13, fontWeight: meetMonth === i ? '700' : '500', color: meetMonth === i ? '#fff' : COLORS.text }}>{m}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                        {/* Year selector */}
+                        <Text style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 6 }}>Year</Text>
+                        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                          {[new Date().getFullYear(), new Date().getFullYear() + 1].map(y => (
+                            <TouchableOpacity key={y} onPress={() => setMeetYear(y)}
+                              style={{ paddingHorizontal: 18, paddingVertical: 8, borderRadius: 16,
+                                backgroundColor: meetYear === y ? COLORS.primary : '#F3F4F6', borderWidth: 1, borderColor: meetYear === y ? COLORS.primary : '#E5E7EB' }}>
+                              <Text style={{ fontSize: 14, fontWeight: meetYear === y ? '700' : '500', color: meetYear === y ? '#fff' : COLORS.text }}>{y}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+
+                      {/* Time Picker */}
+                      <View style={styles.inputContainer}>
+                        <Text style={[styles.label, { marginBottom: 10 }]}>Time *</Text>
+                        {/* Hour selector */}
+                        <Text style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 6 }}>Hour</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                          {Array.from({ length: 24 }, (_, i) => i).map(h => (
+                            <TouchableOpacity key={h} onPress={() => setMeetHour(h)}
+                              style={{ width: 42, height: 38, borderRadius: 10, marginRight: 6, alignItems: 'center', justifyContent: 'center',
+                                backgroundColor: meetHour === h ? COLORS.primary : '#F3F4F6', borderWidth: 1, borderColor: meetHour === h ? COLORS.primary : '#E5E7EB' }}>
+                              <Text style={{ fontSize: 14, fontWeight: meetHour === h ? '700' : '500', color: meetHour === h ? '#fff' : COLORS.text }}>{String(h).padStart(2, '0')}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                        {/* Minute selector */}
+                        <Text style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 6 }}>Minute</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                          {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(m => (
+                            <TouchableOpacity key={m} onPress={() => setMeetMinute(m)}
+                              style={{ width: 42, height: 38, borderRadius: 10, marginRight: 6, alignItems: 'center', justifyContent: 'center',
+                                backgroundColor: meetMinute === m ? COLORS.primary : '#F3F4F6', borderWidth: 1, borderColor: meetMinute === m ? COLORS.primary : '#E5E7EB' }}>
+                              <Text style={{ fontSize: 14, fontWeight: meetMinute === m ? '700' : '500', color: meetMinute === m ? '#fff' : COLORS.text }}>{String(m).padStart(2, '0')}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                        {/* Preview */}
+                        <View style={{ backgroundColor: '#EFF6FF', padding: 12, borderRadius: 10, marginTop: 4 }}>
+                          <Text style={{ fontSize: 15, fontWeight: '600', color: COLORS.primary, textAlign: 'center' }}>
+                            {meetDay} {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][meetMonth]} {meetYear} at {String(meetHour).padStart(2, '0')}:{String(meetMinute).padStart(2, '0')}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.inputContainer}>
+                        <Text style={styles.label}>Location (optional)</Text>
+                        <TextInput style={styles.input} value={newMeetLocation} onChangeText={setNewMeetLocation} placeholder="Meeting location" />
+                      </View>
+                      <TouchableOpacity style={[styles.button, submittingMeeting && styles.buttonDisabled, { marginTop: 10, marginBottom: 30 }]} onPress={handleCreateMeeting} disabled={submittingMeeting}>
+                        {submittingMeeting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Schedule Meeting</Text>}
+                      </TouchableOpacity>
+                    </ScrollView>
                   </View>
-                </View>
+                </KeyboardAvoidingView>
               </Modal>
               </>
               )}
@@ -812,19 +897,20 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
           )}
 
           {/* Add Member Modal */}
-          <Modal visible={showAddMemberModal} animationType="slide" transparent>
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <Icon name="person-add" size={24} color={COLORS.primary} />
-                  <Text style={styles.modalTitle}>Add Member</Text>
-                  <TouchableOpacity onPress={() => { setShowAddMemberModal(false); setAddedMemberPin(''); }}>
+          <Modal visible={showAddMemberModal} animationType="slide" transparent={false}>
+            <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#fff' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
+                  <TouchableOpacity onPress={() => { setShowAddMemberModal(false); setAddedMemberPin(''); }} style={{ paddingRight: 12 }}>
                     <Icon name="close" size={24} color={COLORS.textLight} />
                   </TouchableOpacity>
+                  <Icon name="person-add" size={22} color={COLORS.primary} />
+                  <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.text, marginLeft: 8, flex: 1 }}>Add Member</Text>
                 </View>
+                <ScrollView style={{ flex: 1, padding: 20 }} keyboardShouldPersistTaps="handled">
                 {selectedGroup && (
-                  <View style={{ backgroundColor: '#EFF6FF', padding: 10, borderRadius: 8, marginBottom: 12 }}>
-                    <Text style={{ fontSize: 13, color: COLORS.primary, fontWeight: '600' }}>Group: {selectedGroup.name}</Text>
+                  <View style={{ backgroundColor: '#EFF6FF', padding: 12, borderRadius: 10, marginBottom: 16 }}>
+                    <Text style={{ fontSize: 14, color: COLORS.primary, fontWeight: '600' }}>Group: {selectedGroup.name}</Text>
                   </View>
                 )}
                 {addedMemberPin ? (
@@ -850,13 +936,14 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                       <Text style={styles.label}>Phone Number *</Text>
                       <TextInput style={styles.input} value={newMemberPhone} onChangeText={setNewMemberPhone} placeholder="e.g. 0831234567" keyboardType="phone-pad" maxLength={10} />
                     </View>
-                    <TouchableOpacity style={[styles.button, addingMember && { opacity: 0.7 }]} onPress={handleAddMember} disabled={addingMember}>
+                    <TouchableOpacity style={[styles.button, addingMember && { opacity: 0.7 }, { marginTop: 20 }]} onPress={handleAddMember} disabled={addingMember}>
                       <Text style={styles.buttonText}>{addingMember ? 'Adding...' : 'Add Member'}</Text>
                     </TouchableOpacity>
                   </>
                 )}
+                </ScrollView>
               </View>
-            </View>
+            </KeyboardAvoidingView>
           </Modal>
         </ScrollView>
       );
@@ -998,23 +1085,24 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
         </ScrollView>
 
         {/* Create Group Modal */}
-        <Modal visible={showCreateGroupModal} animationType="slide" transparent>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Icon name="group-add" size={24} color={COLORS.primary} />
-                <Text style={styles.modalTitle}>Create New Group</Text>
-                <TouchableOpacity onPress={() => setShowCreateGroupModal(false)}>
+        <Modal visible={showCreateGroupModal} animationType="slide" transparent={false}>
+          <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#fff' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
+                <TouchableOpacity onPress={() => setShowCreateGroupModal(false)} style={{ paddingRight: 12 }}>
                   <Icon name="close" size={24} color={COLORS.textLight} />
                 </TouchableOpacity>
+                <Icon name="group-add" size={22} color={COLORS.primary} />
+                <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.text, marginLeft: 8, flex: 1 }}>Create New Group</Text>
               </View>
+              <ScrollView style={{ flex: 1, padding: 20 }} keyboardShouldPersistTaps="handled">
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Group Name *</Text>
                 <TextInput style={styles.input} value={newGroupName} onChangeText={setNewGroupName} placeholder="e.g., Family Stokvel" />
               </View>
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Description</Text>
-                <TextInput style={[styles.input, { height: 80 }]} value={newGroupDesc} onChangeText={setNewGroupDesc} placeholder="Brief description..." multiline />
+                <TextInput style={[styles.input, { height: 80, textAlignVertical: 'top' }]} value={newGroupDesc} onChangeText={setNewGroupDesc} placeholder="Brief description..." multiline />
               </View>
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Contribution Amount (R) *</Text>
@@ -1042,7 +1130,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                   ))}
                 </View>
               </View>
-              <View style={styles.modalButtons}>
+              <View style={[styles.modalButtons, { marginBottom: 30 }]}>
                 <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowCreateGroupModal(false)}>
                   <Text style={styles.modalCancelText}>Cancel</Text>
                 </TouchableOpacity>
@@ -1050,8 +1138,9 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                   {creatingGroup ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Create</Text>}
                 </TouchableOpacity>
               </View>
+              </ScrollView>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         {/* Admin Payment Modal */}
@@ -1359,48 +1448,50 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
       />
 
       {/* Join Group by Code Modal */}
-      <Modal visible={showJoinGroupModal} transparent animationType="slide" onRequestClose={() => setShowJoinGroupModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Join a Stokvel</Text>
-              <TouchableOpacity onPress={() => setShowJoinGroupModal(false)} accessibilityLabel="Close" accessibilityRole="button">
+      <Modal visible={showJoinGroupModal} transparent={false} animationType="slide" onRequestClose={() => setShowJoinGroupModal(false)}>
+        <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#fff' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
+              <TouchableOpacity onPress={() => setShowJoinGroupModal(false)} style={{ paddingRight: 12 }}>
                 <Icon name="close" size={24} color={COLORS.textLight} />
               </TouchableOpacity>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.text, flex: 1 }}>Join a Stokvel</Text>
             </View>
-            <Text style={{ color: COLORS.textLight, fontSize: 13, marginBottom: 16 }}>
-              Enter the invite code shared by your group admin to join their stokvel.
-            </Text>
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Invite Code</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. ABC123"
-                value={joinGroupCode}
-                onChangeText={setJoinGroupCode}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                maxLength={10}
-                accessibilityLabel="Group invite code"
-              />
-            </View>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowJoinGroupModal(false)}>
-                <Text style={{ color: COLORS.textLight, fontWeight: '600' }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.primaryButton, { flex: 1, opacity: joiningGroup ? 0.6 : 1 }]}
-                onPress={handleJoinByCode}
-                disabled={joiningGroup}
-                accessibilityLabel="Join group" accessibilityRole="button"
-              >
-                {joiningGroup ? <ActivityIndicator size="small" color="#fff" /> : (
-                  <Text style={styles.primaryButtonText}>Join Group</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+            <ScrollView style={{ flex: 1, padding: 20 }} keyboardShouldPersistTaps="handled">
+              <Text style={{ color: COLORS.textLight, fontSize: 14, marginBottom: 20, lineHeight: 21 }}>
+                Enter the invite code shared by your group admin to join their stokvel.
+              </Text>
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Invite Code</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. ABC123"
+                  value={joinGroupCode}
+                  onChangeText={setJoinGroupCode}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  maxLength={10}
+                  accessibilityLabel="Group invite code"
+                />
+              </View>
+              <View style={[styles.modalButtons, { marginTop: 20 }]}>
+                <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowJoinGroupModal(false)}>
+                  <Text style={{ color: COLORS.textLight, fontWeight: '600' }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.primaryButton, { flex: 1, opacity: joiningGroup ? 0.6 : 1 }]}
+                  onPress={handleJoinByCode}
+                  disabled={joiningGroup}
+                  accessibilityLabel="Join group" accessibilityRole="button"
+                >
+                  {joiningGroup ? <ActivityIndicator size="small" color="#fff" /> : (
+                    <Text style={styles.primaryButtonText}>Join Group</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
