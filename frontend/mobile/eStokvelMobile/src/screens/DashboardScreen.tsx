@@ -33,15 +33,6 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
   const formatDate = (date: string) => new Date(date).toLocaleDateString('en-ZA');
   const formatDateTime = (date: string) => new Date(date).toLocaleString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-  // ---- SUPERADMIN STATE ----
-  const [systemOverview, setSystemOverview] = useState({ admins: 0, groups: 0, members: 0, totalCollected: 0, totalTransactions: 0 });
-  const [adminList, setAdminList] = useState<any[]>([]);
-  const [showCreateAdminModal, setShowCreateAdminModal] = useState(false);
-  const [newAdminName, setNewAdminName] = useState('');
-  const [newAdminPhone, setNewAdminPhone] = useState('');
-  const [creatingAdmin, setCreatingAdmin] = useState(false);
-  const [createdAdminPin, setCreatedAdminPin] = useState('');
-
   // ---- ADMIN STATE ----
   const [groups, setGroups] = useState<Group[]>([]);
   const [adminView, setAdminView] = useState<'main' | 'analytics' | 'announcements' | 'meetings' | 'members' | 'payments'>('main');
@@ -111,14 +102,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
   const fetchDashboardData = useCallback(async () => {
     try {
       const h = { Authorization: `Bearer ${auth.token}` };
-      if (isSuperAdmin) {
-        const [overviewRes, adminsRes] = await Promise.all([
-          axios.get(`${API_URL}/api/auth/system/overview`, { headers: h }).catch(() => ({ data: { data: {} } })),
-          axios.get(`${API_URL}/api/auth/admin/list`, { headers: h }).catch(() => ({ data: { data: { admins: [] } } })),
-        ]);
-        setSystemOverview(overviewRes.data.data || { admins: 0, groups: 0, members: 0, totalCollected: 0, totalTransactions: 0 });
-        setAdminList(adminsRes.data.data?.admins || []);
-      } else if (isAdmin) {
+      if (isAdmin) {
         const groupsRes = await axios.get(`${API_URL}/api/groups`, { headers: h }).catch(() => ({ data: { data: [] } }));
         setGroups(groupsRes.data.data || []);
       } else {
@@ -146,38 +130,12 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
       showAlert('Connection Error', 'Failed to load dashboard data. Pull down to retry.');
     }
     finally { setLoading(false); setRefreshing(false); }
-  }, [auth.token, isSuperAdmin, isAdmin, selectedMemberGroupIdx]);
+  }, [auth.token, isAdmin, selectedMemberGroupIdx]);
 
   useEffect(() => { fetchDashboardData(); }, [fetchDashboardData]);
   const onRefresh = () => { setRefreshing(true); fetchDashboardData(); };
 
-  // ========== SUPERADMIN HANDLERS ==========
-  const handleCreateAdmin = async () => {
-    if (!newAdminName.trim() || !newAdminPhone.trim()) { showAlert('Error', 'Please enter both name and phone number'); return; }
-    if (!/^0\d{9}$/.test(newAdminPhone.trim())) { showAlert('Error', 'Phone must be 10 digits starting with 0'); return; }
-    setCreatingAdmin(true); setCreatedAdminPin('');
-    try {
-      const res = await axios.post(`${API_URL}/api/auth/admin/create`, { fullName: newAdminName.trim(), phoneNumber: newAdminPhone.trim() }, { headers });
-      if (res.data.success) { setCreatedAdminPin(res.data.data?.tempPin || ''); setNewAdminName(''); setNewAdminPhone(''); fetchDashboardData(); }
-      else { showAlert('Error', res.data.message || 'Failed'); }
-    } catch (e: any) { showAlert('Error', e.response?.data?.message || 'Failed'); }
-    finally { setCreatingAdmin(false); }
-  };
 
-  const handleDeleteAdmin = async (adminId: string, adminName: string) => {
-    showAlert('Delete Admin', `Are you sure you want to remove "${adminName}" from the system? This cannot be undone.`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
-        try {
-          const res = await axios.delete(`${API_URL}/api/auth/admin/${adminId}`, { headers });
-          if (res.data.success) {
-            showAlert('Success', res.data.message || 'Admin removed');
-            fetchDashboardData();
-          } else { showAlert('Error', res.data.message || 'Failed to delete admin'); }
-        } catch (e: any) { showAlert('Error', e.response?.data?.message || 'Failed to delete admin'); }
-      }},
-    ]);
-  };
 
   // ========== ADMIN HANDLERS ==========
   const openAdminSubScreen = async (view: typeof adminView, group: Group) => {
