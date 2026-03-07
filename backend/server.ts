@@ -11,8 +11,8 @@ import {
   urlEncodedLimit,
 } from "./src/middleware/security.middleware";
 
-// Payout scheduler (disabled — manual payouts for now)
-// import { startPayoutScheduler } from "./src/jobs/payout.job";
+// Import payout scheduler
+import { startPayoutScheduler } from "./src/jobs/payout.job";
 
 // Import Redis + logger
 import { getRedisClient, disconnectRedis } from "./src/utils/redis";
@@ -162,10 +162,7 @@ if (!process.env.JEST_WORKER_ID) {
       if (process.env.NODE_ENV !== 'production') {
         logger.debug(`Health: http://localhost:${PORT}/health`);
       }
-      // Payouts are handled manually — eStokvel operates as a custodial account.
-      // All contributions land in our pooled account; balances are tracked per group/member.
-      // Re-enable when automatic Ozow EFT payouts are needed:
-      // startPayoutScheduler();
+      startPayoutScheduler();
     });
 
     // Keep-alive for long-lived connections (> ALB default 60s)
