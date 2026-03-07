@@ -6,6 +6,7 @@ export interface CreateStokvelGroupInput {
   description?: string;
   contributionAmount?: number;
   contributionFrequency?: string;
+  payoutModel?: 'ROTATING' | 'END_OF_TERM';
   durationMonths?: number;
   currency?: string;
   meetingSchedule?: string;

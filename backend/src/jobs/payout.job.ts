@@ -2,8 +2,9 @@
  * Automatic Payout Scheduler
  *
  * Runs daily and checks for groups with due payouts.
- * Determines the next recipient via round-robin (nextPayoutOrder)
- * and initiates an Ozow payout.
+ *
+ * ROTATING model:  Round-robin — one member gets the full pool each cycle.
+ * END_OF_TERM model: Savings — all members get back their contributions at end of term.
  *
  * HARDENED: Uses prisma.$transaction for atomic payout processing,
  * idempotency locks to prevent duplicate payouts, and structured logging.
@@ -36,193 +37,331 @@ export async function processPayouts(): Promise<void> {
     const now = new Date();
     logger.info(`[PayoutJob] Checking for due payouts at ${now.toISOString()}`);
 
-    // Find active groups where payoutDate is due (today or past)
-    const dueGroups = await prisma.stokvelGroup.findMany({
-      where: {
-        isActive: true,
-        payoutDate: { lte: now },
-      },
-      include: {
-        members: {
-          orderBy: { nextPayoutOrder: 'asc' },
-          include: {
-            user: { select: { id: true, fullName: true, phoneNumber: true } },
-          },
-        },
-      },
-    });
+    // ──────────────────────────────────────────────
+    //  1. ROTATING MODEL — round-robin payouts
+    // ──────────────────────────────────────────────
+    await processRotatingPayouts(now);
 
-    if (dueGroups.length === 0) {
-      logger.info('[PayoutJob] No groups with due payouts.');
-      return;
-    }
-
-    for (const group of dueGroups) {
-      try {
-        logger.info(`[PayoutJob] Processing payout for group "${group.name}" (${group.id})`);
-
-        // IDEMPOTENCY CHECK: Skip if there's already a PENDING payout for this group
-        const existingPendingPayout = await prisma.transaction.findFirst({
-          where: {
-            stokvelGroupId: group.id,
-            transactionType: 'PAYOUT',
-            status: 'PENDING',
-          }
-        });
-
-        if (existingPendingPayout) {
-          logger.warn(`[PayoutJob] Group "${group.name}" already has a pending payout (${existingPendingPayout.id}). Skipping.`);
-          continue;
-        }
-
-        // Find the next member in the payout order
-        const nextRecipient = group.members.find((m: any) => m.nextPayoutOrder !== null && m.nextPayoutOrder !== undefined)
-          || group.members[0];
-
-        if (!nextRecipient) {
-          logger.warn(`[PayoutJob] Group "${group.name}" has no members. Skipping.`);
-          continue;
-        }
-
-        // Check if member has bank details
-        if (!nextRecipient.payoutBankName || !nextRecipient.payoutAccountNumber) {
-          logger.warn(`[PayoutJob] Member ${nextRecipient.user.fullName} has no payout bank details. Skipping.`);
-          continue;
-        }
-
-        // ATOMIC: Calculate pool and create payout within a transaction
-        const payoutResult = await prisma.$transaction(async (tx: any) => {
-          // Calculate pool: sum of all completed contributions for this group
-          const totalPoolAgg = await tx.transaction.aggregate({
-            where: {
-              stokvelGroupId: group.id,
-              transactionType: 'CONTRIBUTION',
-              status: 'COMPLETED',
-            },
-            _sum: { amount: true },
-          });
-          const totalPool = Number(totalPoolAgg._sum.amount || 0);
-
-          // Calculate existing payouts already made
-          const existingPayoutsAgg = await tx.transaction.aggregate({
-            where: {
-              stokvelGroupId: group.id,
-              transactionType: 'PAYOUT',
-              status: { in: ['COMPLETED', 'PENDING'] },
-            },
-            _sum: { amount: true },
-          });
-
-          const totalPaidOut = Number(existingPayoutsAgg._sum.amount || 0);
-          const availableForPayout = totalPool - totalPaidOut;
-
-          // Determine payout amount
-          const memberCount = group.members.length;
-          const standardPayout = Number(group.contributionAmount) * memberCount;
-          const payoutAmount = Math.min(standardPayout, availableForPayout);
-
-          if (payoutAmount <= 0) {
-            return { skipped: true, reason: `Insufficient funds. Pool: R${totalPool.toFixed(2)}, Already paid: R${totalPaidOut.toFixed(2)}` } as const;
-          }
-
-          // Create the payout transaction record atomically
-          const payoutTx = await tx.transaction.create({
-            data: {
-              stokvelGroupId: group.id,
-              memberId: nextRecipient.id,
-              transactionType: 'PAYOUT',
-              amount: payoutAmount,
-              currency: group.currency,
-              paymentMethod: 'EFT',
-              transactionDate: new Date(),
-              recordedById: nextRecipient.user.id,
-              status: 'PENDING',
-              notes: `Automatic payout from ${group.name} (round ${nextRecipient.nextPayoutOrder || 1})`,
-              referenceNumber: `PAYOUT-${group.id.slice(0, 8)}-${Date.now().toString(36)}`.toUpperCase(),
-            }
-          });
-
-          return { skipped: false, payoutAmount, payoutTx } as const;
-        }, {
-          timeout: 15000,
-        });
-
-        if (payoutResult.skipped) {
-          logger.info(`[PayoutJob] Group "${group.name}": ${payoutResult.reason}`);
-          continue;
-        }
-
-        logger.info(`[PayoutJob] Initiating payout of R${payoutResult.payoutAmount.toFixed(2)} to ${nextRecipient.user.fullName}`);
-
-        // Initiate payout via Ozow (outside transaction — external API call)
-        const result = await ozowService.initiatePayout({
-          memberId: nextRecipient.id,
-          groupId: group.id,
-          amount: payoutResult.payoutAmount,
-          reason: `Stokvel payout from ${group.name} (round ${nextRecipient.nextPayoutOrder || 1})`,
-        });
-
-        if (result.success) {
-          logger.info(`[PayoutJob] Payout initiated successfully: ${result.message}`);
-
-          // Rotate payout order and advance date atomically
-          await prisma.$transaction(async (tx: any) => {
-            const sortedMembers = [...group.members].sort(
-              (a, b) => (a.nextPayoutOrder || 999) - (b.nextPayoutOrder || 999)
-            );
-
-            for (let i = 0; i < sortedMembers.length; i++) {
-              const newOrder = i === 0 ? sortedMembers.length : i;
-              await tx.member.update({
-                where: { id: sortedMembers[i].id },
-                data: { nextPayoutOrder: newOrder },
-              });
-            }
-
-            // Advance the group's payoutDate to next cycle
-            const frequency = group.contributionFrequency;
-            const nextPayoutDate = new Date(group.payoutDate || now);
-            switch (frequency) {
-              case 'WEEKLY':
-                nextPayoutDate.setDate(nextPayoutDate.getDate() + 7);
-                break;
-              case 'BIWEEKLY':
-                nextPayoutDate.setDate(nextPayoutDate.getDate() + 14);
-                break;
-              case 'MONTHLY':
-              default:
-                nextPayoutDate.setMonth(nextPayoutDate.getMonth() + 1);
-                break;
-            }
-
-            await tx.stokvelGroup.update({
-              where: { id: group.id },
-              data: { payoutDate: nextPayoutDate },
-            });
-
-            logger.info(`[PayoutJob] Next payout for "${group.name}" scheduled for ${nextPayoutDate.toISOString()}`);
-          });
-        } else {
-          // Mark the payout transaction as FAILED
-          if (payoutResult.payoutTx) {
-            await prisma.transaction.update({
-              where: { id: payoutResult.payoutTx.id },
-              data: { status: 'FAILED', notes: `Ozow payout failed: ${result.message}` }
-            });
-          }
-          logger.error(`[PayoutJob] Payout failed for "${group.name}": ${result.message}`);
-        }
-      } catch (groupError: any) {
-        logger.error(`[PayoutJob] Error processing group "${group.name}": ${groupError.message}`);
-        // Continue to next group
-      }
-    }
+    // ──────────────────────────────────────────────
+    //  2. END_OF_TERM MODEL — savings payouts
+    // ──────────────────────────────────────────────
+    await processEndOfTermPayouts(now);
 
     logger.info('[PayoutJob] Payout check complete.');
   } catch (error: any) {
     logger.error(`[PayoutJob] Fatal error: ${error.message}`);
   } finally {
     isProcessing = false;
+  }
+}
+
+// ──────────────────────────────────────────────────────
+//  ROTATING PAYOUT LOGIC (existing round-robin)
+// ──────────────────────────────────────────────────────
+async function processRotatingPayouts(now: Date): Promise<void> {
+  const dueGroups = await prisma.stokvelGroup.findMany({
+    where: {
+      isActive: true,
+      payoutModel: 'ROTATING',
+      payoutDate: { lte: now },
+    },
+    include: {
+      members: {
+        orderBy: { nextPayoutOrder: 'asc' },
+        include: {
+          user: { select: { id: true, fullName: true, phoneNumber: true } },
+        },
+      },
+    },
+  });
+
+  if (dueGroups.length === 0) {
+    logger.info('[PayoutJob] No ROTATING groups with due payouts.');
+  }
+
+  for (const group of dueGroups) {
+    try {
+      logger.info(`[PayoutJob][ROTATING] Processing payout for group "${group.name}" (${group.id})`);
+
+      // IDEMPOTENCY CHECK: Skip if there's already a PENDING payout for this group
+      const existingPendingPayout = await prisma.transaction.findFirst({
+        where: {
+          stokvelGroupId: group.id,
+          transactionType: 'PAYOUT',
+          status: 'PENDING',
+        }
+      });
+
+      if (existingPendingPayout) {
+        logger.warn(`[PayoutJob][ROTATING] Group "${group.name}" already has a pending payout (${existingPendingPayout.id}). Skipping.`);
+        continue;
+      }
+
+      // Find the next member in the payout order
+      const nextRecipient = group.members.find((m: any) => m.nextPayoutOrder !== null && m.nextPayoutOrder !== undefined)
+        || group.members[0];
+
+      if (!nextRecipient) {
+        logger.warn(`[PayoutJob][ROTATING] Group "${group.name}" has no members. Skipping.`);
+        continue;
+      }
+
+      // Check if member has bank details
+      if (!nextRecipient.payoutBankName || !nextRecipient.payoutAccountNumber) {
+        logger.warn(`[PayoutJob][ROTATING] Member ${nextRecipient.user.fullName} has no payout bank details. Skipping.`);
+        continue;
+      }
+
+      // ATOMIC: Calculate pool and create payout within a transaction
+      const payoutResult = await prisma.$transaction(async (tx: any) => {
+        // Calculate pool: sum of all completed contributions for this group
+        const totalPoolAgg = await tx.transaction.aggregate({
+          where: {
+            stokvelGroupId: group.id,
+            transactionType: 'CONTRIBUTION',
+            status: 'COMPLETED',
+          },
+          _sum: { amount: true },
+        });
+        const totalPool = Number(totalPoolAgg._sum.amount || 0);
+
+        // Calculate existing payouts already made
+        const existingPayoutsAgg = await tx.transaction.aggregate({
+          where: {
+            stokvelGroupId: group.id,
+            transactionType: 'PAYOUT',
+            status: { in: ['COMPLETED', 'PENDING'] },
+          },
+          _sum: { amount: true },
+        });
+
+        const totalPaidOut = Number(existingPayoutsAgg._sum.amount || 0);
+        const availableForPayout = totalPool - totalPaidOut;
+
+        // Determine payout amount
+        const memberCount = group.members.length;
+        const standardPayout = Number(group.contributionAmount) * memberCount;
+        const payoutAmount = Math.min(standardPayout, availableForPayout);
+
+        if (payoutAmount <= 0) {
+          return { skipped: true, reason: `Insufficient funds. Pool: R${totalPool.toFixed(2)}, Already paid: R${totalPaidOut.toFixed(2)}` } as const;
+        }
+
+        // Create the payout transaction record atomically
+        const payoutTx = await tx.transaction.create({
+          data: {
+            stokvelGroupId: group.id,
+            memberId: nextRecipient.id,
+            transactionType: 'PAYOUT',
+            amount: payoutAmount,
+            currency: group.currency,
+            paymentMethod: 'EFT',
+            transactionDate: new Date(),
+            recordedById: nextRecipient.user.id,
+            status: 'PENDING',
+            notes: `Automatic rotating payout from ${group.name} (round ${nextRecipient.nextPayoutOrder || 1})`,
+            referenceNumber: `PAYOUT-${group.id.slice(0, 8)}-${Date.now().toString(36)}`.toUpperCase(),
+          }
+        });
+
+        return { skipped: false, payoutAmount, payoutTx } as const;
+      }, {
+        timeout: 15000,
+      });
+
+      if (payoutResult.skipped) {
+        logger.info(`[PayoutJob][ROTATING] Group "${group.name}": ${payoutResult.reason}`);
+        continue;
+      }
+
+      logger.info(`[PayoutJob][ROTATING] Initiating payout of R${payoutResult.payoutAmount.toFixed(2)} to ${nextRecipient.user.fullName}`);
+
+      // Initiate payout via Ozow (outside transaction — external API call)
+      const result = await ozowService.initiatePayout({
+        memberId: nextRecipient.id,
+        groupId: group.id,
+        amount: payoutResult.payoutAmount,
+        reason: `Stokvel payout from ${group.name} (round ${nextRecipient.nextPayoutOrder || 1})`,
+      });
+
+      if (result.success) {
+        logger.info(`[PayoutJob][ROTATING] Payout initiated successfully: ${result.message}`);
+
+        // Rotate payout order and advance date atomically
+        await prisma.$transaction(async (tx: any) => {
+          const sortedMembers = [...group.members].sort(
+            (a, b) => (a.nextPayoutOrder || 999) - (b.nextPayoutOrder || 999)
+          );
+
+          for (let i = 0; i < sortedMembers.length; i++) {
+            const newOrder = i === 0 ? sortedMembers.length : i;
+            await tx.member.update({
+              where: { id: sortedMembers[i].id },
+              data: { nextPayoutOrder: newOrder },
+            });
+          }
+
+          // Advance the group's payoutDate to next cycle
+          const frequency = group.contributionFrequency;
+          const nextPayoutDate = new Date(group.payoutDate || now);
+          switch (frequency) {
+            case 'WEEKLY':
+              nextPayoutDate.setDate(nextPayoutDate.getDate() + 7);
+              break;
+            case 'BIWEEKLY':
+              nextPayoutDate.setDate(nextPayoutDate.getDate() + 14);
+              break;
+            case 'MONTHLY':
+            default:
+              nextPayoutDate.setMonth(nextPayoutDate.getMonth() + 1);
+              break;
+          }
+
+          await tx.stokvelGroup.update({
+            where: { id: group.id },
+            data: { payoutDate: nextPayoutDate },
+          });
+
+          logger.info(`[PayoutJob][ROTATING] Next payout for "${group.name}" scheduled for ${nextPayoutDate.toISOString()}`);
+        });
+      } else {
+        // Mark the payout transaction as FAILED
+        if (payoutResult.payoutTx) {
+          await prisma.transaction.update({
+            where: { id: payoutResult.payoutTx.id },
+            data: { status: 'FAILED', notes: `Ozow payout failed: ${result.message}` }
+          });
+        }
+        logger.error(`[PayoutJob][ROTATING] Payout failed for "${group.name}": ${result.message}`);
+      }
+    } catch (groupError: any) {
+      logger.error(`[PayoutJob][ROTATING] Error processing group "${group.name}": ${groupError.message}`);
+    }
+  }
+}
+
+// ──────────────────────────────────────────────────────
+//  END_OF_TERM PAYOUT LOGIC (savings — pay everyone)
+// ──────────────────────────────────────────────────────
+async function processEndOfTermPayouts(now: Date): Promise<void> {
+  // Find END_OF_TERM groups whose term has ended and haven't been paid out yet
+  const dueGroups = await prisma.stokvelGroup.findMany({
+    where: {
+      isActive: true,
+      payoutModel: 'END_OF_TERM',
+      termPayoutProcessed: false,
+      endDate: { lte: now },
+    },
+    include: {
+      members: {
+        include: {
+          user: { select: { id: true, fullName: true, phoneNumber: true } },
+          transactions: {
+            where: { transactionType: 'CONTRIBUTION', status: 'COMPLETED' },
+            select: { amount: true },
+          },
+        },
+      },
+    },
+  });
+
+  if (dueGroups.length === 0) {
+    logger.info('[PayoutJob] No END_OF_TERM groups due for final payout.');
+    return;
+  }
+
+  for (const group of dueGroups) {
+    try {
+      logger.info(`[PayoutJob][END_OF_TERM] Processing final payout for group "${group.name}" (${group.id})`);
+
+      // IDEMPOTENCY: Already checked via termPayoutProcessed flag in query
+
+      // Calculate each member's total contributions
+      const memberPayouts: Array<{ member: any; amount: number }> = [];
+
+      for (const member of group.members) {
+        const totalContributed = member.transactions.reduce(
+          (sum: number, t: any) => sum + Number(t.amount), 0
+        );
+
+        if (totalContributed <= 0) {
+          logger.info(`[PayoutJob][END_OF_TERM] Member ${member.user.fullName} has no contributions. Skipping.`);
+          continue;
+        }
+
+        if (!member.payoutBankName || !member.payoutAccountNumber) {
+          logger.warn(`[PayoutJob][END_OF_TERM] Member ${member.user.fullName} has no payout bank details. Recording as PENDING.`);
+        }
+
+        memberPayouts.push({ member, amount: totalContributed });
+      }
+
+      if (memberPayouts.length === 0) {
+        logger.info(`[PayoutJob][END_OF_TERM] Group "${group.name}" has no member contributions to pay out.`);
+        // Still mark as processed to prevent re-processing
+        await prisma.stokvelGroup.update({
+          where: { id: group.id },
+          data: { termPayoutProcessed: true },
+        });
+        continue;
+      }
+
+      // Create payout transaction records for ALL members atomically
+      await prisma.$transaction(async (tx: any) => {
+        for (const { member, amount } of memberPayouts) {
+          await tx.transaction.create({
+            data: {
+              stokvelGroupId: group.id,
+              memberId: member.id,
+              transactionType: 'PAYOUT',
+              amount,
+              currency: group.currency,
+              paymentMethod: 'EFT',
+              transactionDate: new Date(),
+              recordedById: member.user.id,
+              status: 'PENDING',
+              notes: `End-of-term savings payout from ${group.name} — total contributions returned`,
+              referenceNumber: `PAYOUT-EOT-${group.id.slice(0, 6)}-${member.id.slice(0, 6)}-${Date.now().toString(36)}`.toUpperCase(),
+            },
+          });
+        }
+
+        // Mark group as processed
+        await tx.stokvelGroup.update({
+          where: { id: group.id },
+          data: { termPayoutProcessed: true },
+        });
+      }, { timeout: 30000 });
+
+      logger.info(`[PayoutJob][END_OF_TERM] Created ${memberPayouts.length} payout records for group "${group.name}".`);
+
+      // Initiate Ozow payouts for each member (outside DB transaction)
+      for (const { member, amount } of memberPayouts) {
+        if (!member.payoutBankName || !member.payoutAccountNumber) {
+          logger.warn(`[PayoutJob][END_OF_TERM] Skipping Ozow payout for ${member.user.fullName} — no bank details.`);
+          continue;
+        }
+
+        try {
+          const result = await ozowService.initiatePayout({
+            memberId: member.id,
+            groupId: group.id,
+            amount,
+            reason: `End-of-term savings payout from ${group.name}`,
+          });
+
+          if (result.success) {
+            logger.info(`[PayoutJob][END_OF_TERM] Payout of R${amount.toFixed(2)} initiated for ${member.user.fullName}`);
+          } else {
+            logger.error(`[PayoutJob][END_OF_TERM] Payout failed for ${member.user.fullName}: ${result.message}`);
+          }
+        } catch (payoutErr: any) {
+          logger.error(`[PayoutJob][END_OF_TERM] Ozow error for ${member.user.fullName}: ${payoutErr.message}`);
+        }
+      }
+    } catch (groupError: any) {
+      logger.error(`[PayoutJob][END_OF_TERM] Error processing group "${group.name}": ${groupError.message}`);
+    }
   }
 }
 

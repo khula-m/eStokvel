@@ -9,6 +9,7 @@ interface Group {
   code: string;
   contributionAmount: number;
   contributionFrequency: string;
+  payoutModel?: 'ROTATING' | 'END_OF_TERM';
   isActive: boolean;
   createdAt: string;
   _count?: { members: number; transactions: number };
@@ -135,7 +136,7 @@ export default function GroupsPage() {
                   </span>
                 </div>
 
-                <div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
+                <div className="flex items-center gap-4 text-sm text-gray-500 mb-3">
                   <span className="flex items-center gap-1">
                     <Coins className="w-3.5 h-3.5" />
                     R{Number(group.contributionAmount).toFixed(0)} / {group.contributionFrequency?.toLowerCase()}
@@ -143,6 +144,13 @@ export default function GroupsPage() {
                   <span className="flex items-center gap-1">
                     <Users className="w-3.5 h-3.5" />
                     {group._count?.members || group.members?.length || 0} members
+                  </span>
+                </div>
+                <div className="mb-4">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                    group.payoutModel === 'END_OF_TERM' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'
+                  }`}>
+                    {group.payoutModel === 'END_OF_TERM' ? 'Savings (End-of-Term)' : 'Rotating'}
                   </span>
                 </div>
 

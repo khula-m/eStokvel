@@ -26,6 +26,7 @@ export interface Group {
   description?: string;
   contributionAmount: number;
   contributionFrequency: string;
+  payoutModel?: 'ROTATING' | 'END_OF_TERM';
   durationMonths?: number;
   startDate?: string;
   endDate?: string;

@@ -10,6 +10,7 @@ interface GroupDetail {
   description?: string;
   contributionAmount: number;
   contributionFrequency: string;
+  payoutModel?: 'ROTATING' | 'END_OF_TERM';
   durationMonths: number;
   isActive: boolean;
   startDate: string;
@@ -142,6 +143,12 @@ export default function GroupDetailPage() {
           <div>
             <p className="text-xs text-gray-400">Duration</p>
             <p className="text-lg font-bold text-gray-900">{group.durationMonths}mo</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400">Payout Model</p>
+            <p className={`text-sm font-semibold mt-1 ${group.payoutModel === 'END_OF_TERM' ? 'text-amber-600' : 'text-blue-600'}`}>
+              {group.payoutModel === 'END_OF_TERM' ? 'End-of-Term (Savings)' : 'Rotating'}
+            </p>
           </div>
           {stats && (
             <>

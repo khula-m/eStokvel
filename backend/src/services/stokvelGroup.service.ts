@@ -117,6 +117,8 @@ export class StokvelGroupService {
 
             durationMonths,
 
+            payoutModel: data.payoutModel || 'ROTATING',
+
           },
 
           include: {

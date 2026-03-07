@@ -49,10 +49,12 @@ model StokvelGroup {
   description           String?
   contributionAmount    Decimal       @default(0) @db.Decimal(12, 2)
   contributionFrequency String        @default("MONTHLY")
+  payoutModel           PayoutModel   @default(ROTATING)
   durationMonths        Int           @default(12)  // 6, 12, 24, 36
   startDate             DateTime      @default(now())
   endDate               DateTime?     // Calculated: startDate + durationMonths
   payoutDate            DateTime?
+  termPayoutProcessed   Boolean       @default(false) // For END_OF_TERM: true once final payout done
   currency              String        @default("ZAR")
   meetingSchedule       String?
   isActive              Boolean       @default(true)
@@ -146,6 +148,11 @@ enum UserRole {
   SUPERADMIN
   ADMIN
   MEMBER
+}
+
+enum PayoutModel {
+  ROTATING      // Round-robin: one member gets the full pool each cycle
+  END_OF_TERM   // Savings: all members get back contributions at end of term
 }
 
 enum MemberRole {

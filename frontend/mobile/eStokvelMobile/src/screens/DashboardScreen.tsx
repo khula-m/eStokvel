@@ -69,6 +69,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
   const [newGroupAmount, setNewGroupAmount] = useState('');
   const [newGroupFreq, setNewGroupFreq] = useState('MONTHLY');
   const [newGroupDuration, setNewGroupDuration] = useState('12');
+  const [newGroupPayoutModel, setNewGroupPayoutModel] = useState<'ROTATING' | 'END_OF_TERM'>('ROTATING');
   const [creatingGroup, setCreatingGroup] = useState(false);
 
   // ---- ADMIN PAYMENT GATEWAY STATE ----
@@ -240,9 +241,9 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
       await axios.post(`${API_URL}/api/groups`, {
         name: newGroupName.trim(), description: newGroupDesc.trim() || undefined,
         contributionAmount: parseFloat(newGroupAmount), contributionFrequency: newGroupFreq,
-        durationMonths: parseInt(newGroupDuration) || 12,
+        durationMonths: parseInt(newGroupDuration) || 12, payoutModel: newGroupPayoutModel,
       }, { headers });
-      setNewGroupName(''); setNewGroupDesc(''); setNewGroupAmount(''); setNewGroupDuration('12'); setShowCreateGroupModal(false);
+      setNewGroupName(''); setNewGroupDesc(''); setNewGroupAmount(''); setNewGroupDuration('12'); setNewGroupPayoutModel('ROTATING'); setShowCreateGroupModal(false);
       fetchDashboardData();
       showAlert('Success', 'Group created!');
     } catch (e: any) { showAlert('Error', e.response?.data?.message || 'Failed'); }
@@ -1013,6 +1014,14 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                     <Text style={{ fontSize: 11, color: COLORS.primary, fontWeight: '600' }}>{group.contributionFrequency}</Text>
                   </View>
                 </View>
+                {/* Payout Model Badge */}
+                <View style={{ flexDirection: 'row', marginBottom: 4 }}>
+                  <View style={{ backgroundColor: (group as any).payoutModel === 'END_OF_TERM' ? '#FEF3C7' : '#D1FAE5', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
+                    <Text style={{ fontSize: 10, fontWeight: '600', color: (group as any).payoutModel === 'END_OF_TERM' ? '#92400E' : '#065F46' }}>
+                      {(group as any).payoutModel === 'END_OF_TERM' ? 'Savings (End-of-Term)' : 'Rotating'}
+                    </Text>
+                  </View>
+                </View>
 
                 {/* Stats Row */}
                 <View style={{ flexDirection: 'row', marginVertical: 12, gap: 16 }}>
@@ -1118,6 +1127,22 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                     </TouchableOpacity>
                   ))}
                 </View>
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Payout Model</Text>
+                <View style={styles.frequencyRow}>
+                  {([['ROTATING', 'Rotating'], ['END_OF_TERM', 'End-of-Term']] as const).map(([val, label]) => (
+                    <TouchableOpacity key={val} style={[styles.frequencyBtn, { flex: 1 }, newGroupPayoutModel === val && styles.frequencyBtnActive]}
+                      onPress={() => setNewGroupPayoutModel(val)}>
+                      <Text style={[styles.frequencyBtnText, newGroupPayoutModel === val && styles.frequencyBtnTextActive]}>{label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>
+                  {newGroupPayoutModel === 'ROTATING'
+                    ? 'One member receives the full pool each cycle (round-robin).'
+                    : 'All members get back their total contributions at end of term (savings).'}
+                </Text>
               </View>
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Duration (months)</Text>

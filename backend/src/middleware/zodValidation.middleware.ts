@@ -123,6 +123,7 @@ export const createGroupSchema = z.object({
   description: z.string().trim().max(500).optional(),
   contributionAmount: z.coerce.number().positive().optional(),
   contributionFrequency: z.enum(['WEEKLY', 'BIWEEKLY', 'MONTHLY']).optional(),
+  payoutModel: z.enum(['ROTATING', 'END_OF_TERM']).optional(),
   durationMonths: z.coerce.number().int().min(1).max(120).optional(),
   currency: z.string().length(3).default('ZAR'),
   meetingSchedule: z.string().max(200).optional(),
