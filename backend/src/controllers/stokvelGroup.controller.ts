@@ -206,14 +206,18 @@ export class StokvelGroupController {
     try {
       const id = String(req.params.id);
       const userId = (req as any).user?.id;
+      const userRole = (req as any).user?.role;
 
-      // Check if user is a member of the group
-      const group = await stokvelGroupService.getGroupById(id, userId);
-      if (!group.success || !group.data?.isMember) {
-        return res.status(403).json({
-          success: false,
-          message: 'You must be a member to view group statistics'
-        });
+      // SUPERADMIN and global ADMIN can view any group's stats
+      if (userRole !== 'SUPERADMIN' && userRole !== 'ADMIN') {
+        // Check if user is a member of the group
+        const group = await stokvelGroupService.getGroupById(id, userId);
+        if (!group.success || !group.data?.isMember) {
+          return res.status(403).json({
+            success: false,
+            message: 'You must be a member to view group statistics'
+          });
+        }
       }
 
       const result = await stokvelGroupService.getGroupStats(id);

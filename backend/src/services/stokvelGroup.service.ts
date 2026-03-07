@@ -515,6 +515,7 @@ export class StokvelGroupService {
   async getAllGroups() {
     try {
       const groups = await prisma.stokvelGroup.findMany({
+        where: { isActive: true },
         include: {
           createdBy: { select: { id: true, fullName: true, phoneNumber: true } },
           _count: { select: { members: true, transactions: true } }
