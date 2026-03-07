@@ -127,6 +127,15 @@ export const createGroupSchema = z.object({
   durationMonths: z.coerce.number().int().min(1).max(120).optional(),
   currency: z.string().length(3).default('ZAR'),
   meetingSchedule: z.string().max(200).optional(),
+}).superRefine((data, ctx) => {
+  // END_OF_TERM model requires explicit durationMonths
+  if (data.payoutModel === 'END_OF_TERM' && !data.durationMonths) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['durationMonths'],
+      message: 'Duration (months) is required for End of Term payout model',
+    });
+  }
 });
 
 export const updateGroupSchema = z.object({
@@ -178,13 +187,17 @@ export const contributeSchema = z.object({
 //  CHAT SCHEMAS
 // ============================================
 
+// Helper: Strip HTML tags from user input to prevent stored XSS
+const stripHtml = (str: string) => str.replace(/<[^>]*>/g, '');
+
 export const sendMessageSchema = z.object({
   stokvelGroupId: z.string({ error: 'Group ID is required' }).min(1),
   message: z
     .string({ error: 'Message is required' })
     .trim()
     .min(1, 'Message cannot be empty')
-    .max(1000, 'Message must be at most 1000 characters'),
+    .max(1000, 'Message must be at most 1000 characters')
+    .transform(stripHtml),
   messageType: z.string().optional(),
 });
 
@@ -197,12 +210,14 @@ export const createAnnouncementSchema = z.object({
     .string({ error: 'Title is required' })
     .trim()
     .min(1, 'Title is required')
-    .max(200, 'Title must be at most 200 characters'),
+    .max(200, 'Title must be at most 200 characters')
+    .transform(stripHtml),
   content: z
     .string({ error: 'Content is required' })
     .trim()
     .min(1, 'Content is required')
-    .max(2000, 'Content must be at most 2000 characters'),
+    .max(2000, 'Content must be at most 2000 characters')
+    .transform(stripHtml),
   groupId,
   pinned: z.boolean().default(false),
   expiresAt: z.coerce.date().optional(),

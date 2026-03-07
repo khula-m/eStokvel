@@ -244,6 +244,12 @@ class OzowService {
         return { success: false, message: 'Transaction not found' };
       }
 
+      // IDEMPOTENCY: Skip if transaction is already in a terminal state
+      if (['COMPLETED', 'CANCELLED', 'FAILED'].includes(transaction.status)) {
+        logger.info(`Ozow notification: Transaction ${transactionId} already ${transaction.status}. Skipping duplicate.`);
+        return { success: true, message: `Transaction already ${transaction.status}` };
+      }
+
       // Map Ozow status to our status
       let newStatus: TransactionStatus;
       switch (data.Status?.toLowerCase()) {

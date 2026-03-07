@@ -47,6 +47,11 @@ export function validatePassword(password: string): { isValid: boolean; errors: 
   if (password.length > 128) {
     errors.push('Maximum 128 characters');
   }
+  // Reject passwords containing 'admin' or 'estokvel' (case-insensitive)
+  const lowerPw = (password || '').toLowerCase();
+  if (lowerPw.includes('admin') || lowerPw.includes('estokvel')) {
+    errors.push('Password must not contain "admin" or "estokvel"');
+  }
   if (!/[A-Z]/.test(password)) {
     errors.push('One uppercase letter');
   }

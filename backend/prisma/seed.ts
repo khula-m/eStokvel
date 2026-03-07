@@ -28,7 +28,7 @@ async function main() {
       phoneNumber: "0800000000",
       fullName: "System Admin",
       email: "admin@estokvel.co.za",
-      password: await hashPassword("Admin@2026!"),
+      password: await hashPassword("Secure@2026!Zkm"),
       pin: null, // Superadmin uses password, not PIN
       role: "SUPERADMIN",
       mustChangePin: false,
@@ -37,7 +37,7 @@ async function main() {
     },
   });
 
-  console.log(`✅ SUPERADMIN: ${superadmin.fullName} (${superadmin.email}) Password: Admin@2026!`);
+  console.log(`✅ SUPERADMIN: ${superadmin.fullName} (${superadmin.email}) Password: Secure@2026!Zkm`);
 
   // ========== CREATE ADMIN ==========
   console.log("📝 Creating ADMIN...");

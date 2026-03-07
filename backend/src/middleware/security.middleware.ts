@@ -87,6 +87,60 @@ export const sensitiveLimiter = rateLimit({
   store: createRedisStore('sensitive'),
 });
 
+/**
+ * SMS sending limiter
+ * 3 SMS-triggering requests per hour per IP
+ * Prevents SMS bombing abuse
+ */
+export const smsLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: process.env.NODE_ENV === 'production' ? 3 : 50,
+  message: {
+    success: false,
+    error: 'Too many SMS requests, please try again later.',
+    retryAfter: '1 hour',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: createRedisStore('sms'),
+});
+
+/**
+ * Group creation limiter
+ * 5 groups per day per IP
+ * Prevents spam group creation
+ */
+export const groupCreateLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000, // 24 hours
+  max: process.env.NODE_ENV === 'production' ? 5 : 50,
+  message: {
+    success: false,
+    error: 'Group creation limit reached, please try again tomorrow.',
+    retryAfter: '24 hours',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: createRedisStore('group-create'),
+});
+
+/**
+ * Member addition limiter
+ * 20 member additions per hour per IP
+ * Prevents mass invite abuse
+ */
+export const memberAddLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: process.env.NODE_ENV === 'production' ? 20 : 200,
+  message: {
+    success: false,
+    error: 'Too many member additions, please try again later.',
+    retryAfter: '1 hour',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: createRedisStore('member-add'),
+});
+
 // ============================================
 // CORS CONFIGURATION
 // ============================================

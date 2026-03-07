@@ -50,11 +50,22 @@ export class MemberService {
 
     // ATOMIC: Create member and audit transaction together
     const result = await prisma.$transaction(async (tx: any) => {
+      // Calculate payout order for ROTATING groups: place new member at end of queue
+      let payoutOrder: number | undefined;
+      if (group.payoutModel === 'ROTATING') {
+        const maxOrder = await tx.member.aggregate({
+          where: { stokvelGroupId: data.stokvelGroupId },
+          _max: { nextPayoutOrder: true },
+        });
+        payoutOrder = (maxOrder._max.nextPayoutOrder || 0) + 1;
+      }
+
       const member = await tx.member.create({
         data: {
           userId: data.userId,
           stokvelGroupId: data.stokvelGroupId,
-          role: roleValue
+          role: roleValue,
+          ...(payoutOrder !== undefined && { nextPayoutOrder: payoutOrder }),
         },
         include: {
           user: {
@@ -241,7 +252,7 @@ export class MemberService {
       };
     }
 
-    // ATOMIC: Create audit transaction and delete member together
+    // ATOMIC: Create audit transaction, delete member, and resequence payout order
     await prisma.$transaction(async (tx: any) => {
       await tx.transaction.create({
         data: {
@@ -261,6 +272,20 @@ export class MemberService {
       await tx.member.delete({
         where: { id }
       });
+
+      // Resequence payout order for remaining members (ROTATING groups)
+      if (member.group.payoutModel === 'ROTATING') {
+        const remainingMembers = await tx.member.findMany({
+          where: { stokvelGroupId: member.stokvelGroupId },
+          orderBy: { nextPayoutOrder: 'asc' },
+        });
+        for (let i = 0; i < remainingMembers.length; i++) {
+          await tx.member.update({
+            where: { id: remainingMembers[i].id },
+            data: { nextPayoutOrder: i + 1 },
+          });
+        }
+      }
     });
 
     return {

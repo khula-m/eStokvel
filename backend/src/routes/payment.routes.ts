@@ -3,6 +3,7 @@ import { paymentController } from '../controllers/payment.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { uploadPaymentProof, handleUploadError } from '../middleware/upload.middleware';
 import { validate, updateBankDetailsSchema } from '../middleware/zodValidation.middleware';
+import { auditLog } from '../middleware/audit.middleware';
 
 const router = express.Router();
 
@@ -14,7 +15,7 @@ router.use(authMiddleware);
  * @desc    Update bank details for a group (ADMIN only)
  * @access  Private (Admin)
  */
-router.put('/groups/:groupId/bank-details', validate(updateBankDetailsSchema), paymentController.updateBankDetails);
+router.put('/groups/:groupId/bank-details', auditLog('BANK_DETAILS_UPDATE'), validate(updateBankDetailsSchema), paymentController.updateBankDetails);
 
 /**
  * @route   GET /api/payments/groups/:groupId/bank-details

@@ -452,6 +452,26 @@ export class StokvelGroupService {
 
     try {
 
+      // SECURITY: Prevent payout model change after first contribution
+      if (data.payoutModel) {
+        const existingGroup = await prisma.stokvelGroup.findUnique({ where: { id } });
+        if (existingGroup && existingGroup.payoutModel !== data.payoutModel) {
+          const hasContributions = await prisma.transaction.count({
+            where: {
+              stokvelGroupId: id,
+              transactionType: 'CONTRIBUTION',
+              status: 'COMPLETED',
+            }
+          });
+          if (hasContributions > 0) {
+            return {
+              success: false,
+              message: 'Cannot change payout model after contributions have been made. This protects member funds and payout schedules.'
+            };
+          }
+        }
+      }
+
       const group = await prisma.stokvelGroup.update({
 
         where: { id },
@@ -671,6 +691,36 @@ export class StokvelGroupService {
 
 
 
+      // SECURITY: Check group balance before allowing deletion
+      const totalContributions = await prisma.transaction.aggregate({
+        where: {
+          stokvelGroupId: id,
+          transactionType: 'CONTRIBUTION',
+          status: 'COMPLETED',
+        },
+        _sum: { amount: true },
+      });
+      const totalPayouts = await prisma.transaction.aggregate({
+        where: {
+          stokvelGroupId: id,
+          transactionType: 'PAYOUT',
+          status: { in: ['COMPLETED', 'PENDING'] },
+        },
+        _sum: { amount: true },
+      });
+      const groupBalance = Number(totalContributions._sum.amount || 0) - Number(totalPayouts._sum.amount || 0);
+
+      if (groupBalance > 0 && userRole !== 'SUPERADMIN') {
+        return {
+          success: false,
+          message: `Cannot delete group with remaining balance of R${groupBalance.toFixed(2)}. Funds must be distributed to members first.`
+        };
+      }
+
+      if (groupBalance > 0 && userRole === 'SUPERADMIN') {
+        logger.warn(`[AUDIT] SUPERADMIN deleting group "${group.name}" (${id}) with remaining balance of R${groupBalance.toFixed(2)}`);
+      }
+
       // SUPERADMIN can always delete any group
 
       if (userRole === 'SUPERADMIN') {
@@ -687,7 +737,9 @@ export class StokvelGroupService {
 
           success: true,
 
-          message: 'Group deactivated successfully by superadmin'
+          message: groupBalance > 0
+            ? `Group deactivated by superadmin. WARNING: R${groupBalance.toFixed(2)} remaining balance.`
+            : 'Group deactivated successfully by superadmin'
 
         };
 

@@ -17,6 +17,7 @@ export interface UpdateStokvelGroupInput {
   description?: string;
   contributionAmount?: number;
   contributionFrequency?: string;
+  payoutModel?: 'ROTATING' | 'END_OF_TERM';
   currency?: string;
   meetingSchedule?: string;
   isActive?: boolean;
