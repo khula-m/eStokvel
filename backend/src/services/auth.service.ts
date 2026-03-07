@@ -157,7 +157,7 @@ export class AuthService {
       );
     } catch (smsError) {
       // Log but don't fail the admin creation if SMS fails
-      logger.warn('Failed to send SMS to new admin:', smsError);
+      console.warn('Failed to send SMS to new admin:', smsError);
     }
 
     return {
@@ -249,7 +249,7 @@ export class AuthService {
         `Welcome to eStokvel! You've been added to "${group.name}". Login with your phone number. Your temp PIN is: ${tempPin}. Please change it on first login.`
       );
     } catch (smsError) {
-      logger.warn('Failed to send SMS to new member:', smsError);
+      console.warn('Failed to send SMS to new member:', smsError);
     }
 
     return {
