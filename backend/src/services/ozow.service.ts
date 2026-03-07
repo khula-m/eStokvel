@@ -138,6 +138,27 @@ class OzowService {
         return { success: false, message: 'You are not a member of this group' };
       }
 
+      // DOUBLE-CLICK PREVENTION: Reject if a PENDING Ozow payment exists for this user+group within last 5 minutes
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const existingPending = await prisma.transaction.findFirst({
+        where: {
+          stokvelGroupId: groupId,
+          memberId: membership.id,
+          transactionType: 'CONTRIBUTION',
+          paymentMethod: 'OZOW',
+          status: 'PENDING',
+          transactionDate: { gte: fiveMinAgo },
+        },
+        select: { id: true, amount: true, transactionDate: true },
+      });
+      if (existingPending) {
+        logger.warn(`Ozow double-click blocked: User ${userId} already has pending payment ${existingPending.id} for group ${groupId}`);
+        return {
+          success: false,
+          message: 'A payment is already being processed. Please wait for it to complete before trying again.',
+        };
+      }
+
       // Create a pending transaction in our DB first
       const refNumber = `OZW-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
@@ -383,6 +404,14 @@ class OzowService {
         return { success: false, message: 'Group not found' };
       }
 
+      // Snapshot bank details at time of payout initiation (prevents mid-flight changes)
+      const bankSnapshot = {
+        bankName: member.payoutBankName,
+        accountNumber: member.payoutAccountNumber,
+        accountHolder: member.payoutAccountHolder || member.user.fullName,
+        branchCode: member.payoutBranchCode || '',
+      };
+
       // Create payout transaction record
       const refNumber = `PYT-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
@@ -399,6 +428,7 @@ class OzowService {
           status: TransactionStatus.PENDING,
           referenceNumber: refNumber,
           notes: reason || `Automatic payout from ${group.name}`,
+          metadata: { payoutBankSnapshot: bankSnapshot },
         }
       });
 
@@ -479,6 +509,12 @@ class OzowService {
       const transaction = await prisma.transaction.findUnique({ where: { id: transactionRef } });
       if (!transaction) {
         return { success: false, message: 'Transaction not found' };
+      }
+
+      // IDEMPOTENCY: Skip if payout transaction is already in a terminal state
+      if (['COMPLETED', 'CANCELLED', 'FAILED'].includes(transaction.status)) {
+        logger.info(`Ozow payout notification: Transaction ${transactionRef} already ${transaction.status}. Skipping duplicate.`);
+        return { success: true, message: `Payout transaction already ${transaction.status}` };
       }
 
       const statusMap: Record<string, TransactionStatus> = {

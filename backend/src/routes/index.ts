@@ -9,6 +9,7 @@ import paymentRoutes from './payment.routes';
 import announcementRoutes from './announcement.routes';
 import meetingRoutes from './meeting.routes';
 import ozowRoutes from './ozow.routes';
+import superadminOverrideRoutes from './superadminOverride.routes';
 
 const router = express.Router();
 
@@ -34,6 +35,7 @@ router.use('/payments', paymentRoutes);
 router.use('/announcements', announcementRoutes);
 router.use('/meetings', meetingRoutes);
 router.use('/ozow', ozowRoutes);
+router.use('/superadmin/override', superadminOverrideRoutes);
 
 export default router;
 

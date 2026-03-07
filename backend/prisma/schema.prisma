@@ -135,6 +135,8 @@ model Transaction {
   @@index([stokvelGroupId, status])          // group financial summaries
   @@index([memberId, transactionDate])       // member transaction history
   @@index([ozowTransactionId])               // payment gateway lookups
+  @@index([memberId, stokvelGroupId, status]) // double-click prevention, member balance queries
+  @@index([stokvelGroupId, transactionType, status]) // group balance calculations, payout checks
 }
 
 enum TransactionType {

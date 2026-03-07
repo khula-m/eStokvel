@@ -252,20 +252,42 @@ export class MemberService {
       };
     }
 
+    // END_OF_TERM POLICY: Calculate member's contribution total for the removal audit
+    let memberContributionTotal = 0;
+    if (member.group.payoutModel === 'END_OF_TERM') {
+      const contributions = await prisma.transaction.aggregate({
+        where: {
+          memberId: id,
+          stokvelGroupId: member.stokvelGroupId,
+          transactionType: 'CONTRIBUTION',
+          status: 'COMPLETED',
+        },
+        _sum: { amount: true },
+      });
+      memberContributionTotal = Number(contributions._sum.amount || 0);
+    }
+
     // ATOMIC: Create audit transaction, delete member, and resequence payout order
     await prisma.$transaction(async (tx: any) => {
+      // For END_OF_TERM groups: Record the member's forfeited contribution as an adjustment note
+      // Policy: Contributions stay in the pool until term end. Early leavers' funds are distributed
+      // equally among remaining members at term end. SuperAdmin can create manual adjustment if refund needed.
+      const removalNote = member.group.payoutModel === 'END_OF_TERM' && memberContributionTotal > 0
+        ? `${member.user.fullName} removed from END_OF_TERM group. Their R${memberContributionTotal.toFixed(2)} in contributions remains in the pool for distribution at term end. SuperAdmin can issue manual refund if needed.`
+        : `${member.user.fullName} was removed from the group`;
+
       await tx.transaction.create({
         data: {
           stokvelGroupId: member.stokvelGroupId,
           memberId: id,
           transactionType: 'ADJUSTMENT',
-          amount: 0,
+          amount: memberContributionTotal,
           currency: member.group.currency,
           paymentMethod: 'BANK_TRANSFER',
           transactionDate: new Date(),
           recordedById: removedById,
           status: 'COMPLETED',
-          notes: `${member.user.fullName} was removed from the group`
+          notes: removalNote
         }
       });
 
@@ -290,7 +312,9 @@ export class MemberService {
 
     return {
       success: true,
-      message: 'Member removed successfully'
+      message: member.group.payoutModel === 'END_OF_TERM' && memberContributionTotal > 0
+        ? `Member removed. Their R${memberContributionTotal.toFixed(2)} in contributions remains in the pool until term end.`
+        : 'Member removed successfully'
     };
     } catch (error: any) {
       logger.error('removeMember error:', error);
