@@ -141,3 +141,64 @@ jobs:
           name: admin-dashboard-dist
           path: eStokvel/frontend/web/admin-dashboard/dist/
           retention-days: 30
+
+  # ─── Deploy to K8s ───
+  deploy:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Apply K8s manifests
+        run: |
+          kubectl apply -f eStokvel/k8s/namespace.yaml
+          kubectl apply -f eStokvel/k8s/config.yaml
+          kubectl apply -f eStokvel/k8s/database-config.yaml
+          kubectl apply -f eStokvel/k8s/monolith.yaml
+          kubectl apply -f eStokvel/k8s/ingress.yaml
+
+      - name: Update monolith image
+        run: |
+          kubectl set image deployment/monolith \
+            monolith=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            -n estokvel
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/monolith -n estokvel --timeout=300s
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n estokvel -l component=monolith
+          echo "---"
+          kubectl get svc -n estokvel
+          echo "---"
+          kubectl get ingress -n estokvel
+
+      - name: Smoke test
+        run: |
+          # Wait for service to be ready
+          sleep 10
+          # Port-forward and test health endpoint
+          kubectl port-forward svc/monolith 8080:80 -n estokvel &
+          sleep 5
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health || echo "000")
+          kill %1 2>/dev/null || true
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Health check failed with status $HTTP_STATUS"
+            echo "Rolling back..."
+            kubectl rollout undo deployment/monolith -n estokvel
+            exit 1
+          fi
+          echo "Health check passed (HTTP $HTTP_STATUS)"
