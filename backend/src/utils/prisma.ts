@@ -26,12 +26,23 @@ function createPrismaClient(): PrismaClient {
     url += `${sep}connection_limit=${poolSize}&pool_timeout=${poolTimeout}`;
   }
 
+  const SLOW_QUERY_THRESHOLD_MS = parseInt(process.env.SLOW_QUERY_THRESHOLD_MS || '1000', 10);
+
   const client = new PrismaClient({
     datasourceUrl: url || undefined,
     log: process.env.NODE_ENV === 'production'
-      ? [{ emit: 'event', level: 'error' }]
+      ? [{ emit: 'event', level: 'query' }, { emit: 'event', level: 'error' }]
       : [{ emit: 'event', level: 'warn' }, { emit: 'event', level: 'error' }],
   });
+
+  // Log slow queries in production (>1s by default)
+  if (process.env.NODE_ENV === 'production') {
+    (client as any).$on('query', (e: any) => {
+      if (e.duration > SLOW_QUERY_THRESHOLD_MS) {
+        logger.warn(`Slow query (${e.duration}ms): ${e.query?.substring(0, 200)}`);
+      }
+    });
+  }
 
   // Log slow queries in dev, errors everywhere
   (client as any).$on('error', (e: any) => logger.error('Prisma error:', e));

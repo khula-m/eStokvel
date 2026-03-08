@@ -2,6 +2,7 @@ import { MemberRole } from '@prisma/client';
 import { CreateMemberInput, UpdateMemberInput } from '../models/Member.model';
 import { prisma } from '../utils/prisma';
 import logger from '../utils/logger';
+import { cache } from '../utils/cache';
 
 export class MemberService {
   async addMember(data: CreateMemberInput, invitedById?: string) {
@@ -103,6 +104,10 @@ export class MemberService {
 
       return member;
     });
+
+    // Invalidate group and user caches after member addition
+    await cache.invalidateGroup(data.stokvelGroupId);
+    await cache.invalidateUserGroups(data.userId);
 
     return {
       success: true,
@@ -309,6 +314,10 @@ export class MemberService {
         }
       }
     });
+
+    // Invalidate group and user caches after member removal
+    await cache.invalidateGroup(member.stokvelGroupId);
+    await cache.invalidateUserGroups(member.user.id);
 
     return {
       success: true,

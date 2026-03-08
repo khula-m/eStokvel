@@ -98,6 +98,8 @@ model Member {
   @@unique([userId, stokvelGroupId])
   @@index([stokvelGroupId])
   @@index([userId])
+  @@index([stokvelGroupId, role])      // filter admins/members per group
+  @@index([userId, stokvelGroupId])    // fast membership lookups
   @@map("members")
 }
 
@@ -132,11 +134,13 @@ model Transaction {
   @@index([transactionDate])
   @@index([stokvelGroupId, transactionDate])
   @@index([status])
-  @@index([stokvelGroupId, status])          // group financial summaries
-  @@index([memberId, transactionDate])       // member transaction history
-  @@index([ozowTransactionId])               // payment gateway lookups
-  @@index([memberId, stokvelGroupId, status]) // double-click prevention, member balance queries
+  @@index([stokvelGroupId, status])                  // group financial summaries
+  @@index([memberId, status])                        // member balance queries
+  @@index([memberId, transactionDate])               // member transaction history
+  @@index([ozowTransactionId])                       // payment gateway lookups
+  @@index([memberId, stokvelGroupId, status])         // double-click prevention
   @@index([stokvelGroupId, transactionType, status]) // group balance calculations, payout checks
+  @@index([stokvelGroupId, recordDate(sort: Desc)])  // recent transactions per group
 }
 
 enum TransactionType {
@@ -296,8 +300,9 @@ model AuditLog {
   statusCode Int?
   createdAt  DateTime @default(now())
 
-  @@index([createdAt])
+  @@index([createdAt(sort: Desc)])  // newest-first pagination
   @@index([action])
   @@index([userId])
+  @@index([action, result])          // filtered audit queries
   @@map("audit_logs")
 }

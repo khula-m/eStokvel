@@ -5,7 +5,8 @@ import { MemberRole } from '../utils/enums';
 
 import { prisma } from '../utils/prisma';
 import logger from '../utils/logger';
-import { cacheGetOrSet, invalidateCache } from '../utils/redis';
+import { cacheGetOrSet } from '../utils/redis';
+import { cache } from '../utils/cache';
 
 
 
@@ -167,8 +168,8 @@ export class StokvelGroupService {
 
 
 
-      // Invalidate system overview cache when groups change
-      await invalidateCache('system:overview');
+      // Invalidate caches when groups change
+      await cache.invalidateGroup(group.id);
 
       return {
 
@@ -362,7 +363,7 @@ export class StokvelGroupService {
 
     try {
 
-      const group = await prisma.stokvelGroup.findUnique({
+      const group = await cacheGetOrSet(`cache:group:code:${code}`, 60, () => prisma.stokvelGroup.findUnique({
 
         where: { code },
 
@@ -394,7 +395,7 @@ export class StokvelGroupService {
 
         }
 
-      });
+      }));
 
 
 
@@ -502,8 +503,8 @@ export class StokvelGroupService {
 
       });
 
-      // Invalidate this group's cached stats
-      await invalidateCache(`group:${id}:stats`);
+      // Invalidate this group's caches
+      await cache.invalidateGroup(id);
 
       return {
 
@@ -536,14 +537,14 @@ export class StokvelGroupService {
   */
   async getAllGroups() {
     try {
-      const groups = await prisma.stokvelGroup.findMany({
+      const groups: any[] = await cache.allGroups(() => prisma.stokvelGroup.findMany({
         where: { isActive: true },
         include: {
           createdBy: { select: { id: true, fullName: true, phoneNumber: true } },
           _count: { select: { members: true, transactions: true } }
         },
         orderBy: { createdAt: 'desc' }
-      });
+      }));
       return { success: true, data: groups, message: `Found ${groups.length} group(s)` };
     } catch (error: any) {
       return { success: false, message: error.message || 'Failed to retrieve groups' };
@@ -559,7 +560,7 @@ export class StokvelGroupService {
 
       // Get all groups where user is a member (includes groups they admin)
 
-      const memberGroups = await prisma.member.findMany({
+      const memberGroups: any[] = await cache.userGroups(userId, () => prisma.member.findMany({
 
         where: { userId, group: { isActive: true } },
 
@@ -601,9 +602,7 @@ export class StokvelGroupService {
 
         }
 
-      });
-
-
+      }));
 
       // Format — userRole comes from Member.role (per-group)
 
@@ -843,7 +842,7 @@ export class StokvelGroupService {
 
     try {
 
-      return await cacheGetOrSet(`group:${groupId}:stats`, 120, async () => {
+      return await cache.groupStats(groupId, async () => {
 
       // Get total members
 
@@ -993,7 +992,7 @@ export class StokvelGroupService {
 
       };
 
-      }); // end cacheGetOrSet
+      }); // end cache.groupStats
 
     } catch (error: any) {
 

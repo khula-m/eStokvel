@@ -2,7 +2,7 @@ import { prisma, toNumber } from '../utils/prisma';
 import { CreateTransactionInput, UpdateTransactionInput, TransactionFilters } from '../models/Transaction.model';
 import { TransactionType, TransactionStatus, PaymentMethod } from '../utils/enums';
 import logger from '../utils/logger';
-import { invalidateCache } from '../utils/redis';
+import { cache } from '../utils/cache';
 
 export class TransactionService {
   /**
@@ -248,8 +248,8 @@ export class TransactionService {
    * Invalidate group-related caches after a transaction write
    */
   async invalidateGroupCaches(groupId: string) {
-    await invalidateCache(`group:${groupId}:stats`).catch(() => {});
-    await invalidateCache('system:overview').catch(() => {});
+    await cache.invalidateGroupStats(groupId);
+    await cache.invalidateGroup(groupId);
   }
 
   /**
