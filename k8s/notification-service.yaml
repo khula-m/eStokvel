@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: estokvel
+  labels:
+    app: notification-service
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      containers:
+        - name: notification-service
+          image: estokvel/notification-service:latest
+          ports:
+            - containerPort: 3006
+          envFrom:
+            - configMapRef:
+                name: estokvel-config
+            - configMapRef:
+                name: database-pool-config
+          env:
+            - name: PORT
+              value: "3006"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: estokvel-secrets
+                  key: DATABASE_URL
+            - name: DATABASE_POOL_SIZE
+              valueFrom:
+                configMapKeyRef:
+                  name: database-pool-config
+                  key: NOTIFICATION_SERVICE_POOL_SIZE
+            - name: DATABASE_POOL_TIMEOUT
+              valueFrom:
+                configMapKeyRef:
+                  name: database-pool-config
+                  key: NOTIFICATION_SERVICE_POOL_TIMEOUT
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: estokvel-secrets
+                  key: JWT_SECRET
+            - name: AT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: estokvel-secrets
+                  key: AT_API_KEY
+            - name: AT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: estokvel-secrets
+                  key: AT_USERNAME
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3006
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3006
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: estokvel
+spec:
+  selector:
+    app: notification-service
+  ports:
+    - port: 3006
+      targetPort: 3006
+  type: ClusterIP

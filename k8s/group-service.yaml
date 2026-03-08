@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: group-service
+  namespace: estokvel
+  labels:
+    app: group-service
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: group-service
+  template:
+    metadata:
+      labels:
+        app: group-service
+    spec:
+      containers:
+        - name: group-service
+          image: estokvel/group-service:latest
+          ports:
+            - containerPort: 3002
+          envFrom:
+            - configMapRef:
+                name: estokvel-config
+            - configMapRef:
+                name: database-pool-config
+          env:
+            - name: PORT
+              value: "3002"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: estokvel-secrets
+                  key: DATABASE_URL
+            - name: DATABASE_POOL_SIZE
+              valueFrom:
+                configMapKeyRef:
+                  name: database-pool-config
+                  key: GROUP_SERVICE_POOL_SIZE
+            - name: DATABASE_POOL_TIMEOUT
+              valueFrom:
+                configMapKeyRef:
+                  name: database-pool-config
+                  key: GROUP_SERVICE_POOL_TIMEOUT
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: estokvel-secrets
+                  key: JWT_SECRET
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3002
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3002
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: group-service
+  namespace: estokvel
+spec:
+  selector:
+    app: group-service
+  ports:
+    - port: 3002
+      targetPort: 3002
+  type: ClusterIP

@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: database-pool-config
+  namespace: estokvel
+  labels:
+    app: estokvel
+    component: database
+data:
+  # PgBouncer connection URL (all services connect through PgBouncer)
+  PGBOUNCER_URL: "postgresql://postgres:CHANGE_ME@pgbouncer:6432/railway?pgbouncer=true"
+
+  # Read replica URLs (comma-separated for round-robin load balancing)
+  # Add replicas as they become available
+  READ_REPLICA_URLS: ""
+
+  # Slow query threshold in milliseconds
+  SLOW_QUERY_THRESHOLD_MS: "1000"
+
+  # ── Per-Service Pool Sizing ──
+  # These match POOL_PRESETS in shared/src/utils/prisma.ts
+  # Override per-service via service-specific env vars
+
+  # user-service: Light read/write, authentication focused
+  USER_SERVICE_POOL_SIZE: "15"
+  USER_SERVICE_POOL_TIMEOUT: "10"
+
+  # group-service: Moderate read-heavy, cached queries
+  GROUP_SERVICE_POOL_SIZE: "20"
+  GROUP_SERVICE_POOL_TIMEOUT: "10"
+
+  # transaction-service: High throughput, write-heavy
+  TRANSACTION_SERVICE_POOL_SIZE: "30"
+  TRANSACTION_SERVICE_POOL_TIMEOUT: "15"
+
+  # payout-service: Batch processing, fewer concurrent connections
+  PAYOUT_SERVICE_POOL_SIZE: "10"
+  PAYOUT_SERVICE_POOL_TIMEOUT: "30"
+
+  # chat-service: Light, mostly read
+  CHAT_SERVICE_POOL_SIZE: "10"
+  CHAT_SERVICE_POOL_TIMEOUT: "10"
+
+  # notification-service: Light, mostly write
+  NOTIFICATION_SERVICE_POOL_SIZE: "10"
+  NOTIFICATION_SERVICE_POOL_TIMEOUT: "10"
+
+  # Materialized view refresh interval (ms) — 5 minutes
+  MV_REFRESH_INTERVAL_MS: "300000"

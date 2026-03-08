@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: estokvel-config
+  namespace: estokvel
+data:
+  NODE_ENV: "production"
+  REDIS_URL: "redis://redis:6379"
+  OZOW_IS_TEST: "true"
+  SMS_ENABLED: "false"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: estokvel-secrets
+  namespace: estokvel
+type: Opaque
+stringData:
+  DATABASE_URL: "postgresql://postgres:CHANGE_ME@postgres:5432/estokvel"
+  JWT_SECRET: "CHANGE_ME_IN_PRODUCTION"
+  OZOW_SITE_CODE: ""
+  OZOW_PRIVATE_KEY: ""
+  OZOW_API_KEY: ""
+  AT_API_KEY: ""
+  AT_USERNAME: "sandbox"

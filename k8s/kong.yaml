@@ -1,0 +1,146 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kong
+  namespace: estokvel
+  labels:
+    app: kong
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: kong
+  template:
+    metadata:
+      labels:
+        app: kong
+    spec:
+      containers:
+        - name: kong
+          image: kong:3.7
+          ports:
+            - containerPort: 8000
+              name: proxy
+            - containerPort: 8001
+              name: admin
+          env:
+            - name: KONG_DATABASE
+              value: "off"
+            - name: KONG_DECLARATIVE_CONFIG
+              value: /kong/kong.yml
+            - name: KONG_PROXY_LISTEN
+              value: 0.0.0.0:8000
+            - name: KONG_ADMIN_LISTEN
+              value: 0.0.0.0:8001
+          volumeMounts:
+            - name: kong-config
+              mountPath: /kong
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /status
+              port: 8001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: kong-config
+          configMap:
+            name: kong-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kong
+  namespace: estokvel
+spec:
+  selector:
+    app: kong
+  ports:
+    - name: proxy
+      port: 80
+      targetPort: 8000
+    - name: admin
+      port: 8001
+      targetPort: 8001
+  type: LoadBalancer
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kong-config
+  namespace: estokvel
+data:
+  kong.yml: |
+    _format_version: "3.0"
+    services:
+      - name: user-service
+        url: http://user-service:3001
+        routes:
+          - name: auth-routes
+            paths: [/api/auth]
+            strip_path: false
+          - name: user-routes
+            paths: [/api/users]
+            strip_path: false
+          - name: superadmin-routes
+            paths: [/api/superadmin]
+            strip_path: false
+      - name: group-service
+        url: http://group-service:3002
+        routes:
+          - name: group-routes
+            paths: [/api/groups]
+            strip_path: false
+          - name: member-routes
+            paths: [/api/members]
+            strip_path: false
+      - name: transaction-service
+        url: http://transaction-service:3003
+        routes:
+          - name: transaction-routes
+            paths: [/api/transactions]
+            strip_path: false
+          - name: payment-routes
+            paths: [/api/payments]
+            strip_path: false
+      - name: payout-service
+        url: http://payout-service:3004
+        routes:
+          - name: payout-routes
+            paths: [/api/payouts]
+            strip_path: false
+          - name: ozow-routes
+            paths: [/api/ozow]
+            strip_path: false
+      - name: chat-service
+        url: http://chat-service:3005
+        routes:
+          - name: chat-routes
+            paths: [/api/chat]
+            strip_path: false
+      - name: notification-service
+        url: http://notification-service:3006
+        routes:
+          - name: notification-routes
+            paths: [/api/notifications]
+            strip_path: false
+          - name: announcement-routes
+            paths: [/api/announcements]
+            strip_path: false
+          - name: meeting-routes
+            paths: [/api/meetings]
+            strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins: ["*"]
+          methods: [GET, POST, PUT, DELETE, PATCH, OPTIONS]
+          headers: [Accept, Authorization, Content-Type]
+          credentials: true
+          max_age: 3600

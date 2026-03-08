@@ -1,0 +1,446 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-exporter-credentials
+  namespace: estokvel
+  labels:
+    app: estokvel
+    component: monitoring
+type: Opaque
+stringData:
+  # Replace with actual connection string
+  DATA_SOURCE_NAME: "postgresql://postgres:CHANGE_ME@postgres-primary:5432/railway?sslmode=require"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-exporter
+  namespace: estokvel
+  labels:
+    app: estokvel
+    component: postgres-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: estokvel
+      component: postgres-exporter
+  template:
+    metadata:
+      labels:
+        app: estokvel
+        component: postgres-exporter
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9187"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: postgres-exporter
+          image: prometheuscommunity/postgres-exporter:v0.15.0
+          ports:
+            - containerPort: 9187
+              name: metrics
+              protocol: TCP
+          env:
+            - name: DATA_SOURCE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-exporter-credentials
+                  key: DATA_SOURCE_NAME
+            - name: PG_EXPORTER_AUTO_DISCOVER_DATABASES
+              value: "true"
+            - name: PG_EXPORTER_EXTEND_QUERY_PATH
+              value: "/config/custom-queries.yaml"
+          volumeMounts:
+            - name: custom-queries
+              mountPath: /config
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: custom-queries
+          configMap:
+            name: postgres-exporter-queries
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-exporter
+  namespace: estokvel
+  labels:
+    app: estokvel
+    component: postgres-exporter
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9187
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    app: estokvel
+    component: postgres-exporter
+---
+# Custom PostgreSQL queries for eStokvel-specific metrics
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-exporter-queries
+  namespace: estokvel
+data:
+  custom-queries.yaml: |
+    # ── eStokvel Custom Metrics ──
+
+    estokvel_transactions_total:
+      query: |
+        SELECT
+          status,
+          "transactionType" AS transaction_type,
+          count(*) AS total
+        FROM transactions
+        GROUP BY status, "transactionType"
+      metrics:
+        - status:
+            usage: "LABEL"
+            description: "Transaction status"
+        - transaction_type:
+            usage: "LABEL"
+            description: "Transaction type"
+        - total:
+            usage: "GAUGE"
+            description: "Total transactions by status and type"
+
+    estokvel_transactions_amount:
+      query: |
+        SELECT
+          "transactionType" AS transaction_type,
+          status,
+          COALESCE(SUM(amount), 0)::float AS total_amount,
+          COALESCE(AVG(amount), 0)::float AS avg_amount
+        FROM transactions
+        WHERE status = 'COMPLETED'
+        GROUP BY "transactionType", status
+      metrics:
+        - transaction_type:
+            usage: "LABEL"
+            description: "Transaction type"
+        - status:
+            usage: "LABEL"
+            description: "Status"
+        - total_amount:
+            usage: "GAUGE"
+            description: "Total amount by transaction type"
+        - avg_amount:
+            usage: "GAUGE"
+            description: "Average amount by transaction type"
+
+    estokvel_groups_total:
+      query: |
+        SELECT count(*) AS total FROM stokvel_groups
+      metrics:
+        - total:
+            usage: "GAUGE"
+            description: "Total number of stokvel groups"
+
+    estokvel_members_total:
+      query: |
+        SELECT
+          role,
+          count(*) AS total
+        FROM members
+        GROUP BY role
+      metrics:
+        - role:
+            usage: "LABEL"
+            description: "Member role"
+        - total:
+            usage: "GAUGE"
+            description: "Total members by role"
+
+    estokvel_users_total:
+      query: |
+        SELECT
+          role,
+          count(*) AS total
+        FROM "User"
+        GROUP BY role
+      metrics:
+        - role:
+            usage: "LABEL"
+            description: "User role"
+        - total:
+            usage: "GAUGE"
+            description: "Total users by role"
+
+    estokvel_pending_transactions:
+      query: |
+        SELECT
+          "stokvelGroupId" AS group_id,
+          count(*) AS pending_count,
+          COALESCE(SUM(amount), 0)::float AS pending_amount
+        FROM transactions
+        WHERE status = 'PENDING'
+        GROUP BY "stokvelGroupId"
+      metrics:
+        - group_id:
+            usage: "LABEL"
+            description: "Group ID"
+        - pending_count:
+            usage: "GAUGE"
+            description: "Number of pending transactions per group"
+        - pending_amount:
+            usage: "GAUGE"
+            description: "Total pending amount per group"
+
+    estokvel_materialized_view_freshness:
+      query: |
+        SELECT
+          schemaname || '.' || matviewname AS view_name,
+          EXTRACT(EPOCH FROM (now() - last_refresh))::float AS seconds_since_refresh
+        FROM pg_catalog.pg_stat_user_tables
+        JOIN pg_matviews ON tablename = matviewname
+        WHERE schemaname = 'public'
+      metrics:
+        - view_name:
+            usage: "LABEL"
+            description: "Materialized view name"
+        - seconds_since_refresh:
+            usage: "GAUGE"
+            description: "Seconds since last materialized view refresh"
+
+    # Database performance metrics
+    pg_slow_queries:
+      query: |
+        SELECT
+          datname AS database,
+          count(*) AS slow_query_count
+        FROM pg_stat_activity
+        WHERE state = 'active'
+          AND now() - query_start > interval '5 seconds'
+          AND query NOT LIKE '%pg_stat%'
+        GROUP BY datname
+      metrics:
+        - database:
+            usage: "LABEL"
+            description: "Database name"
+        - slow_query_count:
+            usage: "GAUGE"
+            description: "Number of queries running > 5 seconds"
+
+    pg_table_sizes:
+      query: |
+        SELECT
+          relname AS table_name,
+          pg_total_relation_size(relid)::float AS total_bytes,
+          n_live_tup AS live_rows,
+          n_dead_tup AS dead_rows
+        FROM pg_stat_user_tables
+        WHERE schemaname = 'public'
+        ORDER BY pg_total_relation_size(relid) DESC
+        LIMIT 20
+      metrics:
+        - table_name:
+            usage: "LABEL"
+            description: "Table name"
+        - total_bytes:
+            usage: "GAUGE"
+            description: "Total table size in bytes"
+        - live_rows:
+            usage: "GAUGE"
+            description: "Estimated live rows"
+        - dead_rows:
+            usage: "GAUGE"
+            description: "Estimated dead rows (need vacuum)"
+
+    pg_replication_lag:
+      query: |
+        SELECT
+          CASE WHEN pg_is_in_recovery()
+            THEN EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp()))::float
+            ELSE 0
+          END AS lag_seconds
+      metrics:
+        - lag_seconds:
+            usage: "GAUGE"
+            description: "Replication lag in seconds (0 if primary)"
+
+    pg_connection_pool:
+      query: |
+        SELECT
+          datname AS database,
+          state,
+          count(*) AS connection_count
+        FROM pg_stat_activity
+        WHERE datname IS NOT NULL
+        GROUP BY datname, state
+      metrics:
+        - database:
+            usage: "LABEL"
+            description: "Database name"
+        - state:
+            usage: "LABEL"
+            description: "Connection state"
+        - connection_count:
+            usage: "GAUGE"
+            description: "Connection count by database and state"
+---
+# ServiceMonitor for Prometheus Operator (if using kube-prometheus-stack)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: postgres-exporter
+  namespace: estokvel
+  labels:
+    app: estokvel
+    component: postgres-exporter
+    release: prometheus  # Match your Prometheus Operator release label
+spec:
+  selector:
+    matchLabels:
+      app: estokvel
+      component: postgres-exporter
+  endpoints:
+    - port: metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      path: /metrics
+---
+# ServiceMonitor for PgBouncer metrics (sidecar exporter on pgbouncer pods)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: pgbouncer-exporter
+  namespace: estokvel
+  labels:
+    app: estokvel
+    component: pgbouncer
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: estokvel
+      component: pgbouncer
+  endpoints:
+    - port: metrics
+      interval: 15s
+      scrapeTimeout: 5s
+      path: /metrics
+---
+# PrometheusRule for eStokvel database alerts
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: estokvel-db-alerts
+  namespace: estokvel
+  labels:
+    app: estokvel
+    release: prometheus
+spec:
+  groups:
+    - name: estokvel-database
+      interval: 30s
+      rules:
+        # Connection pool alerts
+        - alert: HighConnectionCount
+          expr: pg_connection_pool{database="railway"} > 80
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High database connection count"
+            description: "Database {{ $labels.database }} has {{ $value }} connections in state {{ $labels.state }}"
+
+        - alert: ConnectionPoolExhaustion
+          expr: pg_connection_pool{database="railway", state="active"} > 45
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Connection pool near exhaustion"
+            description: "Active connections ({{ $value }}) approaching pool limit"
+
+        # Replication alerts
+        - alert: ReplicationLagHigh
+          expr: pg_replication_lag > 30
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PostgreSQL replication lag high"
+            description: "Replication lag is {{ $value }}s"
+
+        - alert: ReplicationLagCritical
+          expr: pg_replication_lag > 120
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PostgreSQL replication lag critical"
+            description: "Replication lag is {{ $value }}s — reads may be stale"
+
+        # Slow query alerts
+        - alert: SlowQueriesDetected
+          expr: pg_slow_queries > 5
+          for: 3m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Multiple slow queries detected"
+            description: "{{ $value }} queries running > 5 seconds on {{ $labels.database }}"
+
+        # Dead rows (vacuum needed)
+        - alert: HighDeadRows
+          expr: pg_table_sizes{dead_rows!="0"} / (pg_table_sizes{live_rows!="0"} + 1) > 0.2
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Table {{ $labels.table_name }} has high dead row ratio"
+            description: "Dead rows > 20% of live rows — consider VACUUM"
+
+        # PgBouncer alerts
+        - alert: PgBouncerHighClients
+          expr: pgbouncer_pools_client_active_connections > 1500
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PgBouncer active clients high"
+            description: "{{ $value }} active client connections"
+
+        # Pending transactions alert (business metric)
+        - alert: HighPendingTransactions
+          expr: sum(estokvel_pending_transactions_pending_count) > 100
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High number of pending transactions"
+            description: "{{ $value }} transactions stuck in PENDING state"
+
+        # Materialized view staleness
+        - alert: MaterializedViewStale
+          expr: estokvel_materialized_view_freshness > 600
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Materialized view {{ $labels.view_name }} is stale"
+            description: "Last refresh was {{ $value }}s ago (threshold: 600s)"

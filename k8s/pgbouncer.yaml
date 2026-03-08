@@ -1,0 +1,174 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgbouncer-config
+  namespace: estokvel
+data:
+  pgbouncer.ini: |
+    [databases]
+    railway = host=postgres-primary port=5432 dbname=railway
+    railway_readonly1 = host=postgres-replica-1 port=5432 dbname=railway
+    railway_readonly2 = host=postgres-replica-2 port=5432 dbname=railway
+    railway_readonly3 = host=postgres-replica-3 port=5432 dbname=railway
+
+    [pgbouncer]
+    listen_port = 6432
+    listen_addr = 0.0.0.0
+    auth_type = scram-sha-256
+    auth_file = /etc/pgbouncer/userlist.txt
+
+    ; Transaction pooling — best for microservices with short-lived queries
+    pool_mode = transaction
+
+    ; Connection limits
+    max_client_conn = 2000
+    default_pool_size = 50
+    min_pool_size = 10
+    reserve_pool_size = 10
+    reserve_pool_timeout = 3
+
+    ; Round-robin across server connections for even load
+    server_round_robin = 1
+
+    ; Timeouts
+    server_connect_timeout = 15
+    server_idle_timeout = 600
+    server_lifetime = 3600
+    client_idle_timeout = 0
+    client_login_timeout = 60
+    query_timeout = 30
+    query_wait_timeout = 120
+
+    ; Logging
+    log_connections = 0
+    log_disconnections = 0
+    log_pooler_errors = 1
+    stats_period = 60
+
+    ; TLS (disable for internal K8s traffic)
+    server_tls_sslmode = prefer
+    client_tls_sslmode = disable
+
+    ; Admin console
+    admin_users = pgbouncer_admin
+    stats_users = pgbouncer_stats
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pgbouncer-auth
+  namespace: estokvel
+type: Opaque
+stringData:
+  # Format: "username" "password"
+  # Replace with actual credentials from your PostgreSQL secrets
+  userlist.txt: |
+    "postgres" "SCRAM-SHA-256$4096:REPLACE_WITH_ACTUAL_HASH"
+    "pgbouncer_admin" "SCRAM-SHA-256$4096:REPLACE_WITH_ACTUAL_HASH"
+    "pgbouncer_stats" "SCRAM-SHA-256$4096:REPLACE_WITH_ACTUAL_HASH"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgbouncer
+  namespace: estokvel
+  labels:
+    app: pgbouncer
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: pgbouncer
+  template:
+    metadata:
+      labels:
+        app: pgbouncer
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9127"
+    spec:
+      containers:
+        - name: pgbouncer
+          image: edoburu/pgbouncer:1.22.0
+          ports:
+            - containerPort: 6432
+              name: pgbouncer
+          volumeMounts:
+            - name: config
+              mountPath: /etc/pgbouncer/pgbouncer.ini
+              subPath: pgbouncer.ini
+            - name: auth
+              mountPath: /etc/pgbouncer/userlist.txt
+              subPath: userlist.txt
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            tcpSocket:
+              port: 6432
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 6432
+            initialDelaySeconds: 10
+            periodSeconds: 20
+        - name: pgbouncer-exporter
+          image: prometheuscommunity/pgbouncer-exporter:v0.7.0
+          ports:
+            - containerPort: 9127
+              name: metrics
+          env:
+            - name: PGBOUNCER_EXPORTER_HOST
+              value: "localhost"
+            - name: PGBOUNCER_EXPORTER_PORT
+              value: "6432"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+      volumes:
+        - name: config
+          configMap:
+            name: pgbouncer-config
+        - name: auth
+          secret:
+            secretName: pgbouncer-auth
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgbouncer
+  namespace: estokvel
+  labels:
+    app: pgbouncer
+spec:
+  selector:
+    app: pgbouncer
+  ports:
+    - name: pgbouncer
+      port: 6432
+      targetPort: 6432
+    - name: metrics
+      port: 9127
+      targetPort: 9127
+  type: ClusterIP
+---
+# PodDisruptionBudget — always keep at least 1 PgBouncer running
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pgbouncer-pdb
+  namespace: estokvel
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: pgbouncer

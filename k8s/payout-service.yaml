@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payout-service
+  namespace: estokvel
+  labels:
+    app: payout-service
+spec:
+  replicas: 1 # Single replica — runs scheduler with in-process lock
+  selector:
+    matchLabels:
+      app: payout-service
+  template:
+    metadata:
+      labels:
+        app: payout-service
+    spec:
+      containers:
+        - name: payout-service
+          image: estokvel/payout-service:latest
+          ports:
+            - containerPort: 3004
+          envFrom:
+            - configMapRef:
+                name: estokvel-config
+            - configMapRef:
+                name: database-pool-config
+          env:
+            - name: PORT
+              value: "3004"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: estokvel-secrets
+                  key: DATABASE_URL
+            - name: DATABASE_POOL_SIZE
+              valueFrom:
+                configMapKeyRef:
+                  name: database-pool-config
+                  key: PAYOUT_SERVICE_POOL_SIZE
+            - name: DATABASE_POOL_TIMEOUT
+              valueFrom:
+                configMapKeyRef:
+                  name: database-pool-config
+                  key: PAYOUT_SERVICE_POOL_TIMEOUT
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: estokvel-secrets
+                  key: JWT_SECRET
+            - name: OZOW_SITE_CODE
+              valueFrom:
+                secretKeyRef:
+                  name: estokvel-secrets
+                  key: OZOW_SITE_CODE
+            - name: OZOW_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: estokvel-secrets
+                  key: OZOW_PRIVATE_KEY
+            - name: OZOW_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: estokvel-secrets
+                  key: OZOW_API_KEY
+            - name: APP_BASE_URL
+              value: "https://api.estokvel.co.za"
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3004
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3004
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payout-service
+  namespace: estokvel
+spec:
+  selector:
+    app: payout-service
+  ports:
+    - port: 3004
+      targetPort: 3004
+  type: ClusterIP

@@ -1,0 +1,337 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: db-backup-pvc
+  namespace: estokvel
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: db-backup
+  namespace: estokvel
+  labels:
+    app: estokvel
+    component: db-backup
+spec:
+  schedule: "0 2 * * *" # Daily at 02:00 UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600 # 1 hour max
+      template:
+        metadata:
+          labels:
+            app: estokvel
+            component: db-backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: backup
+              image: postgres:16-alpine
+              command: ["/bin/sh", "/scripts/backup.sh"]
+              env:
+                - name: PGHOST
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: host
+                - name: PGPORT
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: port
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: password
+                - name: PGDATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: database
+                - name: BACKUP_DIR
+                  value: "/backups"
+                - name: RETENTION_DAYS
+                  value: "30"
+                - name: S3_BUCKET
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-s3-credentials
+                      key: bucket
+                      optional: true
+                - name: S3_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-s3-credentials
+                      key: endpoint
+                      optional: true
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-s3-credentials
+                      key: access-key
+                      optional: true
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-s3-credentials
+                      key: secret-key
+                      optional: true
+                - name: WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-notifications
+                      key: webhook-url
+                      optional: true
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backups
+                - name: backup-scripts
+                  mountPath: /scripts
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 256Mi
+                limits:
+                  cpu: "1"
+                  memory: 512Mi
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: db-backup-pvc
+            - name: backup-scripts
+              configMap:
+                name: backup-scripts
+                defaultMode: 0755
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-scripts
+  namespace: estokvel
+data:
+  backup.sh: |
+    #!/bin/sh
+    set -eu
+    BACKUP_DIR="${BACKUP_DIR:-/backups}"
+    RETENTION_DAYS="${RETENTION_DAYS:-30}"
+    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+    BACKUP_FILE="${BACKUP_DIR}/estokvel_${TIMESTAMP}.dump"
+    LOG_FILE="${BACKUP_DIR}/backup_${TIMESTAMP}.log"
+
+    log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"; }
+
+    mkdir -p "$BACKUP_DIR"
+    log "=== eStokvel DB Backup Starting ==="
+    log "Host: ${PGHOST}:${PGPORT:-5432} Database: ${PGDATABASE}"
+
+    pg_dump -h "$PGHOST" -p "${PGPORT:-5432}" -U "$PGUSER" -d "$PGDATABASE" \
+      --format=custom --compress=6 --no-owner --no-privileges \
+      -f "$BACKUP_FILE" 2>> "$LOG_FILE"
+
+    pg_restore --list "$BACKUP_FILE" > /dev/null 2>&1
+    SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
+    log "Backup verified OK (${SIZE})"
+
+    find "$BACKUP_DIR" -name "estokvel_*.dump" -mtime +"$RETENTION_DAYS" -delete 2>/dev/null || true
+    find "$BACKUP_DIR" -name "backup_*.log" -mtime +"$RETENTION_DAYS" -delete 2>/dev/null || true
+
+    log "=== Backup Complete ==="
+---
+# Weekly full backup (Sundays at 03:00 UTC)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: db-backup-weekly
+  namespace: estokvel
+  labels:
+    app: estokvel
+    component: db-backup-weekly
+spec:
+  schedule: "0 3 * * 0"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 4
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 7200
+      template:
+        metadata:
+          labels:
+            app: estokvel
+            component: db-backup-weekly
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: backup
+              image: postgres:16-alpine
+              command: ["/bin/sh", "/scripts/backup.sh"]
+              env:
+                - name: PGHOST
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: host
+                - name: PGPORT
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: port
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: password
+                - name: PGDATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: database
+                - name: BACKUP_DIR
+                  value: "/backups"
+                - name: RETENTION_DAYS
+                  value: "90"
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backups
+                - name: backup-scripts
+                  mountPath: /scripts
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+                limits:
+                  cpu: "2"
+                  memory: 1Gi
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: db-backup-pvc
+            - name: backup-scripts
+              configMap:
+                name: backup-scripts
+                defaultMode: 0755
+---
+# Partition maintenance CronJob (monthly)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: db-partition-maintenance
+  namespace: estokvel
+  labels:
+    app: estokvel
+    component: db-maintenance
+spec:
+  schedule: "0 4 1 * *" # 1st of each month at 04:00 UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app: estokvel
+            component: db-maintenance
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: partition-maint
+              image: postgres:16-alpine
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  psql "postgresql://${PGUSER}:${PGPASSWORD}@${PGHOST}:${PGPORT:-5432}/${PGDATABASE}" \
+                    -f /sql/partition_maintenance.sql
+              env:
+                - name: PGHOST
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: host
+                - name: PGPORT
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: port
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: password
+                - name: PGDATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: database
+              volumeMounts:
+                - name: sql-scripts
+                  mountPath: /sql
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+          volumes:
+            - name: sql-scripts
+              configMap:
+                name: partition-maintenance-sql
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: partition-maintenance-sql
+  namespace: estokvel
+data:
+  partition_maintenance.sql: |
+    DO $$
+    DECLARE
+        start_date DATE; end_date DATE; partition_name TEXT; i INTEGER;
+    BEGIN
+        FOR i IN 0..2 LOOP
+            start_date := date_trunc('month', CURRENT_DATE + ((i + 12) || ' months')::interval);
+            end_date := date_trunc('month', CURRENT_DATE + ((i + 13) || ' months')::interval);
+            partition_name := 'transactions_' || to_char(start_date, 'YYYY_MM');
+            BEGIN
+                EXECUTE format('CREATE TABLE IF NOT EXISTS %I PARTITION OF transactions_partitioned FOR VALUES FROM (%L) TO (%L)', partition_name, start_date, end_date);
+            EXCEPTION WHEN duplicate_table THEN NULL;
+            END;
+            partition_name := 'audit_logs_' || to_char(start_date, 'YYYY_MM');
+            BEGIN
+                EXECUTE format('CREATE TABLE IF NOT EXISTS %I PARTITION OF audit_logs_partitioned FOR VALUES FROM (%L) TO (%L)', partition_name, start_date, end_date);
+            EXCEPTION WHEN duplicate_table THEN NULL;
+            END;
+        END LOOP;
+    END $$;
