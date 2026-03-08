@@ -75,4 +75,31 @@ export const memberApi = {
   remove: (memberId: string) => api.delete(`/auth/member/${memberId}`),
 };
 
+// ============ SuperAdmin Override Tools ============
+export const overrideApi = {
+  updateTransactionStatus: (txId: string, data: { status: string; reason: string }) =>
+    api.post(`/superadmin/override/transaction/${txId}/status`, data),
+  createAdjustment: (data: { groupId: string; memberId: string; amount: number; reason: string }) =>
+    api.post('/superadmin/override/transaction/adjustment', data),
+  retryPayout: (txId: string) =>
+    api.post(`/superadmin/override/payout/retry/${txId}`),
+  resetAdminPin: (userId: string, data: { newPin: string }) =>
+    api.post(`/superadmin/override/admin/reset-pin/${userId}`, data),
+  unlockAccount: (userId: string) =>
+    api.post(`/superadmin/override/admin/unlock/${userId}`),
+  transferGroupAdmin: (groupId: string, data: { fromMemberId: string; toMemberId: string; reason: string }) =>
+    api.post(`/superadmin/override/group/${groupId}/transfer-admin`, data),
+};
+
+// ============ Audit Logs ============
+export const auditApi = {
+  list: (params?: { page?: number; limit?: number; action?: string; userId?: string; result?: string; from?: string; to?: string }) =>
+    api.get('/superadmin/audit-logs', { params }),
+};
+
+// ============ Scheduler ============
+export const schedulerApi = {
+  getStatus: () => api.get('/superadmin/scheduler-status'),
+};
+
 export default api;

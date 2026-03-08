@@ -281,3 +281,23 @@ enum MessageType {
   ANNOUNCEMENT
   SYSTEM
 }
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String
+  userId     String?
+  userRole   String?
+  ip         String?
+  method     String
+  path       String
+  params     Json?
+  body       Json?
+  result     String?  // SUCCESS or FAILED
+  statusCode Int?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([action])
+  @@index([userId])
+  @@map("audit_logs")
+}

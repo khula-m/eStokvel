@@ -1,9 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
+import { prisma } from '../utils/prisma';
 import logger from '../utils/logger';
 
 /**
  * Audit logging middleware for sensitive operations.
  * Logs WHO did WHAT from WHERE and WHEN.
+ * Persists to both Winston (structured logs) and the audit_logs DB table.
  * 
  * Usage: router.delete('/:id', auditLog('GROUP_DELETE'), controller.deleteGroup)
  */
@@ -68,9 +70,28 @@ export function auditLog(action: string) {
     const originalJson = res.json.bind(res);
     res.json = (body: any) => {
       const success = body?.success ?? (res.statusCode < 400);
-      logger.info(`[AUDIT] ${action} RESULT: ${success ? 'SUCCESS' : 'FAILED'} | User: ${entry.userId} | Status: ${res.statusCode}`, {
-        audit: { ...entry, result: success ? 'SUCCESS' : 'FAILED', statusCode: res.statusCode },
+      const result = success ? 'SUCCESS' : 'FAILED';
+
+      logger.info(`[AUDIT] ${action} RESULT: ${result} | User: ${entry.userId} | Status: ${res.statusCode}`, {
+        audit: { ...entry, result, statusCode: res.statusCode },
       });
+
+      // Persist to database (fire-and-forget — don't block the response)
+      prisma.auditLog.create({
+        data: {
+          action,
+          userId: entry.userId || null,
+          userRole: entry.userRole || null,
+          ip: entry.ip,
+          method: entry.method,
+          path: entry.path,
+          params: entry.params as any,
+          body: entry.body as any,
+          result,
+          statusCode: res.statusCode,
+        },
+      }).catch(err => logger.error('[AUDIT] DB persist error:', err));
+
       return originalJson(body);
     };
 

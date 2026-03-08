@@ -13,7 +13,7 @@ export type IconName =
   | 'expand-more' | 'expand-less' | 'admin-panel-settings' | 'people' | 'refresh' | 'supervisor-account' | 'analytics'
   | 'menu-book' | 'chat-bubble' | 'chat' | 'bar-chart' | 'announcement' | 'event-note' | 'how-to-reg'
   | 'arrow-forward' | 'account-balance' | 'description' | 'check' | 'more-vert' | 'today' | 'access-time'
-  | 'thumb-up' | 'thumb-down' | 'reply' | 'shield' | 'security';
+  | 'thumb-up' | 'thumb-down' | 'reply' | 'shield' | 'security' | 'qr-code';
 
 export const Icon = ({ name, size = 24, color = COLORS.text }: { name: IconName; size?: number; color?: string }) => (
   <MaterialIcons name={name as any} size={size} color={color} />

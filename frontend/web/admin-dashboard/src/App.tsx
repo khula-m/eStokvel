@@ -7,6 +7,8 @@ import GroupsPage from './pages/GroupsPage';
 import GroupDetailPage from './pages/GroupDetailPage';
 import AdminsPage from './pages/AdminsPage';
 import TransactionsPage from './pages/TransactionsPage';
+import SuperAdminToolsPage from './pages/SuperAdminToolsPage';
+import AuditLogPage from './pages/AuditLogPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -47,6 +49,8 @@ function AppRoutes() {
         <Route path="groups/:id" element={<GroupDetailPage />} />
         <Route path="admins" element={<AdminsPage />} />
         <Route path="transactions" element={<TransactionsPage />} />
+        <Route path="tools" element={<SuperAdminToolsPage />} />
+        <Route path="audit-logs" element={<AuditLogPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

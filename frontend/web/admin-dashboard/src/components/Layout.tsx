@@ -9,6 +9,8 @@ import {
   Shield,
   Menu,
   X,
+  Wrench,
+  ScrollText,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -17,6 +19,8 @@ const navItems = [
   { to: '/groups', icon: Building2, label: 'Groups' },
   { to: '/admins', icon: Users, label: 'Admins' },
   { to: '/transactions', icon: ArrowLeftRight, label: 'Transactions' },
+  { to: '/tools', icon: Wrench, label: 'Tools' },
+  { to: '/audit-logs', icon: ScrollText, label: 'Audit Logs' },
 ];
 
 export default function Layout() {

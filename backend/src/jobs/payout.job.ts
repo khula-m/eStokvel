@@ -20,6 +20,37 @@ const PAYOUT_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 let intervalHandle: ReturnType<typeof setInterval> | null = null;
 let isProcessing = false; // In-process lock to prevent overlapping runs
 
+// ── Scheduler status tracking ──
+interface SchedulerStatus {
+  running: boolean;
+  lastRunAt: string | null;
+  lastRunResult: 'success' | 'error' | null;
+  lastError: string | null;
+  rotatingGroupsProcessed: number;
+  endOfTermGroupsProcessed: number;
+  totalPayoutsCreated: number;
+  startedAt: string | null;
+}
+
+const schedulerStatus: SchedulerStatus = {
+  running: false,
+  lastRunAt: null,
+  lastRunResult: null,
+  lastError: null,
+  rotatingGroupsProcessed: 0,
+  endOfTermGroupsProcessed: 0,
+  totalPayoutsCreated: 0,
+  startedAt: null,
+};
+
+export function getSchedulerStatus(): SchedulerStatus & { isProcessing: boolean; intervalMs: number } {
+  return {
+    ...schedulerStatus,
+    isProcessing,
+    intervalMs: PAYOUT_CHECK_INTERVAL_MS,
+  };
+}
+
 /**
  * Check all active groups and process any due payouts.
  * Idempotent: Uses an in-process lock and checks for existing PENDING payouts
@@ -33,6 +64,9 @@ export async function processPayouts(): Promise<void> {
   }
 
   isProcessing = true;
+  schedulerStatus.rotatingGroupsProcessed = 0;
+  schedulerStatus.endOfTermGroupsProcessed = 0;
+  schedulerStatus.totalPayoutsCreated = 0;
   try {
     const now = new Date();
     logger.info(`[PayoutJob] Checking for due payouts at ${now.toISOString()}`);
@@ -47,8 +81,14 @@ export async function processPayouts(): Promise<void> {
     // ──────────────────────────────────────────────
     await processEndOfTermPayouts(now);
 
+    schedulerStatus.lastRunAt = now.toISOString();
+    schedulerStatus.lastRunResult = 'success';
+    schedulerStatus.lastError = null;
     logger.info('[PayoutJob] Payout check complete.');
   } catch (error: any) {
+    schedulerStatus.lastRunAt = new Date().toISOString();
+    schedulerStatus.lastRunResult = 'error';
+    schedulerStatus.lastError = error.message;
     logger.error(`[PayoutJob] Fatal error: ${error.message}`);
   } finally {
     isProcessing = false;
@@ -186,6 +226,8 @@ async function processRotatingPayouts(now: Date): Promise<void> {
 
       if (result.success) {
         logger.info(`[PayoutJob][ROTATING] Payout initiated successfully: ${result.message}`);
+        schedulerStatus.rotatingGroupsProcessed++;
+        schedulerStatus.totalPayoutsCreated++;
 
         // Rotate payout order and advance date atomically
         await prisma.$transaction(async (tx: any) => {
@@ -199,6 +241,14 @@ async function processRotatingPayouts(now: Date): Promise<void> {
               where: { id: sortedMembers[i].id },
               data: { nextPayoutOrder: newOrder },
             });
+          }
+
+          // Detect cycle completion: the member who just got paid was order 1,
+          // and they're being moved to position N (last). If the NEW order 1 was
+          // originally order 2, and they were the last member, this is the end of a cycle.
+          const paidMemberOriginalOrder = nextRecipient.nextPayoutOrder || 1;
+          if (paidMemberOriginalOrder === sortedMembers.length) {
+            logger.info(`[PayoutJob][ROTATING] ★ CYCLE COMPLETE for group "${group.name}" — all ${sortedMembers.length} members have been paid. Starting new cycle.`);
           }
 
           // Advance the group's payoutDate to next cycle
@@ -276,8 +326,37 @@ async function processEndOfTermPayouts(now: Date): Promise<void> {
 
       // IDEMPOTENCY: Already checked via termPayoutProcessed flag in query
 
-      // Calculate each member's total contributions
-      const memberPayouts: Array<{ member: any; amount: number }> = [];
+      // ── PRO-RATA DISTRIBUTION ──
+      // Calculate actual available pool (contributions - expenses - existing payouts)
+      const [contributionAgg, expenseAgg, existingPayoutAgg] = await Promise.all([
+        prisma.transaction.aggregate({
+          where: { stokvelGroupId: group.id, transactionType: 'CONTRIBUTION', status: 'COMPLETED' },
+          _sum: { amount: true },
+        }),
+        prisma.transaction.aggregate({
+          where: { stokvelGroupId: group.id, transactionType: 'EXPENSE', status: 'COMPLETED' },
+          _sum: { amount: true },
+        }),
+        prisma.transaction.aggregate({
+          where: { stokvelGroupId: group.id, transactionType: 'PAYOUT', status: { in: ['COMPLETED', 'PENDING'] } },
+          _sum: { amount: true },
+        }),
+      ]);
+
+      const totalContributions = Number(contributionAgg._sum.amount || 0);
+      const totalExpenses = Number(expenseAgg._sum.amount || 0);
+      const totalExistingPayouts = Number(existingPayoutAgg._sum.amount || 0);
+      const availablePool = totalContributions - totalExpenses - totalExistingPayouts;
+
+      if (availablePool <= 0) {
+        logger.warn(`[PayoutJob][END_OF_TERM] Group "${group.name}" has no available funds. Pool: R${totalContributions.toFixed(2)}, Expenses: R${totalExpenses.toFixed(2)}, Already paid: R${totalExistingPayouts.toFixed(2)}`);
+        await prisma.stokvelGroup.update({ where: { id: group.id }, data: { termPayoutProcessed: true } });
+        continue;
+      }
+
+      // Calculate each member's contributions and their pro-rata share
+      const memberPayouts: Array<{ member: any; amount: number; contributed: number }> = [];
+      let memberContributionTotal = 0;
 
       for (const member of group.members) {
         const totalContributed = member.transactions.reduce(
@@ -293,8 +372,25 @@ async function processEndOfTermPayouts(now: Date): Promise<void> {
           logger.warn(`[PayoutJob][END_OF_TERM] Member ${member.user.fullName} has no payout bank details. Recording as PENDING.`);
         }
 
-        memberPayouts.push({ member, amount: totalContributed });
+        memberContributionTotal += totalContributed;
+        memberPayouts.push({ member, amount: 0, contributed: totalContributed });
       }
+
+      // Pro-rata: each member gets (their contribution / total contributions) × available pool
+      // Ensures cents balance correctly by rounding to 2 decimal places
+      let distributedTotal = 0;
+      for (let i = 0; i < memberPayouts.length; i++) {
+        const share = (memberPayouts[i].contributed / memberContributionTotal) * availablePool;
+        memberPayouts[i].amount = Math.round(share * 100) / 100;
+        distributedTotal += memberPayouts[i].amount;
+      }
+      // Assign any rounding remainder to the last member
+      const remainder = Math.round((availablePool - distributedTotal) * 100) / 100;
+      if (remainder !== 0 && memberPayouts.length > 0) {
+        memberPayouts[memberPayouts.length - 1].amount += remainder;
+      }
+
+      logger.info(`[PayoutJob][END_OF_TERM] Group "${group.name}" pro-rata distribution: Pool R${availablePool.toFixed(2)} across ${memberPayouts.length} members (total contributed: R${memberContributionTotal.toFixed(2)})`);
 
       if (memberPayouts.length === 0) {
         logger.info(`[PayoutJob][END_OF_TERM] Group "${group.name}" has no member contributions to pay out.`);
@@ -308,7 +404,7 @@ async function processEndOfTermPayouts(now: Date): Promise<void> {
 
       // Create payout transaction records for ALL members atomically
       await prisma.$transaction(async (tx: any) => {
-        for (const { member, amount } of memberPayouts) {
+        for (const { member, amount, contributed } of memberPayouts) {
           await tx.transaction.create({
             data: {
               stokvelGroupId: group.id,
@@ -320,7 +416,7 @@ async function processEndOfTermPayouts(now: Date): Promise<void> {
               transactionDate: new Date(),
               recordedById: member.user.id,
               status: 'PENDING',
-              notes: `End-of-term savings payout from ${group.name} — total contributions returned`,
+              notes: `End-of-term pro-rata payout from ${group.name} — contributed R${contributed.toFixed(2)}, receiving R${amount.toFixed(2)}`,
               referenceNumber: `PAYOUT-EOT-${group.id.slice(0, 6)}-${member.id.slice(0, 6)}-${Date.now().toString(36)}`.toUpperCase(),
             },
           });
@@ -334,6 +430,8 @@ async function processEndOfTermPayouts(now: Date): Promise<void> {
       }, { timeout: 30000 });
 
       logger.info(`[PayoutJob][END_OF_TERM] Created ${memberPayouts.length} payout records for group "${group.name}".`);
+      schedulerStatus.endOfTermGroupsProcessed++;
+      schedulerStatus.totalPayoutsCreated += memberPayouts.length;
 
       // Initiate Ozow payouts for each member (outside DB transaction)
       for (const { member, amount } of memberPayouts) {
@@ -370,6 +468,8 @@ async function processEndOfTermPayouts(now: Date): Promise<void> {
  */
 export function startPayoutScheduler(): void {
   logger.info('[PayoutJob] Starting automatic payout scheduler (24h interval)');
+  schedulerStatus.running = true;
+  schedulerStatus.startedAt = new Date().toISOString();
 
   // Run once on startup (after 30s delay to let server stabilize)
   setTimeout(() => {
@@ -389,6 +489,7 @@ export function stopPayoutScheduler(): void {
   if (intervalHandle) {
     clearInterval(intervalHandle);
     intervalHandle = null;
+    schedulerStatus.running = false;
     logger.info('[PayoutJob] Payout scheduler stopped.');
   }
 }

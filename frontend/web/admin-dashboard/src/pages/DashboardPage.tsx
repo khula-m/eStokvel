@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { systemApi } from '../api';
+import { systemApi, schedulerApi } from '../api';
 import {
   Users,
   Building2,
@@ -8,6 +8,11 @@ import {
   Activity,
   AlertCircle,
   RefreshCw,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Zap,
+  Timer,
 } from 'lucide-react';
 
 interface OverviewData {
@@ -25,8 +30,26 @@ interface OverviewData {
   pendingTransactions?: number;
 }
 
+interface SchedulerData {
+  running: boolean;
+  isProcessing: boolean;
+  lastRunAt: string | null;
+  lastRunResult: 'success' | 'error' | null;
+  lastError: string | null;
+  rotatingGroupsProcessed: number;
+  endOfTermGroupsProcessed: number;
+  totalPayoutsCreated: number;
+  startedAt: string | null;
+  intervalMs: number;
+  pendingPayouts: number;
+  failedPayouts: number;
+  activeRotatingGroups: number;
+  activeEndOfTermGroups: number;
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<OverviewData | null>(null);
+  const [scheduler, setScheduler] = useState<SchedulerData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -34,9 +57,15 @@ export default function DashboardPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await systemApi.getOverview();
-      if (res.data.success) {
-        setData(res.data.data || res.data);
+      const [overviewRes, schedulerRes] = await Promise.all([
+        systemApi.getOverview(),
+        schedulerApi.getStatus().catch(() => null),
+      ]);
+      if (overviewRes.data.success) {
+        setData(overviewRes.data.data || overviewRes.data);
+      }
+      if (schedulerRes?.data?.success) {
+        setScheduler(schedulerRes.data.data);
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load system overview');
@@ -108,6 +137,91 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
+
+      {/* Scheduler Monitor */}
+      {scheduler && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg ${scheduler.running ? 'bg-green-50' : 'bg-gray-50'}`}>
+                <Timer className={`w-5 h-5 ${scheduler.running ? 'text-green-600' : 'text-gray-400'}`} />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Payout Scheduler</h2>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${
+                    scheduler.running ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${scheduler.running ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                    {scheduler.running ? 'Running' : 'Stopped'}
+                  </span>
+                  {scheduler.isProcessing && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
+                      <Zap className="w-3 h-3" /> Processing
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-xs text-gray-500 font-medium">Last Run</p>
+              <p className="text-sm font-semibold text-gray-900 mt-1">
+                {scheduler.lastRunAt
+                  ? new Date(scheduler.lastRunAt).toLocaleString('en-ZA', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+                  : 'Never'}
+              </p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-xs text-gray-500 font-medium">Last Result</p>
+              <p className="text-sm font-semibold mt-1">
+                {scheduler.lastRunResult === 'success' ? (
+                  <span className="flex items-center gap-1 text-green-600"><CheckCircle2 className="w-3.5 h-3.5" /> OK</span>
+                ) : scheduler.lastRunResult === 'error' ? (
+                  <span className="flex items-center gap-1 text-red-600"><XCircle className="w-3.5 h-3.5" /> Error</span>
+                ) : (
+                  <span className="text-gray-400">—</span>
+                )}
+              </p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-xs text-gray-500 font-medium">Pending Payouts</p>
+              <p className={`text-sm font-semibold mt-1 ${scheduler.pendingPayouts > 0 ? 'text-amber-600' : 'text-gray-900'}`}>
+                {scheduler.pendingPayouts}
+              </p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-xs text-gray-500 font-medium">Failed Payouts</p>
+              <p className={`text-sm font-semibold mt-1 ${scheduler.failedPayouts > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                {scheduler.failedPayouts}
+              </p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-xs text-gray-500 font-medium">Rotating Groups</p>
+              <p className="text-sm font-semibold text-gray-900 mt-1">{scheduler.activeRotatingGroups}</p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-xs text-gray-500 font-medium">End-of-Term Groups</p>
+              <p className="text-sm font-semibold text-gray-900 mt-1">{scheduler.activeEndOfTermGroups}</p>
+            </div>
+          </div>
+
+          {scheduler.lastError && (
+            <div className="flex items-start gap-2 mt-4 p-3 bg-red-50 rounded-lg text-sm text-red-700">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>{scheduler.lastError}</span>
+            </div>
+          )}
+
+          {scheduler.startedAt && (
+            <p className="text-xs text-gray-400 mt-4">
+              Scheduler started {new Date(scheduler.startedAt).toLocaleString('en-ZA')} · Interval: {(scheduler.intervalMs / 3600000).toFixed(0)}h
+            </p>
+          )}
+        </div>
+      )}
 
     </div>
   );
