@@ -148,7 +148,7 @@ export const ChangePinScreen = ({ auth, onNavigate }: ChangePinScreenProps) => {
               />
               {pinsMatch && (
                 <View style={cs.matchRow}>
-                  <Icon name={newPin === confirmPin ? 'check-circle' : 'error'} size={16}
+                  <Icon name={newPin === confirmPin ? 'check-circle' : 'cancel'} size={16}
                     color={newPin === confirmPin ? COLORS.success : COLORS.error} />
                   <Text style={[cs.matchText, { color: newPin === confirmPin ? COLORS.success : COLORS.error }]}>
                     {newPin === confirmPin ? 'PINs match' : 'PINs do not match'}
