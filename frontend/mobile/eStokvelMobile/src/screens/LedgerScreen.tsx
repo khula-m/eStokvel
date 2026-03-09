@@ -12,12 +12,9 @@ import { showAlert } from '../utils/alert';
 import { API_URL } from '../constants/config';
 import { COLORS, SPACING, RADIUS } from '../constants/theme';
 import { scaleFontSize } from '../utils/responsive';
+import { shadow } from '../utils/shadow';
+import { formatCurrency, formatDateShort as formatDate } from '../utils/format';
 import { AuthState, Transaction } from '../types';
-
-const shadow = (y: number, blur: number, opacity: number): any =>
-  Platform.OS === 'web'
-    ? { boxShadow: `0 ${y}px ${blur}px rgba(0,0,0,${opacity})` }
-    : { shadowColor: '#000', shadowOffset: { width: 0, height: y }, shadowOpacity: opacity, shadowRadius: blur / 2, elevation: Math.round(blur / 2) };
 
 export const LedgerScreen = ({ auth }: { auth: AuthState }) => {
   const [loading, setLoading] = useState(true);
@@ -66,8 +63,6 @@ export const LedgerScreen = ({ auth }: { auth: AuthState }) => {
   const onRefresh = () => { setRefreshing(true); fetchTransactions(); };
 
   const filtered = filter === 'ALL' ? transactions : transactions.filter(t => t.transactionType === filter);
-  const formatCurrency = (amount: number | string) => `R ${Number(amount || 0).toFixed(2)}`;
-  const formatDate = (date: string) => new Date(date).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' });
 
   const totalIn = transactions.filter(t => t.transactionType === 'CONTRIBUTION' && t.status === 'COMPLETED').reduce((s, t) => s + Number(t.amount), 0);
   const totalOut = transactions.filter(t => t.transactionType === 'PAYOUT' && t.status === 'COMPLETED').reduce((s, t) => s + Number(t.amount), 0);
@@ -160,7 +155,7 @@ export const LedgerScreen = ({ auth }: { auth: AuthState }) => {
         }
         renderItem={({ item }) => (
           <View style={ls.txCard}>
-            <View style={[ls.txIcon, { backgroundColor: item.transactionType === 'CONTRIBUTION' ? '#ECFDF5' : '#FEF2F2' }]}>
+            <View style={[ls.txIcon, { backgroundColor: item.transactionType === 'CONTRIBUTION' ? COLORS.accentSoft : COLORS.errorSoft }]}>
               <Icon name={item.transactionType === 'CONTRIBUTION' ? 'trending-up' : 'trending-down' as IconName}
                 size={22} color={item.transactionType === 'CONTRIBUTION' ? COLORS.success : COLORS.error} />
             </View>
@@ -181,7 +176,7 @@ export const LedgerScreen = ({ auth }: { auth: AuthState }) => {
               <Text style={[ls.txAmount, { color: item.transactionType === 'CONTRIBUTION' ? COLORS.success : COLORS.error }]}>
                 {item.transactionType === 'CONTRIBUTION' ? '+' : '-'}{formatCurrency(item.amount)}
               </Text>
-              <View style={[ls.statusBadge, { backgroundColor: item.status === 'COMPLETED' ? '#ECFDF5' : '#FFF3E0' }]}>
+              <View style={[ls.statusBadge, { backgroundColor: item.status === 'COMPLETED' ? COLORS.accentSoft : COLORS.warningSoft }]}>
                 <Text style={[ls.statusText, { color: item.status === 'COMPLETED' ? COLORS.success : COLORS.warning }]}>{item.status}</Text>
               </View>
             </View>

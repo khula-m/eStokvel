@@ -1,12 +1,7 @@
-import { StyleSheet, Platform } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { COLORS } from '../constants/theme';
 import { scaleFontSize } from '../utils/responsive';
-
-// Helper for cross-platform shadows
-const shadow = (offsetY: number, blur: number, opacity: number): any =>
-  Platform.OS === 'web'
-    ? { boxShadow: `0 ${offsetY}px ${blur}px rgba(0,0,0,${opacity})` }
-    : { shadowColor: '#000', shadowOffset: { width: 0, height: offsetY }, shadowOpacity: opacity, shadowRadius: blur / 2, elevation: Math.round(blur / 2) };
+import { shadow } from '../utils/shadow';
 
 export const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },

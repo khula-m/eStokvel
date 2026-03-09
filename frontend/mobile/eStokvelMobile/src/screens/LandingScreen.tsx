@@ -7,13 +7,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Icon, IconName } from '../components/Icon';
 import { COLORS, SPACING, RADIUS, FONT } from '../constants/theme';
 import { scaleFontSize } from '../utils/responsive';
+import { shadow } from '../utils/shadow';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-
-const shadow = (offsetY: number, blur: number, opacity: number): any =>
-  Platform.OS === 'web'
-    ? { boxShadow: `0 ${offsetY}px ${blur}px rgba(0,0,0,${opacity})` }
-    : { shadowColor: '#000', shadowOffset: { width: 0, height: offsetY }, shadowOpacity: opacity, shadowRadius: blur / 2, elevation: Math.round(blur / 2) };
 
 interface LandingScreenProps {
   onGetStarted: () => void;

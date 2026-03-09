@@ -10,6 +10,7 @@ import { showAlert } from '../utils/alert';
 import { API_URL } from '../constants/config';
 import { COLORS, SPACING, RADIUS } from '../constants/theme';
 import { scaleFontSize } from '../utils/responsive';
+import { shadow } from '../utils/shadow';
 import { formatCurrency, formatDateTime } from '../utils/format';
 import { AuthState, AppNotification } from '../types';
 
@@ -18,17 +19,12 @@ interface NotificationsScreenProps {
 }
 
 const typeConfig: Record<string, { icon: any; color: string; bg: string; label: string }> = {
-  CONTRIBUTION: { icon: 'arrow-upward', color: COLORS.success, bg: '#ECFDF5', label: 'Contribution' },
-  PAYOUT: { icon: 'arrow-downward', color: COLORS.primary, bg: '#EFF6FF', label: 'Payout' },
-  PENALTY: { icon: 'warning', color: COLORS.error, bg: '#FEF2F2', label: 'Penalty' },
-  INTEREST: { icon: 'trending-up', color: COLORS.secondary, bg: '#FFFBEB', label: 'Interest' },
+  CONTRIBUTION: { icon: 'arrow-upward', color: COLORS.success, bg: COLORS.accentSoft, label: 'Contribution' },
+  PAYOUT: { icon: 'arrow-downward', color: COLORS.primary, bg: COLORS.primarySoft, label: 'Payout' },
+  PENALTY: { icon: 'warning', color: COLORS.error, bg: COLORS.errorSoft, label: 'Penalty' },
+  INTEREST: { icon: 'trending-up', color: COLORS.secondary, bg: COLORS.secondarySoft, label: 'Interest' },
   DEFAULT: { icon: 'notifications', color: COLORS.textLight, bg: '#F3F4F6', label: 'Notification' },
 };
-
-const shadow = (offsetY: number, blur: number, opacity: number): any =>
-  Platform.OS === 'web'
-    ? { boxShadow: `0 ${offsetY}px ${blur}px rgba(0,0,0,${opacity})` }
-    : { shadowColor: '#000', shadowOffset: { width: 0, height: offsetY }, shadowOpacity: opacity, shadowRadius: blur / 2, elevation: Math.round(blur / 2) };
 
 export const NotificationsScreen = ({ auth }: NotificationsScreenProps) => {
   const [loading, setLoading] = useState(true);
@@ -118,7 +114,7 @@ export const NotificationsScreen = ({ auth }: NotificationsScreenProps) => {
       {notifications.length === 0 ? (
         <View style={ns.emptyWrap}>
           <View style={ns.emptyIcon}>
-            <Icon name="notifications-none" size={48} color={COLORS.textMuted} />
+            <Icon name="notifications" size={48} color={COLORS.textMuted} />
           </View>
           <Text style={ns.emptyTitle}>No notifications yet</Text>
           <Text style={ns.emptyText}>

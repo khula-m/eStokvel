@@ -11,12 +11,8 @@ import { showAlert } from '../utils/alert';
 import { API_URL } from '../constants/config';
 import { COLORS, SPACING, RADIUS } from '../constants/theme';
 import { scaleFontSize } from '../utils/responsive';
+import { shadow } from '../utils/shadow';
 import { AuthState, Group, ChatMsg } from '../types';
-
-const shadow = (y: number, blur: number, opacity: number): any =>
-  Platform.OS === 'web'
-    ? { boxShadow: `0 ${y}px ${blur}px rgba(0,0,0,${opacity})` }
-    : { shadowColor: '#000', shadowOffset: { width: 0, height: y }, shadowOpacity: opacity, shadowRadius: blur / 2, elevation: Math.round(blur / 2) };
 
 export const ChatScreen = ({ auth, initialGroupId }: { auth: AuthState; initialGroupId?: string | null }) => {
   const [loading, setLoading] = useState(true);

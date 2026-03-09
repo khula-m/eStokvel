@@ -8,12 +8,9 @@ import { showAlert } from '../utils/alert';
 import { API_URL } from '../constants/config';
 import { COLORS, SPACING, RADIUS } from '../constants/theme';
 import { scaleFontSize } from '../utils/responsive';
+import { shadow } from '../utils/shadow';
+import { formatCurrency } from '../utils/format';
 import { AuthState } from '../types';
-
-const shadow = (y: number, blur: number, opacity: number): any =>
-  Platform.OS === 'web'
-    ? { boxShadow: `0 ${y}px ${blur}px rgba(0,0,0,${opacity})` }
-    : { shadowColor: '#000', shadowOffset: { width: 0, height: y }, shadowOpacity: opacity, shadowRadius: blur / 2, elevation: Math.round(blur / 2) };
 
 export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState; onLogout: () => void; onNavigate?: (screen: string) => void }) => {
   const [membershipCount, setMembershipCount] = useState(0);
@@ -55,7 +52,6 @@ export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState;
   };
   const getInitials = (name: string) => name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
   const getRoleLabel = (role: string) => ({ SUPERADMIN: 'System Administrator', ADMIN: 'Group Administrator', MEMBER: 'Member' }[role] || role);
-  const formatCurrency = (amount: number | string) => `R ${Number(amount || 0).toFixed(2)}`;
   const displayRole = auth.user?.role === 'SUPERADMIN' ? 'SUPERADMIN' : (auth.user?.effectiveRole || auth.user?.role || 'MEMBER');
 
   if (loading) {
@@ -108,7 +104,7 @@ export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState;
           </View>
         </View>
         <View style={[ps.infoRow, { borderBottomWidth: 0 }]}>
-          <View style={[ps.infoIcon, { backgroundColor: '#E3F2FD' }]}><Icon name="email" size={18} color="#1565C0" /></View>
+          <View style={[ps.infoIcon, { backgroundColor: COLORS.primarySoft }]}><Icon name="email" size={18} color={COLORS.primary} /></View>
           <View style={{ flex: 1 }}>
             <Text style={ps.infoLabel}>Email Address</Text>
             <Text style={ps.infoValue}>{auth.user?.email || 'No email address provided'}</Text>
@@ -123,14 +119,14 @@ export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState;
           <Text style={ps.sectionHeader}>Account Information</Text>
         </View>
         <View style={ps.infoRow}>
-          <View style={[ps.infoIcon, { backgroundColor: '#F3E5F5' }]}><Icon name="person" size={18} color="#7B1FA2" /></View>
+          <View style={[ps.infoIcon, { backgroundColor: COLORS.primarySoft }]}><Icon name="person" size={18} color={COLORS.primary} /></View>
           <View style={{ flex: 1 }}>
             <Text style={ps.infoLabel}>Full Name</Text>
             <Text style={ps.infoValue}>{auth.user?.fullName || 'Not set'}</Text>
           </View>
         </View>
         <View style={[ps.infoRow, { borderBottomWidth: 0 }]}>
-          <View style={[ps.infoIcon, { backgroundColor: '#FFF3E0' }]}><Icon name="person" size={18} color={COLORS.accent} /></View>
+          <View style={[ps.infoIcon, { backgroundColor: COLORS.warningSoft }]}><Icon name="person" size={18} color={COLORS.accent} /></View>
           <View style={{ flex: 1 }}>
             <Text style={ps.infoLabel}>Account Type</Text>
             <Text style={ps.infoValue}>{getRoleLabel(displayRole)}</Text>
@@ -231,11 +227,11 @@ const ps = StyleSheet.create({
   actionText: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
 
   logoutBtn: {
-    flexDirection: 'row', backgroundColor: '#FEF2F2', marginHorizontal: SPACING.md,
+    flexDirection: 'row', backgroundColor: COLORS.errorSoft, marginHorizontal: SPACING.md,
     marginTop: SPACING.md, padding: SPACING.lg, borderRadius: RADIUS.lg,
     alignItems: 'center', justifyContent: 'center', gap: SPACING.sm,
-    borderWidth: 1, borderColor: '#FECACA',
+    borderWidth: 1, borderColor: COLORS.error,
   },
-  logoutText: { color: '#DC2626', fontSize: scaleFontSize(16), fontWeight: '700' },
+  logoutText: { color: COLORS.error, fontSize: scaleFontSize(16), fontWeight: '700' },
   version: { textAlign: 'center', color: COLORS.textMuted, marginVertical: SPACING.lg, fontSize: 12 },
 });

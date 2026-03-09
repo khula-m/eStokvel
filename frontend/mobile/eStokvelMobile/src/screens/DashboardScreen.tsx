@@ -13,15 +13,12 @@ import { showAlert } from '../utils/alert';
 import { API_URL } from '../constants/config';
 import { COLORS, SPACING, RADIUS } from '../constants/theme';
 import { scaleFontSize } from '../utils/responsive';
+import { shadow } from '../utils/shadow';
+import { formatCurrency, formatDateShort as formatDate, formatDateTime } from '../utils/format';
 import { styles } from '../styles';
 import { AuthState, Group, Transaction, GroupMember, Announcement, Meeting } from '../types';
 import OzowPaymentWebView from '../components/OzowPaymentWebView';
 import { PaymentModal } from '../components/PaymentModal';
-
-const shadow = (offsetY: number, blur: number, opacity: number): any =>
-  Platform.OS === 'web'
-    ? { boxShadow: `0 ${offsetY}px ${blur}px rgba(0,0,0,${opacity})` }
-    : { shadowColor: '#000', shadowOffset: { width: 0, height: offsetY }, shadowOpacity: opacity, shadowRadius: blur / 2, elevation: Math.round(blur / 2) };
 
 interface DashboardScreenProps {
   auth: AuthState;
@@ -37,17 +34,6 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
   // Per-group admin: use effectiveRole (ADMIN if admin of any group)
   const isAdmin = auth.user?.effectiveRole === 'ADMIN' || userRole === 'ADMIN';
   const headers = { Authorization: `Bearer ${auth.token}` };
-  const formatCurrency = (amount: number | string) => `R ${Number(amount || 0).toFixed(2)}`;
-  const formatDate = (date: string) => {
-    const d = new Date(date);
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${String(d.getDate()).padStart(2, '0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
-  };
-  const formatDateTime = (date: string) => {
-    const d = new Date(date);
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${String(d.getDate()).padStart(2, '0')} ${months[d.getMonth()]} ${d.getFullYear()}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  };
 
   // ---- ADMIN STATE ----
   const [groups, setGroups] = useState<Group[]>([]);
@@ -442,7 +428,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
           <Text style={{ fontSize: 15, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: SPACING.lg }}>
             System administration is only available through the secure web portal. Please log in at the web dashboard.
           </Text>
-          <View style={{ backgroundColor: '#FFFFFF', borderRadius: RADIUS.md, padding: SPACING.md, width: '100%', ...shadow(2, 8, 0.06) }}>
+          <View style={{ backgroundColor: COLORS.surface, borderRadius: RADIUS.md, padding: SPACING.md, width: '100%', ...shadow(2, 8, 0.06) }}>
             <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.primary, textAlign: 'center' }}>admin.estokvel.co.za</Text>
           </View>
         </View>
@@ -542,7 +528,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                 <Text style={styles.sectionTitle}>Recent Transactions</Text>
                 {groupTransactions.slice(0, 10).map(tx => (
                   <View key={tx.id} style={styles.listItem}>
-                    <View style={[styles.listItemIcon, { backgroundColor: tx.transactionType === 'CONTRIBUTION' ? '#ECFDF5' : '#FFEBEE' }]}>
+                    <View style={[styles.listItemIcon, { backgroundColor: tx.transactionType === 'CONTRIBUTION' ? COLORS.accentSoft : COLORS.errorSoft }]}>
                       <Icon name="trending-up" size={18} color={tx.transactionType === 'CONTRIBUTION' ? COLORS.success : COLORS.error} />
                     </View>
                     <View style={{ flex: 1 }}>
@@ -556,7 +542,9 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                 ))}
                 {groupTransactions.length === 0 && (
                   <View style={styles.emptyStateCard}>
-                    <Icon name="receipt-long" size={40} color="#ccc" />
+                    <View style={{ width: 64, height: 64, borderRadius: RADIUS.lg, backgroundColor: COLORS.borderLight, justifyContent: 'center', alignItems: 'center', marginBottom: 10 }}>
+                      <Icon name="receipt-long" size={32} color={COLORS.textMuted} />
+                    </View>
                     <Text style={styles.emptyTitle}>No Transactions Yet</Text>
                     <Text style={styles.emptyText}>Transactions will appear here once members contribute</Text>
                   </View>
@@ -588,7 +576,9 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                 </View>
                 {announcements.length === 0 ? (
                   <View style={styles.emptyStateCard}>
-                    <Icon name="announcement" size={48} color="#ccc" />
+                    <View style={{ width: 64, height: 64, borderRadius: RADIUS.lg, backgroundColor: COLORS.borderLight, justifyContent: 'center', alignItems: 'center', marginBottom: 10 }}>
+                      <Icon name="announcement" size={32} color={COLORS.textMuted} />
+                    </View>
                     <Text style={styles.emptyText}>No announcements yet</Text>
                   </View>
                 ) : announcements.map(ann => (
@@ -662,7 +652,9 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                 </View>
                 {meetings.length === 0 ? (
                   <View style={styles.emptyStateCard}>
-                    <Icon name="event" size={48} color="#ccc" />
+                    <View style={{ width: 64, height: 64, borderRadius: RADIUS.lg, backgroundColor: COLORS.borderLight, justifyContent: 'center', alignItems: 'center', marginBottom: 10 }}>
+                      <Icon name="event" size={32} color={COLORS.textMuted} />
+                    </View>
                     <Text style={styles.emptyText}>No meetings scheduled</Text>
                   </View>
                 ) : meetings.map(mtg => (
@@ -788,7 +780,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                           ))}
                         </ScrollView>
                         {/* Preview */}
-                        <View style={{ backgroundColor: '#EFF6FF', padding: 12, borderRadius: 10, marginTop: 4 }}>
+                        <View style={{ backgroundColor: COLORS.primarySoft, padding: 12, borderRadius: 10, marginTop: 4 }}>
                           <Text style={{ fontSize: 15, fontWeight: '600', color: COLORS.primary, textAlign: 'center' }}>
                             {meetDay} {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][meetMonth]} {meetYear} at {String(meetHour).padStart(2, '0')}:{String(meetMinute).padStart(2, '0')}
                           </Text>
@@ -831,14 +823,16 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                 </View>
                 {groupMembers.length === 0 ? (
                   <View style={styles.emptyStateCard}>
-                    <Icon name="people" size={40} color="#ccc" />
+                    <View style={{ width: 64, height: 64, borderRadius: RADIUS.lg, backgroundColor: COLORS.borderLight, justifyContent: 'center', alignItems: 'center', marginBottom: 10 }}>
+                      <Icon name="people" size={32} color={COLORS.textMuted} />
+                    </View>
                     <Text style={styles.emptyTitle}>No Members Yet</Text>
                     <Text style={styles.emptyText}>Add members using the button above</Text>
                   </View>
                 ) : groupMembers.map((m: GroupMember) => (
                   <View key={m.id} style={styles.listItem}>
                     <View style={[styles.listItemIcon, {
-                      backgroundColor: m.paymentStatus === 'PAID' ? '#ECFDF5' : m.paymentStatus === 'PENDING' ? '#FFF3E0' : '#FFEBEE'
+                      backgroundColor: m.paymentStatus === 'PAID' ? COLORS.accentSoft : m.paymentStatus === 'PENDING' ? COLORS.warningSoft : COLORS.errorSoft
                     }]}>
                       <Icon name={m.paymentStatus === 'PAID' ? 'check-circle' : m.paymentStatus === 'PENDING' ? 'schedule' : 'warning'}
                         size={18} color={m.paymentStatus === 'PAID' ? COLORS.success : m.paymentStatus === 'PENDING' ? COLORS.warning : COLORS.error} />
@@ -921,7 +915,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                 </View>
                 <ScrollView style={{ flex: 1, padding: 20 }} keyboardShouldPersistTaps="handled">
                 {selectedGroup && (
-                  <View style={{ backgroundColor: '#EFF6FF', padding: 12, borderRadius: 10, marginBottom: 16 }}>
+                  <View style={{ backgroundColor: COLORS.primarySoft, padding: 12, borderRadius: 10, marginBottom: 16 }}>
                     <Text style={{ fontSize: 14, color: COLORS.primary, fontWeight: '600' }}>Group: {selectedGroup.name}</Text>
                   </View>
                 )}
@@ -930,7 +924,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                     <Icon name="check-circle" size={48} color={COLORS.success} />
                     <Text style={{ fontSize: 18, fontWeight: '700', marginTop: 12, color: COLORS.text }}>Member Added!</Text>
                     <Text style={{ fontSize: 14, color: COLORS.textLight, marginTop: 4, textAlign: 'center' }}>Share this temporary PIN with the member</Text>
-                    <View style={{ backgroundColor: '#FFF3E0', padding: 16, borderRadius: 12, marginTop: 16 }}>
+                    <View style={{ backgroundColor: COLORS.warningSoft, padding: 16, borderRadius: 12, marginTop: 16 }}>
                       <Text style={{ fontSize: 32, fontWeight: '800', color: COLORS.warning, letterSpacing: 8, textAlign: 'center' }}>{addedMemberPin}</Text>
                     </View>
                     <Text style={{ fontSize: 12, color: COLORS.error, marginTop: 8 }}>Member must change PIN on first login</Text>
@@ -1001,7 +995,9 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
 
           {groups.length === 0 ? (
             <View style={[styles.emptyStateCard, { margin: 16 }]}>
-              <Icon name="groups" size={48} color="#ccc" />
+              <View style={{ width: 72, height: 72, borderRadius: RADIUS.xl, backgroundColor: COLORS.primarySoft, justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
+                <Icon name="groups" size={36} color={COLORS.primary} />
+              </View>
               <Text style={styles.emptyTitle}>No Groups Yet</Text>
               <Text style={styles.emptyText}>Create a stokvel group to get started</Text>
             </View>
@@ -1012,7 +1008,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
               <View key={group.id} style={styles.groupCardAdmin}>
                 <View style={styles.groupCardHeader}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                    <View style={[styles.groupIconBg, { backgroundColor: '#EFF6FF' }]}>
+                    <View style={[styles.groupIconBg, { backgroundColor: COLORS.primarySoft }]}>
                       <Icon name="account-balance" size={22} color={COLORS.primary} />
                     </View>
                     <View style={{ flex: 1 }}>
@@ -1022,13 +1018,13 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                       </Text>
                     </View>
                   </View>
-                  <View style={[styles.frequencyBadge, { backgroundColor: '#EFF6FF' }]}>
+                  <View style={[styles.frequencyBadge, { backgroundColor: COLORS.primarySoft }]}>
                     <Text style={{ fontSize: 11, color: COLORS.primary, fontWeight: '600' }}>{group.contributionFrequency}</Text>
                   </View>
                 </View>
                 {/* Payout Model Badge */}
                 <View style={{ flexDirection: 'row', marginBottom: 4 }}>
-                  <View style={{ backgroundColor: (group as any).payoutModel === 'END_OF_TERM' ? '#FEF3C7' : '#D1FAE5', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
+                  <View style={{ backgroundColor: (group as any).payoutModel === 'END_OF_TERM' ? COLORS.warningSoft : COLORS.successSoft, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
                     <Text style={{ fontSize: 10, fontWeight: '600', color: (group as any).payoutModel === 'END_OF_TERM' ? '#92400E' : '#065F46' }}>
                       {(group as any).payoutModel === 'END_OF_TERM' ? 'Savings (End-of-Term)' : 'Rotating'}
                     </Text>
@@ -1053,22 +1049,12 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                   </View>
                 </View>
 
-                {/* Action Buttons */}
+                {/* Action Buttons - Compact 2-row grid */}
                 <View style={styles.groupActionRow}>
                   <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('analytics', group)}>
                     <Icon name="bar-chart" size={16} color={COLORS.primary} />
                     <Text style={styles.groupActionText}>Analytics</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('announcements', group)}>
-                    <Icon name="announcement" size={16} color={COLORS.primary} />
-                    <Text style={styles.groupActionText}>Announce</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('meetings', group)}>
-                    <Icon name="event" size={16} color={COLORS.primary} />
-                    <Text style={styles.groupActionText}>Meeting</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.groupActionRow}>
                   <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('members', group)}>
                     <Icon name="people" size={16} color={COLORS.primary} />
                     <Text style={styles.groupActionText}>Members</Text>
@@ -1077,24 +1063,32 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                     <Icon name="payments" size={16} color={COLORS.primary} />
                     <Text style={styles.groupActionText}>Payments</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.groupActionBtn} onPress={() => onNavigateTab('ledger')}>
-                    <Icon name="menu-book" size={16} color={COLORS.primary} />
-                    <Text style={styles.groupActionText}>Ledger</Text>
-                  </TouchableOpacity>
                 </View>
                 <View style={styles.groupActionRow}>
+                  <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('announcements', group)}>
+                    <Icon name="announcement" size={16} color={COLORS.primary} />
+                    <Text style={styles.groupActionText}>Announce</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('meetings', group)}>
+                    <Icon name="event" size={16} color={COLORS.primary} />
+                    <Text style={styles.groupActionText}>Meetings</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity style={styles.groupActionBtn} onPress={() => onNavigateTab('chat', group.id)}>
                     <Icon name="chat-bubble" size={16} color={COLORS.primary} />
                     <Text style={styles.groupActionText}>Chat</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.groupActionBtn, { flex: 2, backgroundColor: '#EFF6FF', borderColor: COLORS.primary, borderWidth: 1 }]}
-                    onPress={() => { setPaymentGroup(group); setPaymentMethod('EFT'); setPaymentNotes(''); setShowPaymentModal(true); }}>
-                    <Icon name="payments" size={16} color={COLORS.primary} />
-                    <Text style={[styles.groupActionText, { color: COLORS.primary, fontWeight: '700' }]}>Pay {formatCurrency(group.contributionAmount)}</Text>
-                  </TouchableOpacity>
                 </View>
+
+                {/* Quick Pay Button */}
                 <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, marginTop: 4, borderTopWidth: 1, borderTopColor: COLORS.border }}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingVertical: 12, marginTop: 10 }}
+                  onPress={() => { setPaymentGroup(group); setPaymentMethod('EFT'); setPaymentNotes(''); setShowPaymentModal(true); }}>
+                  <Icon name="payments" size={18} color="#fff" />
+                  <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>Pay {formatCurrency(group.contributionAmount)}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, marginTop: 8, borderTopWidth: 1, borderTopColor: COLORS.border }}
                   onPress={() => handleDeleteGroup(group)}>
                   <Icon name="delete" size={16} color={COLORS.error} />
                   <Text style={{ color: COLORS.error, fontSize: 13, fontWeight: '600', marginLeft: 6 }}>Delete Group</Text>
@@ -1270,12 +1264,14 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
         )}
 
         {!primaryGroup ? (
-          <View style={[styles.emptyStateCard, { margin: 16 }]}>
-            <Icon name="groups" size={48} color="#ccc" />
+          <View style={[styles.emptyStateCard, { margin: 16, paddingVertical: 40 }]}>
+            <View style={{ width: 80, height: 80, borderRadius: RADIUS.xl, backgroundColor: COLORS.primarySoft, justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
+              <Icon name="groups" size={40} color={COLORS.primary} />
+            </View>
             <Text style={styles.emptyTitle}>Not in a Group</Text>
-            <Text style={styles.emptyText}>Join a stokvel using an invite code from your group admin</Text>
+            <Text style={[styles.emptyText, { marginBottom: 20 }]}>Join a stokvel using an invite code from your group admin</Text>
             <TouchableOpacity
-              style={[styles.primaryButton, { marginTop: 16, width: '80%' }]}
+              style={[styles.primaryButton, { width: '80%' }]}
               onPress={() => { setJoinGroupCode(''); setShowJoinGroupModal(true); }}
               accessibilityLabel="Join group by code" accessibilityRole="button"
             >
@@ -1335,9 +1331,9 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                 <Icon name="payments" size={22} color="#fff" />
                 <Text style={styles.payNowText}>PAY NOW {formatCurrency(primaryGroup.contributionAmount)}</Text>
               </TouchableOpacity>
-              <View style={{ marginTop: 12, backgroundColor: '#ECFDF5', borderRadius: 8, padding: 10 }}>
+              <View style={{ marginTop: 12, backgroundColor: COLORS.accentSoft, borderRadius: RADIUS.sm, padding: 10 }}>
                 <Text style={{ fontSize: 12, color: COLORS.success, textAlign: 'center' }}>
-                  ✔ Tap the button above to select your payment method and pay securely
+                  Tap the button above to select your payment method and pay securely
                 </Text>
               </View>
             </View>
@@ -1350,12 +1346,14 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
               </View>
               {groupTransactionsForMember.length === 0 ? (
                 <View style={styles.emptyStateCard}>
-                  <Icon name="receipt-long" size={40} color="#ccc" />
+                  <View style={{ width: 56, height: 56, borderRadius: RADIUS.lg, backgroundColor: COLORS.borderLight, justifyContent: 'center', alignItems: 'center', marginBottom: 8 }}>
+                    <Icon name="receipt-long" size={28} color={COLORS.textMuted} />
+                  </View>
                   <Text style={styles.emptyText}>No transactions yet</Text>
                 </View>
               ) : groupTransactionsForMember.slice(0, 5).map(tx => (
                 <View key={tx.id} style={styles.listItem}>
-                  <View style={[styles.listItemIcon, { backgroundColor: tx.transactionType === 'CONTRIBUTION' ? '#ECFDF5' : '#FFEBEE' }]}>
+                  <View style={[styles.listItemIcon, { backgroundColor: tx.transactionType === 'CONTRIBUTION' ? COLORS.accentSoft : COLORS.errorSoft }]}>
                     <Icon name="trending-up" size={18} color={tx.transactionType === 'CONTRIBUTION' ? COLORS.success : COLORS.error} />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -1382,7 +1380,9 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
               </View>
               {memberAnnouncements.length === 0 ? (
                 <View style={styles.emptyStateCard}>
-                  <Icon name="announcement" size={40} color="#ccc" />
+                  <View style={{ width: 56, height: 56, borderRadius: RADIUS.lg, backgroundColor: COLORS.borderLight, justifyContent: 'center', alignItems: 'center', marginBottom: 8 }}>
+                    <Icon name="announcement" size={28} color={COLORS.textMuted} />
+                  </View>
                   <Text style={styles.emptyTitle}>No Announcements</Text>
                   <Text style={styles.emptyText}>Group announcements will appear here</Text>
                 </View>
@@ -1407,7 +1407,9 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
               </View>
               {memberMeetings.filter(mtg => new Date(mtg.date) >= new Date(new Date().toDateString())).length === 0 ? (
                 <View style={styles.emptyStateCard}>
-                  <Icon name="event" size={40} color="#ccc" />
+                  <View style={{ width: 56, height: 56, borderRadius: RADIUS.lg, backgroundColor: COLORS.borderLight, justifyContent: 'center', alignItems: 'center', marginBottom: 8 }}>
+                    <Icon name="event" size={28} color={COLORS.textMuted} />
+                  </View>
                   <Text style={styles.emptyTitle}>No Upcoming Meetings</Text>
                   <Text style={styles.emptyText}>Scheduled meetings will appear here</Text>
                 </View>
