@@ -58,8 +58,7 @@ export class TransactionController {
       logger.error('Create transaction error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }
@@ -96,7 +95,7 @@ export class TransactionController {
       }
     } catch (error: any) {
       logger.error('Member contribute error:', error);
-      return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+      return res.status(500).json({ success: false, message: 'Internal server error' });
     }
   }
 
@@ -128,8 +127,7 @@ export class TransactionController {
       logger.error('Get transaction error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message,
+        message: 'Internal server error'
       });
     }
   }
@@ -162,8 +160,7 @@ export class TransactionController {
       logger.error('Update transaction error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }
@@ -225,8 +222,7 @@ export class TransactionController {
       logger.error('Get transactions error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }
@@ -271,8 +267,7 @@ export class TransactionController {
       logger.error('Get transaction stats error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }
@@ -327,8 +322,7 @@ export class TransactionController {
       logger.error('Record contribution error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }
@@ -383,8 +377,7 @@ export class TransactionController {
       logger.error('Record payout error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }
@@ -435,8 +428,7 @@ export class TransactionController {
       logger.error('Get my transactions error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }
@@ -474,8 +466,7 @@ export class TransactionController {
       logger.error('Get dashboard data error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message,
+        message: 'Internal server error'
       });
     }
   }

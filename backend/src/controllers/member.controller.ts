@@ -44,8 +44,7 @@ export class MemberController {
       logger.error('Add member error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }
@@ -71,8 +70,7 @@ export class MemberController {
       logger.error('Get member error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }
@@ -107,8 +105,7 @@ export class MemberController {
       logger.error('Update member error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }
@@ -149,8 +146,7 @@ export class MemberController {
       logger.error('Remove member error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }
@@ -190,8 +186,7 @@ export class MemberController {
       logger.error('Get group members error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }
@@ -226,8 +221,7 @@ export class MemberController {
       logger.error('Get member stats error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }
@@ -266,8 +260,7 @@ export class MemberController {
       logger.error('Join group error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }
@@ -299,8 +292,7 @@ export class MemberController {
       logger.error('Get my memberships error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }

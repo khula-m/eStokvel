@@ -2,7 +2,7 @@
 import { AuthController } from "../controllers/auth.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
 import { roleMiddleware } from "../middleware/role.middleware";
-import { authRateLimiter } from "../middleware/rateLimiter.middleware";
+import { authRateLimiter, superadminRateLimiter } from "../middleware/rateLimiter.middleware";
 import { sensitiveLimiter, memberAddLimiter } from "../middleware/security.middleware";
 import { auditLog } from "../middleware/audit.middleware";
 import {
@@ -21,7 +21,7 @@ const authController = new AuthController();
 router.post("/login", authRateLimiter, validate(loginSchema), authController.login.bind(authController));
 
 // Public routes - Superadmin web portal login (email + password)
-router.post("/superadmin/login", authRateLimiter, validate(superadminLoginSchema), authController.superadminLogin.bind(authController));
+router.post("/superadmin/login", superadminRateLimiter, validate(superadminLoginSchema), authController.superadminLogin.bind(authController));
 
 // Protected routes (any authenticated user)
 router.get("/me", authMiddleware, authController.getCurrentUser.bind(authController));

@@ -13,7 +13,7 @@
         "format": "prettier --write src/**/*.ts",
         "prisma:studio": "npx prisma studio",
         "prisma:generate": "npx prisma generate",
-        "build": "tsc",
+        "build": "npx prisma generate && tsc",
         "prisma:reset": "npx prisma db push --force-reset && npx ts-node prisma/seed.ts",
         "prisma:migrate": "npx prisma migrate dev",
         "dev": "nodemon --exec ts-node --transpile-only server.ts",

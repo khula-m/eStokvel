@@ -112,6 +112,13 @@ export const authRateLimiter = rateLimiter({
   prefix: 'rl:auth'
 });
 
+export const superadminRateLimiter = rateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === 'production' ? 30 : 100,
+  message: 'Too many login attempts, please try again later',
+  prefix: 'rl:sa'
+});
+
 export const apiRateLimiter = rateLimiter({
   windowMs: 60 * 1000,
   max: 100,

@@ -41,8 +41,7 @@ export class StokvelGroupController {
       logger.error('Create group error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }
@@ -67,8 +66,7 @@ export class StokvelGroupController {
       logger.error('Get group error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }
@@ -92,8 +90,7 @@ export class StokvelGroupController {
       logger.error('Get group by code error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }
@@ -128,8 +125,7 @@ export class StokvelGroupController {
       logger.error('Update group error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }
@@ -166,8 +162,7 @@ export class StokvelGroupController {
       logger.error('Get user groups error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }
@@ -193,8 +188,7 @@ export class StokvelGroupController {
       logger.error('Delete group error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }
@@ -232,8 +226,7 @@ export class StokvelGroupController {
       logger.error('Get group stats error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message
+        message: 'Internal server error'
       });
     }
   }
@@ -261,8 +254,7 @@ export class StokvelGroupController {
       logger.error('Join group error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message,
+        message: 'Internal server error'
       });
     }
   }
@@ -290,8 +282,7 @@ export class StokvelGroupController {
       logger.error('Get group members error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error.message,
+        message: 'Internal server error'
       });
     }
   }

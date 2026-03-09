@@ -29,7 +29,7 @@ export class AuthController {
       logger.error('Login error:', error);
       return res.status(500).json({
         success: false,
-        message: error.message || "Login failed"
+        message: "Login failed"
       });
     }
   }
@@ -61,7 +61,7 @@ export class AuthController {
       logger.error('Change PIN error:', error);
       return res.status(500).json({
         success: false,
-        message: error.message || "PIN change failed"
+        message: "PIN change failed"
       });
     }
   }
@@ -93,7 +93,7 @@ export class AuthController {
       logger.error('Create admin error:', error);
       return res.status(500).json({
         success: false,
-        message: error.message || "Failed to create admin"
+        message: "Failed to create admin"
       });
     }
   }
@@ -125,7 +125,7 @@ export class AuthController {
       logger.error('Add member error:', error);
       return res.status(500).json({
         success: false,
-        message: error.message || "Failed to add member"
+        message: "Failed to add member"
       });
     }
   }
@@ -149,7 +149,7 @@ export class AuthController {
       logger.error('Get current user error:', error);
       return res.status(500).json({
         success: false,
-        message: error.message || "Failed to get user"
+        message: "Failed to get user"
       });
     }
   }
@@ -178,7 +178,7 @@ export class AuthController {
       logger.error('Delete admin error:', error);
       return res.status(500).json({
         success: false,
-        message: error.message || "Failed to delete admin"
+        message: "Failed to delete admin"
       });
     }
   }
@@ -192,7 +192,7 @@ export class AuthController {
       logger.error('List admins error:', error);
       return res.status(500).json({
         success: false,
-        message: error.message || "Failed to list admins"
+        message: "Failed to list admins"
       });
     }
   }
@@ -206,7 +206,7 @@ export class AuthController {
       logger.error('System overview error:', error);
       return res.status(500).json({
         success: false,
-        message: error.message || "Failed to get system overview"
+        message: "Failed to get system overview"
       });
     }
   }
@@ -236,7 +236,7 @@ export class AuthController {
       logger.error('Superadmin login error:', error);
       return res.status(500).json({
         success: false,
-        message: error.message || "Superadmin login failed"
+        message: "Superadmin login failed"
       });
     }
   }
