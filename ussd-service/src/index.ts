@@ -33,8 +33,21 @@ app.get('/health', (_req: Request, res: Response) => {
  * - serviceCode: The USSD code dialed (e.g., *134*911#)
  * - phoneNumber: User's phone number
  * - text: User's input (empty on first request, accumulated inputs separated by *)
+ *
+ * Africa's Talking Setup:
+ * 1. Create an app at https://account.africastalking.com
+ * 2. Under USSD → Create Channel, set callback URL to: https://<your-domain>/ussd
+ * 3. Set AT_API_KEY env var to restrict access (optional but recommended)
  */
 app.post('/ussd', async (req: Request, res: Response) => {
+  // Optional: Validate Africa's Talking API key header
+  const atApiKey = process.env.AT_API_KEY;
+  if (atApiKey && req.headers['x-api-key'] !== atApiKey) {
+    res.set('Content-Type', 'text/plain');
+    res.status(401).send('END Unauthorized');
+    return;
+  }
+
   const { sessionId, serviceCode, phoneNumber, text } = req.body;
 
   console.log('USSD Request:', { sessionId, serviceCode, phoneNumber, text });

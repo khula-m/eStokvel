@@ -695,12 +695,12 @@ export class AuthService {
       adminMap.get(m.user.id)!.managedGroups.push(m.group);
     }
 
-    // 2. Also include SUPERADMIN users and users created by superadmin (not yet assigned to a group)
+    // 2. Also include SUPERADMIN users and admins created by superadmin (not yet assigned to a group)
     const superAndCreated = await prisma.user.findMany({
       where: {
         OR: [
           { role: 'SUPERADMIN' },
-          { createdById: { not: null } },
+          { role: 'ADMIN', createdById: { not: null } },
         ]
       },
       select: {
