@@ -5,6 +5,7 @@
 
 import { prisma } from '../utils/prisma';
 import logger from '../utils/logger';
+import { notificationService } from './notification.service';
 
 interface SendMessageInput {
   stokvelGroupId: string;
@@ -68,6 +69,14 @@ export class ChatService {
           }
         }
       });
+
+      // Send push notification to other group members (fire and forget)
+      notificationService.sendChatPushNotification(
+        senderId,
+        data.stokvelGroupId,
+        chatMessage.sender.fullName,
+        chatMessage.message
+      ).catch(err => logger.error('Chat push notification failed:', err));
 
       return {
         success: true,

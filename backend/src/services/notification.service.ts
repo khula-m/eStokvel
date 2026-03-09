@@ -7,7 +7,97 @@ import { prisma } from '../utils/prisma';
 import { smsService } from './sms.service';
 import logger from '../utils/logger';
 
+interface ExpoPushMessage {
+  to: string;
+  title: string;
+  body: string;
+  data?: Record<string, unknown>;
+  sound?: string;
+  channelId?: string;
+}
+
 export class NotificationService {
+  private static readonly EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
+
+  /**
+   * Register or update a user's Expo push token
+   */
+  async registerPushToken(userId: string, pushToken: string) {
+    try {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { expoPushToken: pushToken }
+      });
+      return { success: true };
+    } catch (error) {
+      logger.error('Error registering push token:', error);
+      return { success: false };
+    }
+  }
+
+  /**
+   * Send push notifications via Expo Push API
+   */
+  async sendPushNotifications(messages: ExpoPushMessage[]) {
+    if (messages.length === 0) return;
+
+    try {
+      const response = await fetch(NotificationService.EXPO_PUSH_URL, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(messages),
+      });
+
+      const result: any = await response.json();
+      if (result.errors) {
+        logger.error('Expo push errors:', result.errors);
+      }
+    } catch (error) {
+      logger.error('Error sending push notifications:', error);
+    }
+  }
+
+  /**
+   * Send push notification to all group members when a chat message is sent
+   */
+  async sendChatPushNotification(
+    senderId: string,
+    groupId: string,
+    senderName: string,
+    messageText: string
+  ) {
+    try {
+      const group = await prisma.stokvelGroup.findUnique({
+        where: { id: groupId },
+        include: {
+          members: {
+            include: { user: { select: { id: true, expoPushToken: true } } }
+          }
+        }
+      });
+
+      if (!group) return;
+
+      // Collect push tokens for all members except the sender
+      const messages: ExpoPushMessage[] = group.members
+        .filter((m: any) => m.user.id !== senderId && m.user.expoPushToken)
+        .map((m: any) => ({
+          to: m.user.expoPushToken!,
+          title: group.name,
+          body: `${senderName}: ${messageText.length > 100 ? messageText.slice(0, 100) + '…' : messageText}`,
+          data: { type: 'chat', groupId },
+          sound: 'default',
+          channelId: 'chat',
+        }));
+
+      await this.sendPushNotifications(messages);
+    } catch (error) {
+      logger.error('Error sending chat push notification:', error);
+    }
+  }
   /**
    * Send notification when a transaction is recorded
    */

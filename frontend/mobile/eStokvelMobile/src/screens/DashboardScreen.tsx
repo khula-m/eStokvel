@@ -1,19 +1,27 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView,
-  Modal, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform,
+  Modal, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform, StyleSheet,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import axios from 'axios';
 import { Icon } from '../components/Icon';
 import { ProgressBar } from '../components/ProgressBar';
 import { showAlert } from '../utils/alert';
 import { API_URL } from '../constants/config';
-import { COLORS } from '../constants/theme';
+import { COLORS, SPACING, RADIUS } from '../constants/theme';
+import { scaleFontSize } from '../utils/responsive';
 import { styles } from '../styles';
 import { AuthState, Group, Transaction, GroupMember, Announcement, Meeting } from '../types';
 import OzowPaymentWebView from '../components/OzowPaymentWebView';
 import { PaymentModal } from '../components/PaymentModal';
+
+const shadow = (offsetY: number, blur: number, opacity: number): any =>
+  Platform.OS === 'web'
+    ? { boxShadow: `0 ${offsetY}px ${blur}px rgba(0,0,0,${opacity})` }
+    : { shadowColor: '#000', shadowOffset: { width: 0, height: offsetY }, shadowOpacity: opacity, shadowRadius: blur / 2, elevation: Math.round(blur / 2) };
 
 interface DashboardScreenProps {
   auth: AuthState;
@@ -426,15 +434,17 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
   if (isSuperAdmin) {
     return (
       <ScrollView style={styles.screenContainer} contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
-        <View style={{ backgroundColor: '#F3E5F5', borderRadius: 24, padding: 24, alignItems: 'center', marginBottom: 24 }}>
-          <Icon name="admin-panel-settings" size={64} color="#9C27B0" />
-        </View>
-        <Text style={{ fontSize: 22, fontWeight: '800', color: COLORS.text, textAlign: 'center', marginBottom: 8 }}>Web Portal Required</Text>
-        <Text style={{ fontSize: 15, color: COLORS.textLight, textAlign: 'center', lineHeight: 22, marginBottom: 24 }}>
-          System administration is only available through the secure web portal. Please log in at the web dashboard to manage admins, groups, and system settings.
-        </Text>
-        <View style={{ backgroundColor: '#EFF6FF', borderRadius: 12, padding: 16, width: '100%', marginBottom: 24 }}>
-          <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary, textAlign: 'center' }}>admin.estokvel.co.za</Text>
+        <View style={{ backgroundColor: COLORS.primarySoft, borderRadius: RADIUS.xxl, padding: 28, alignItems: 'center', marginBottom: SPACING.lg, width: '100%' }}>
+          <View style={{ width: 80, height: 80, borderRadius: RADIUS.xl, backgroundColor: '#DDD6FE', justifyContent: 'center', alignItems: 'center', marginBottom: SPACING.md }}>
+            <Icon name="admin-panel-settings" size={44} color="#7C3AED" />
+          </View>
+          <Text style={{ fontSize: scaleFontSize(22), fontWeight: '800', color: COLORS.text, textAlign: 'center', marginBottom: 8 }}>Web Portal Required</Text>
+          <Text style={{ fontSize: 15, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: SPACING.lg }}>
+            System administration is only available through the secure web portal. Please log in at the web dashboard.
+          </Text>
+          <View style={{ backgroundColor: '#FFFFFF', borderRadius: RADIUS.md, padding: SPACING.md, width: '100%', ...shadow(2, 8, 0.06) }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.primary, textAlign: 'center' }}>admin.estokvel.co.za</Text>
+          </View>
         </View>
         <TouchableOpacity style={[styles.logoutButtonLarge, { width: '100%' }]} onPress={onLogout}>
           <Icon name="logout" size={20} color={COLORS.error} />
@@ -457,14 +467,15 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
         <ScrollView style={styles.screenContainer}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); openAdminSubScreen(adminView, selectedGroup); }} colors={[COLORS.primary]} />}>
           {/* Sub-screen Header */}
-          <View style={[styles.subScreenHeader, { backgroundColor: COLORS.admin }]}>
+          <LinearGradient colors={['#0A2463', '#0F3285']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+            style={[styles.subScreenHeader, { paddingVertical: SPACING.md, paddingHorizontal: SPACING.md }]}>
             <TouchableOpacity onPress={() => setAdminView('main')} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Icon name="arrow-back" size={24} color="#fff" />
               <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Back</Text>
             </TouchableOpacity>
             <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{selectedGroup.name}</Text>
             <View style={{ width: 60 }} />
-          </View>
+          </LinearGradient>
 
           {/* Analytics Sub-screen */}
           {adminView === 'analytics' && (
@@ -956,7 +967,8 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
         <ScrollView style={styles.screenContainer}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}>
           {/* Header */}
-          <View style={[styles.dashboardHeader, { backgroundColor: COLORS.admin }]}>
+          <LinearGradient colors={['#0A2463', '#0F3285', '#1A43A8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={{ paddingTop: 20, paddingBottom: 32, paddingHorizontal: 20, borderBottomLeftRadius: RADIUS.xxl, borderBottomRightRadius: RADIUS.xxl }}>
             <View style={styles.headerContent}>
               <View style={styles.headerLeft}>
                 <View style={styles.headerIconContainer}>
@@ -973,7 +985,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                 </View>
               </View>
             </View>
-          </View>
+          </LinearGradient>
 
           {/* Your Groups */}
           <View style={styles.cardElevated}>
@@ -1215,7 +1227,8 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
       <ScrollView style={styles.screenContainer}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}>
         {/* Header */}
-        <View style={[styles.dashboardHeader, { backgroundColor: COLORS.member }]}>
+        <LinearGradient colors={['#0D47A1', '#1565C0', '#1E88E5']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={{ paddingTop: 20, paddingBottom: 32, paddingHorizontal: 20, borderBottomLeftRadius: RADIUS.xxl, borderBottomRightRadius: RADIUS.xxl }}>
           <View style={styles.headerContent}>
             <View style={styles.headerLeft}>
               <View style={styles.headerIconContainer}>
@@ -1236,7 +1249,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
               <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600', marginLeft: 8 }}>{primaryGroup.name}</Text>
             </View>
           )}
-        </View>
+        </LinearGradient>
 
         {/* Group Selector for multi-group members */}
         {memberGroups.length > 1 && (

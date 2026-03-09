@@ -5,6 +5,31 @@ import logger from '../utils/logger';
 
 export class NotificationController {
   /**
+   * Register Expo push token for the authenticated user
+   */
+  async registerPushToken(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'Authentication required' });
+      }
+
+      const { pushToken } = req.body;
+      if (!pushToken || typeof pushToken !== 'string' || !pushToken.startsWith('ExponentPushToken[')) {
+        return res.status(400).json({ success: false, message: 'Valid Expo push token is required' });
+      }
+
+      await notificationService.registerPushToken(userId, pushToken);
+
+      return res.status(200).json({ success: true, message: 'Push token registered' });
+    } catch (error: any) {
+      logger.error('Register push token error:', error);
+      return res.status(500).json({ success: false, message: 'Failed to register push token' });
+    }
+  }
+
+  /**
    * Get user's notifications
    */
   async getNotifications(req: Request, res: Response) {

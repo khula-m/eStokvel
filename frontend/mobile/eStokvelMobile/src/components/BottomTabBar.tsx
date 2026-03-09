@@ -1,7 +1,8 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, Platform, StyleSheet } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, TouchableOpacity, Platform, StyleSheet, Animated } from 'react-native';
 import { TabIcon } from './TabIcon';
-import { COLORS } from '../constants/theme';
+import { COLORS, SPACING, RADIUS } from '../constants/theme';
+import * as Haptics from 'expo-haptics';
 
 interface BottomTabBarProps {
   currentTab: string;
@@ -17,29 +18,42 @@ const allTabs = [
   { key: 'profile', label: 'Profile' },
 ];
 
+const shadow = (offsetY: number, blur: number, opacity: number): any =>
+  Platform.OS === 'web'
+    ? { boxShadow: `0 ${offsetY}px ${blur}px rgba(0,0,0,${opacity})` }
+    : { shadowColor: '#000', shadowOffset: { width: 0, height: offsetY }, shadowOpacity: opacity, shadowRadius: blur / 2, elevation: Math.round(blur / 2) };
+
 export const BottomTabBar = ({ currentTab, onTabChange, userRole }: BottomTabBarProps) => {
   const tabs = userRole === 'SUPERADMIN'
     ? allTabs.filter(t => ['dashboard', 'profile'].includes(t.key))
     : allTabs;
 
+  const handlePress = (key: string) => {
+    if (key !== currentTab) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    }
+    onTabChange(key);
+  };
+
   return (
-    <View style={tabBarStyles.container}>
+    <View style={s.container}>
       {tabs.map((tab) => {
         const active = currentTab === tab.key;
         return (
           <TouchableOpacity
             key={tab.key}
-            style={tabBarStyles.item}
-            onPress={() => onTabChange(tab.key)}
+            style={s.item}
+            onPress={() => handlePress(tab.key)}
             activeOpacity={0.7}
             accessibilityLabel={`${tab.label} tab`}
             accessibilityRole="tab"
             accessibilityState={{ selected: active }}
           >
-            <View style={[tabBarStyles.iconWrapper, active && tabBarStyles.iconWrapperActive]}>
+            <View style={[s.iconWrapper, active && s.iconWrapperActive]}>
               <TabIcon name={tab.key} focused={active} />
+              {active && <View style={s.activeDot} />}
             </View>
-            <Text style={[tabBarStyles.label, active && tabBarStyles.labelActive]}>{tab.label}</Text>
+            <Text style={[s.label, active && s.labelActive]}>{tab.label}</Text>
           </TouchableOpacity>
         );
       })}
@@ -47,33 +61,39 @@ export const BottomTabBar = ({ currentTab, onTabChange, userRole }: BottomTabBar
   );
 };
 
-const tabBarStyles = StyleSheet.create({
+const s = StyleSheet.create({
   container: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    paddingTop: 6,
-    paddingBottom: Platform.OS === 'web' ? 12 : 24,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'web' ? 12 : 28,
     borderTopWidth: 0,
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0 -4px 20px rgba(0,0,0,0.06)' }
-      : { shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 8 }),
+    ...shadow(-4, 20, 0.06),
   } as any,
   item: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 4,
+    paddingVertical: 2,
   },
   iconWrapper: {
-    width: 44,
-    height: 32,
-    borderRadius: 16,
+    width: 48,
+    height: 34,
+    borderRadius: RADIUS.lg,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 2,
   },
   iconWrapperActive: {
-    backgroundColor: `${COLORS.primary}14`,
+    backgroundColor: COLORS.primarySoft,
+  },
+  activeDot: {
+    position: 'absolute',
+    bottom: -2,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.primary,
   },
   label: {
     fontSize: 11,

@@ -1,0 +1,150 @@
+_format_version: "3.0"
+
+services:
+  # ── User Service (auth, users, superadmin) ──
+  - name: user-service
+    url: http://user-service:3001
+    routes:
+      - name: auth-routes
+        paths:
+          - /api/auth
+        strip_path: false
+      - name: user-routes
+        paths:
+          - /api/users
+        strip_path: false
+      - name: superadmin-routes
+        paths:
+          - /api/superadmin
+        strip_path: false
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: redis
+          redis_host: redis
+          redis_port: 6379
+
+  # ── Group Service (groups, members) ──
+  - name: group-service
+    url: http://group-service:3002
+    routes:
+      - name: group-routes
+        paths:
+          - /api/groups
+        strip_path: false
+      - name: member-routes
+        paths:
+          - /api/members
+        strip_path: false
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 120
+          policy: redis
+          redis_host: redis
+          redis_port: 6379
+
+  # ── Transaction Service (transactions, payments) ──
+  - name: transaction-service
+    url: http://transaction-service:3003
+    routes:
+      - name: transaction-routes
+        paths:
+          - /api/transactions
+        strip_path: false
+      - name: payment-routes
+        paths:
+          - /api/payments
+        strip_path: false
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 100
+          policy: redis
+          redis_host: redis
+          redis_port: 6379
+
+  # ── Payout Service (payouts, ozow webhooks) ──
+  - name: payout-service
+    url: http://payout-service:3004
+    routes:
+      - name: payout-routes
+        paths:
+          - /api/payouts
+        strip_path: false
+      - name: ozow-routes
+        paths:
+          - /api/ozow
+        strip_path: false
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: redis
+          redis_host: redis
+          redis_port: 6379
+
+  # ── Chat Service ──
+  - name: chat-service
+    url: http://chat-service:3005
+    routes:
+      - name: chat-routes
+        paths:
+          - /api/chat
+        strip_path: false
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 200
+          policy: redis
+          redis_host: redis
+          redis_port: 6379
+
+  # ── Notification Service (notifications, announcements, meetings) ──
+  - name: notification-service
+    url: http://notification-service:3006
+    routes:
+      - name: notification-routes
+        paths:
+          - /api/notifications
+        strip_path: false
+      - name: announcement-routes
+        paths:
+          - /api/announcements
+        strip_path: false
+      - name: meeting-routes
+        paths:
+          - /api/meetings
+        strip_path: false
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 100
+          policy: redis
+          redis_host: redis
+          redis_port: 6379
+
+# ── Global Plugins ──
+plugins:
+  - name: cors
+    config:
+      origins:
+        - "*"
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - PATCH
+        - OPTIONS
+      headers:
+        - Accept
+        - Authorization
+        - Content-Type
+      credentials: true
+      max_age: 3600
+  - name: request-termination
+    config:
+      status_code: 404
+      message: "Route not found"

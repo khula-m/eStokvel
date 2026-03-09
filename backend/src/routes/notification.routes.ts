@@ -7,6 +7,9 @@ const router = Router();
 // All notification routes require authentication
 router.use(authMiddleware);
 
+// Register push token
+router.post('/push-token', notificationController.registerPushToken.bind(notificationController));
+
 // Get user's notifications
 router.get('/', notificationController.getNotifications.bind(notificationController));
 

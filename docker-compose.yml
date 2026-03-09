@@ -1,0 +1,167 @@
+version: "3.8"
+
+services:
+  # ── Infrastructure ──
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: estokvel
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── API Gateway ──
+  kong:
+    image: kong:3.7
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/kong.yml
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+      KONG_LOG_LEVEL: info
+    volumes:
+      - ./api-gateway/kong.yml:/kong/kong.yml:ro
+    ports:
+      - "8000:8000"   # Proxy
+      - "8001:8001"   # Admin
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ── Microservices ──
+  user-service:
+    build:
+      context: .
+      dockerfile: services/user-service/Dockerfile
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/estokvel
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-estokvel-dev-secret-change-in-production}
+      NODE_ENV: development
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  group-service:
+    build:
+      context: .
+      dockerfile: services/group-service/Dockerfile
+    environment:
+      PORT: 3002
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/estokvel
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-estokvel-dev-secret-change-in-production}
+      NODE_ENV: development
+    ports:
+      - "3002:3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  transaction-service:
+    build:
+      context: .
+      dockerfile: services/transaction-service/Dockerfile
+    environment:
+      PORT: 3003
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/estokvel
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-estokvel-dev-secret-change-in-production}
+      NODE_ENV: development
+    ports:
+      - "3003:3003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  payout-service:
+    build:
+      context: .
+      dockerfile: services/payout-service/Dockerfile
+    environment:
+      PORT: 3004
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/estokvel
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-estokvel-dev-secret-change-in-production}
+      OZOW_SITE_CODE: ${OZOW_SITE_CODE:-}
+      OZOW_PRIVATE_KEY: ${OZOW_PRIVATE_KEY:-}
+      OZOW_API_KEY: ${OZOW_API_KEY:-}
+      OZOW_IS_TEST: "true"
+      APP_BASE_URL: http://kong:8000
+      NODE_ENV: development
+    ports:
+      - "3004:3004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  chat-service:
+    build:
+      context: .
+      dockerfile: services/chat-service/Dockerfile
+    environment:
+      PORT: 3005
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/estokvel
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-estokvel-dev-secret-change-in-production}
+      NODE_ENV: development
+    ports:
+      - "3005:3005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: services/notification-service/Dockerfile
+    environment:
+      PORT: 3006
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/estokvel
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-estokvel-dev-secret-change-in-production}
+      SMS_ENABLED: "false"
+      AT_API_KEY: ${AT_API_KEY:-}
+      AT_USERNAME: ${AT_USERNAME:-sandbox}
+      NODE_ENV: development
+    ports:
+      - "3006:3006"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:

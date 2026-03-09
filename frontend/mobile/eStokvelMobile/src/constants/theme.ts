@@ -1,16 +1,65 @@
 export const COLORS = {
   primary: '#0A2463',
   primaryLight: '#1E3A8A',
+  primarySoft: '#EEF2FF',
   secondary: '#D4A017',
+  secondarySoft: '#FFFBEB',
   accent: '#059669',
+  accentSoft: '#ECFDF5',
   admin: '#0A2463',
   member: '#1565C0',
   background: '#F5F7FA',
+  surface: '#FFFFFF',
   card: '#FFFFFF',
   text: '#1A1A2E',
+  textSecondary: '#475569',
   textLight: '#6B7280',
+  textMuted: '#94A3B8',
   success: '#059669',
+  successSoft: '#D1FAE5',
   warning: '#D97706',
+  warningSoft: '#FEF3C7',
   error: '#DC2626',
+  errorSoft: '#FEE2E2',
   border: '#E5E7EB',
+  borderLight: '#F1F5F9',
+  shadow: '#000',
+  overlay: 'rgba(0,0,0,0.45)',
+};
+
+export const SPACING = {
+  xs: 4,
+  sm: 8,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  xxl: 48,
+};
+
+export const RADIUS = {
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 28,
+  pill: 999,
+  circle: 9999,
+};
+
+export const FONT = {
+  xs: 11,
+  sm: 13,
+  md: 15,
+  lg: 17,
+  xl: 20,
+  xxl: 28,
+  hero: 36,
+  weight: {
+    normal: '400' as const,
+    medium: '500' as const,
+    semibold: '600' as const,
+    bold: '700' as const,
+    extrabold: '800' as const,
+    black: '900' as const,
+  },
 };

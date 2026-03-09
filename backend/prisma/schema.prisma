@@ -25,6 +25,7 @@ model User {
   lastLoginIp          String?        // Track login IP for audit
   failedAttempts       Int            @default(0)    // Failed login counter
   lockedUntil          DateTime?      // Account lockout timestamp
+  expoPushToken        String?        // Expo push notification token
   createdById          String?        // Who created this account (SUPERADMIN/ADMIN)
   createdByUser        User?          @relation("CreatedByUser", fields: [createdById], references: [id])
   createdUsers         User[]         @relation("CreatedByUser")

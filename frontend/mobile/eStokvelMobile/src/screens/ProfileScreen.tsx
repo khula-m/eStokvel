@@ -1,12 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl, StyleSheet, Platform } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import axios from 'axios';
 import { Icon } from '../components/Icon';
 import { showAlert } from '../utils/alert';
 import { API_URL } from '../constants/config';
-import { COLORS } from '../constants/theme';
-import { styles } from '../styles';
+import { COLORS, SPACING, RADIUS } from '../constants/theme';
+import { scaleFontSize } from '../utils/responsive';
 import { AuthState } from '../types';
+
+const shadow = (y: number, blur: number, opacity: number): any =>
+  Platform.OS === 'web'
+    ? { boxShadow: `0 ${y}px ${blur}px rgba(0,0,0,${opacity})` }
+    : { shadowColor: '#000', shadowOffset: { width: 0, height: y }, shadowOpacity: opacity, shadowRadius: blur / 2, elevation: Math.round(blur / 2) };
 
 export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState; onLogout: () => void; onNavigate?: (screen: string) => void }) => {
   const [membershipCount, setMembershipCount] = useState(0);
@@ -20,7 +27,6 @@ export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState;
     try {
       const headers = { Authorization: `Bearer ${auth.token}` };
       if (isSuperAdmin) {
-        // SUPERADMIN doesn't have personal groups/contributions
         setMembershipCount(0);
         setTotalContributed(0);
         return;
@@ -48,109 +54,188 @@ export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState;
     return phone;
   };
   const getInitials = (name: string) => name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
-  const getRoleColor = (role: string) => ({ SUPERADMIN: '#9C27B0', ADMIN: COLORS.primary, MEMBER: '#607D8B' }[role] || '#607D8B');
   const getRoleLabel = (role: string) => ({ SUPERADMIN: 'System Administrator', ADMIN: 'Group Administrator', MEMBER: 'Member' }[role] || role);
   const formatCurrency = (amount: number | string) => `R ${Number(amount || 0).toFixed(2)}`;
-  // Use effectiveRole for display (shows ADMIN if admin of any group)
   const displayRole = auth.user?.role === 'SUPERADMIN' ? 'SUPERADMIN' : (auth.user?.effectiveRole || auth.user?.role || 'MEMBER');
 
   if (loading) {
-    return <View style={styles.centered}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
+    return <View style={ps.centered}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
   }
 
   return (
-    <ScrollView style={styles.screenContainer} showsVerticalScrollIndicator={false}
+    <ScrollView style={ps.container} showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchProfileData(); }} colors={[COLORS.primary]} />}>
-      <View style={styles.profileHeaderCard}>
-        <View style={[styles.profileAvatar, { backgroundColor: getRoleColor(displayRole) }]}>
-          <Text style={styles.profileAvatarText}>{getInitials(auth.user?.fullName || '')}</Text>
+
+      {/* Gradient Profile Header */}
+      <LinearGradient colors={['#0A2463', '#0F3285', '#1A43A8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        style={ps.header}>
+        <View style={ps.avatarRing}>
+          <View style={ps.avatar}>
+            <Text style={ps.avatarText}>{getInitials(auth.user?.fullName || '')}</Text>
+          </View>
         </View>
-        <Text style={styles.profileFullName}>{auth.user?.fullName}</Text>
-        <View style={[styles.profileRoleBadge, { backgroundColor: getRoleColor(displayRole) }]}>
-          <Text style={styles.profileRoleBadgeText}>{getRoleLabel(displayRole)}</Text>
+        <Text style={ps.fullName}>{auth.user?.fullName}</Text>
+        <View style={ps.roleBadge}>
+          <Text style={ps.roleBadgeText}>{getRoleLabel(displayRole)}</Text>
         </View>
+
         {!isSuperAdmin && (
-          <View style={styles.profileStatsRow}>
-            <View style={styles.profileStatItem}>
-              <Text style={styles.profileStatValue}>{membershipCount}</Text>
-              <Text style={styles.profileStatLabel}>Stokvel Groups</Text>
+          <View style={ps.statsRow}>
+            <View style={ps.statItem}>
+              <Text style={ps.statValue}>{membershipCount}</Text>
+              <Text style={ps.statLabel}>Groups</Text>
             </View>
-            <View style={styles.profileStatDivider} />
-            <View style={styles.profileStatItem}>
-              <Text style={styles.profileStatValue}>{formatCurrency(totalContributed)}</Text>
-              <Text style={styles.profileStatLabel}>Total Contributed</Text>
+            <View style={ps.statDivider} />
+            <View style={ps.statItem}>
+              <Text style={ps.statValue}>{formatCurrency(totalContributed)}</Text>
+              <Text style={ps.statLabel}>Contributed</Text>
             </View>
           </View>
         )}
-      </View>
+      </LinearGradient>
 
-      <View style={styles.profileSection}>
-        <View style={styles.profileSectionHeaderRow}>
+      {/* Contact Information */}
+      <View style={ps.section}>
+        <View style={ps.sectionHeaderRow}>
           <Icon name="phone" size={18} color={COLORS.primary} />
-          <Text style={styles.profileSectionHeader}>Contact Information</Text>
+          <Text style={ps.sectionHeader}>Contact Information</Text>
         </View>
-        <View style={styles.profileInfoRow}>
-          <View style={[styles.profileInfoIcon, { backgroundColor: '#EFF6FF' }]}><Icon name="phone" size={18} color={COLORS.primary} /></View>
-          <View style={styles.profileInfoContent}>
-            <Text style={styles.profileInfoLabel}>Mobile Phone Number</Text>
-            <Text style={styles.profileInfoValue}>{formatPhone(auth.user?.phoneNumber || '')}</Text>
+        <View style={ps.infoRow}>
+          <View style={[ps.infoIcon, { backgroundColor: COLORS.primarySoft }]}><Icon name="phone" size={18} color={COLORS.primary} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={ps.infoLabel}>Mobile Phone Number</Text>
+            <Text style={ps.infoValue}>{formatPhone(auth.user?.phoneNumber || '')}</Text>
           </View>
         </View>
-        <View style={styles.profileInfoRow}>
-          <View style={[styles.profileInfoIcon, { backgroundColor: '#E3F2FD' }]}><Icon name="email" size={18} color={COLORS.member} /></View>
-          <View style={styles.profileInfoContent}>
-            <Text style={styles.profileInfoLabel}>Email Address</Text>
-            <Text style={styles.profileInfoValue}>{auth.user?.email || 'No email address provided'}</Text>
+        <View style={[ps.infoRow, { borderBottomWidth: 0 }]}>
+          <View style={[ps.infoIcon, { backgroundColor: '#E3F2FD' }]}><Icon name="email" size={18} color="#1565C0" /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={ps.infoLabel}>Email Address</Text>
+            <Text style={ps.infoValue}>{auth.user?.email || 'No email address provided'}</Text>
           </View>
         </View>
       </View>
 
-      <View style={styles.profileSection}>
-        <View style={styles.profileSectionHeaderRow}>
+      {/* Account Information */}
+      <View style={ps.section}>
+        <View style={ps.sectionHeaderRow}>
           <Icon name="lock" size={18} color={COLORS.primary} />
-          <Text style={styles.profileSectionHeader}>Account Information</Text>
+          <Text style={ps.sectionHeader}>Account Information</Text>
         </View>
-        <View style={styles.profileInfoRow}>
-          <View style={[styles.profileInfoIcon, { backgroundColor: '#F3E5F5' }]}><Icon name="person" size={18} color="#7B1FA2" /></View>
-          <View style={styles.profileInfoContent}>
-            <Text style={styles.profileInfoLabel}>Full Name</Text>
-            <Text style={styles.profileInfoValue}>{auth.user?.fullName || 'Not set'}</Text>
+        <View style={ps.infoRow}>
+          <View style={[ps.infoIcon, { backgroundColor: '#F3E5F5' }]}><Icon name="person" size={18} color="#7B1FA2" /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={ps.infoLabel}>Full Name</Text>
+            <Text style={ps.infoValue}>{auth.user?.fullName || 'Not set'}</Text>
           </View>
         </View>
-        <View style={styles.profileInfoRow}>
-          <View style={[styles.profileInfoIcon, { backgroundColor: '#FFF3E0' }]}><Icon name="person" size={18} color={COLORS.accent} /></View>
-          <View style={styles.profileInfoContent}>
-            <Text style={styles.profileInfoLabel}>Account Type</Text>
-            <Text style={styles.profileInfoValue}>{getRoleLabel(displayRole)}</Text>
+        <View style={[ps.infoRow, { borderBottomWidth: 0 }]}>
+          <View style={[ps.infoIcon, { backgroundColor: '#FFF3E0' }]}><Icon name="person" size={18} color={COLORS.accent} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={ps.infoLabel}>Account Type</Text>
+            <Text style={ps.infoValue}>{getRoleLabel(displayRole)}</Text>
           </View>
         </View>
       </View>
 
-      <View style={styles.profileSection}>
-        <View style={styles.profileSectionHeaderRow}>
+      {/* Settings */}
+      <View style={ps.section}>
+        <View style={ps.sectionHeaderRow}>
           <Icon name="settings" size={18} color={COLORS.primary} />
-          <Text style={styles.profileSectionHeader}>Settings & Preferences</Text>
+          <Text style={ps.sectionHeader}>Settings & Preferences</Text>
         </View>
         {!isSuperAdmin && (
-          <TouchableOpacity style={styles.profileActionRow} onPress={() => onNavigate?.('change-pin')}
+          <TouchableOpacity style={ps.actionRow}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onNavigate?.('change-pin'); }}
             accessibilityLabel="Change your PIN" accessibilityRole="button">
-            <View style={styles.profileActionLeft}>
-              <View style={[styles.profileActionIconBg, { backgroundColor: '#EFF6FF' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={[ps.infoIcon, { backgroundColor: COLORS.primarySoft }]}>
                 <Icon name="lock" size={18} color={COLORS.primary} />
               </View>
-              <Text style={styles.profileActionText}>Change Your PIN</Text>
+              <Text style={ps.actionText}>Change Your PIN</Text>
             </View>
-            <Icon name="chevron-right" size={20} color={COLORS.textLight} />
+            <Icon name="chevron-right" size={20} color={COLORS.textMuted} />
           </TouchableOpacity>
         )}
       </View>
 
-      <TouchableOpacity style={styles.logoutButtonLarge} onPress={onLogout}
+      {/* Logout */}
+      <TouchableOpacity style={ps.logoutBtn}
+        onPress={() => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); onLogout(); }}
         accessibilityLabel="Sign out" accessibilityRole="button">
         <Icon name="logout" size={20} color={COLORS.error} />
-        <Text style={styles.logoutButtonLargeText}>Sign Out of Your Account</Text>
+        <Text style={ps.logoutText}>Sign Out of Your Account</Text>
       </TouchableOpacity>
-      <Text style={styles.versionText}>eStokvel v2.0.0 · Proudly South African</Text>
+      <Text style={ps.version}>eStokvel v2.0.0 · Proudly South African</Text>
     </ScrollView>
   );
 };
+
+const ps = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' },
+
+  header: {
+    alignItems: 'center', paddingTop: SPACING.lg, paddingBottom: SPACING.xl,
+    paddingHorizontal: SPACING.lg,
+    borderBottomLeftRadius: RADIUS.xxl, borderBottomRightRadius: RADIUS.xxl,
+  },
+  avatarRing: {
+    width: 100, height: 100, borderRadius: 50,
+    borderWidth: 3, borderColor: 'rgba(255,255,255,0.25)',
+    justifyContent: 'center', alignItems: 'center', marginBottom: SPACING.md,
+  },
+  avatar: {
+    width: 88, height: 88, borderRadius: 44,
+    backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center', alignItems: 'center',
+  },
+  avatarText: { fontSize: 34, fontWeight: '800', color: '#fff' },
+  fullName: { fontSize: scaleFontSize(22), fontWeight: '800', color: '#fff', marginBottom: SPACING.sm },
+  roleBadge: {
+    backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: SPACING.lg,
+    paddingVertical: 7, borderRadius: RADIUS.pill, marginBottom: SPACING.lg,
+  },
+  roleBadgeText: { fontSize: 12, fontWeight: '700', color: '#fff', letterSpacing: 0.3 },
+  statsRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: RADIUS.lg,
+    paddingVertical: SPACING.md, paddingHorizontal: SPACING.lg, width: '100%',
+  },
+  statItem: { flex: 1, alignItems: 'center' },
+  statValue: { fontSize: scaleFontSize(18), fontWeight: '800', color: '#fff' },
+  statLabel: { fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 4, fontWeight: '500' },
+  statDivider: { width: 1, height: 32, backgroundColor: 'rgba(255,255,255,0.15)' },
+
+  section: {
+    backgroundColor: '#fff', marginHorizontal: SPACING.md, marginTop: SPACING.md,
+    borderRadius: RADIUS.xl, padding: SPACING.lg,
+    ...shadow(2, 8, 0.04),
+  },
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.md },
+  sectionHeader: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  infoRow: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: SPACING.md,
+    borderBottomWidth: 1, borderBottomColor: COLORS.borderLight,
+  },
+  infoIcon: {
+    width: 38, height: 38, borderRadius: RADIUS.md,
+    justifyContent: 'center', alignItems: 'center', marginRight: SPACING.md,
+  },
+  infoLabel: { fontSize: 12, color: COLORS.textMuted, fontWeight: '500' },
+  infoValue: { fontSize: 15, fontWeight: '600', color: COLORS.text, marginTop: 2 },
+
+  actionRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: SPACING.md,
+  },
+  actionText: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
+
+  logoutBtn: {
+    flexDirection: 'row', backgroundColor: '#FEF2F2', marginHorizontal: SPACING.md,
+    marginTop: SPACING.md, padding: SPACING.lg, borderRadius: RADIUS.lg,
+    alignItems: 'center', justifyContent: 'center', gap: SPACING.sm,
+    borderWidth: 1, borderColor: '#FECACA',
+  },
+  logoutText: { color: '#DC2626', fontSize: scaleFontSize(16), fontWeight: '700' },
+  version: { textAlign: 'center', color: COLORS.textMuted, marginVertical: SPACING.lg, fontSize: 12 },
+});
