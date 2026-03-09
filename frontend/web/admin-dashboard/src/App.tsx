@@ -6,6 +6,7 @@ import DashboardPage from './pages/DashboardPage';
 import GroupsPage from './pages/GroupsPage';
 import GroupDetailPage from './pages/GroupDetailPage';
 import AdminsPage from './pages/AdminsPage';
+import MembersPage from './pages/MembersPage';
 import TransactionsPage from './pages/TransactionsPage';
 import SuperAdminToolsPage from './pages/SuperAdminToolsPage';
 import AuditLogPage from './pages/AuditLogPage';
@@ -48,6 +49,7 @@ function AppRoutes() {
         <Route path="groups" element={<GroupsPage />} />
         <Route path="groups/:id" element={<GroupDetailPage />} />
         <Route path="admins" element={<AdminsPage />} />
+        <Route path="members" element={<MembersPage />} />
         <Route path="transactions" element={<TransactionsPage />} />
         <Route path="tools" element={<SuperAdminToolsPage />} />
         <Route path="audit-logs" element={<AuditLogPage />} />

@@ -727,6 +727,66 @@ export class AuthService {
     };
   }
 
+  // ============ SUPERADMIN: List all members ============
+  async listMembers(page: number = 1, limit: number = 50) {
+    const skip = (page - 1) * limit;
+
+    const [members, total] = await Promise.all([
+      prisma.member.findMany({
+        where: { role: 'MEMBER' },
+        include: {
+          user: {
+            select: {
+              id: true,
+              phoneNumber: true,
+              fullName: true,
+              role: true,
+              createdAt: true,
+              lastLogin: true,
+            }
+          },
+          group: {
+            select: {
+              id: true,
+              name: true,
+              isActive: true,
+            }
+          }
+        },
+        orderBy: { joinedAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.member.count({ where: { role: 'MEMBER' } }),
+    ]);
+
+    // Group by user for a cleaner response
+    const userMap = new Map<string, any>();
+    for (const m of members) {
+      if (!userMap.has(m.user.id)) {
+        userMap.set(m.user.id, {
+          ...m.user,
+          groups: [],
+          paymentStatus: m.paymentStatus,
+        });
+      }
+      userMap.get(m.user.id)!.groups.push({
+        ...m.group,
+        memberId: m.id,
+        paymentStatus: m.paymentStatus,
+        joinedAt: m.joinedAt,
+      });
+    }
+
+    const data = Array.from(userMap.values());
+
+    return {
+      success: true,
+      data: { members: data, total, page, limit },
+      message: `Found ${data.length} member(s)`
+    };
+  }
+
   // ============ SUPERADMIN: System overview ============
   async getSystemOverview() {
     return cacheGetOrSet('system:overview', 60, async () => {

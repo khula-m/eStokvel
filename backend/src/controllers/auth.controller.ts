@@ -197,6 +197,22 @@ export class AuthController {
     }
   }
 
+  // ============ SUPERADMIN: List Members ============
+  async listMembers(req: any, res: Response) {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+      const result = await authService.listMembers(page, limit);
+      return res.status(200).json(result);
+    } catch (error: any) {
+      logger.error('List members error:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to list members"
+      });
+    }
+  }
+
   // ============ SUPERADMIN: System Overview ============
   async getSystemOverview(_req: any, res: Response) {
     try {

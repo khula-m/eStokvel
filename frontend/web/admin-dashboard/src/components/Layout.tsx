@@ -3,6 +3,7 @@ import { useAuth } from '../AuthContext';
 import {
   LayoutDashboard,
   Users,
+  UserCheck,
   Building2,
   ArrowLeftRight,
   LogOut,
@@ -18,6 +19,7 @@ const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/groups', icon: Building2, label: 'Groups' },
   { to: '/admins', icon: Users, label: 'Admins' },
+  { to: '/members', icon: UserCheck, label: 'Members' },
   { to: '/transactions', icon: ArrowLeftRight, label: 'Transactions' },
   { to: '/tools', icon: Wrench, label: 'Tools' },
   { to: '/audit-logs', icon: ScrollText, label: 'Audit Logs' },

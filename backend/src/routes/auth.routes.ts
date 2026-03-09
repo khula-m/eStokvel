@@ -30,6 +30,7 @@ router.post("/change-pin", authMiddleware, sensitiveLimiter, auditLog('PIN_CHANG
 // SUPERADMIN-only routes
 router.post("/admin/create", authMiddleware, roleMiddleware(['SUPERADMIN']), auditLog('ADMIN_CREATE'), validate(createAdminSchema), authController.createAdmin.bind(authController));
 router.get("/admin/list", authMiddleware, roleMiddleware(['SUPERADMIN']), authController.listAdmins.bind(authController));
+router.get("/member/list", authMiddleware, roleMiddleware(['SUPERADMIN']), authController.listMembers.bind(authController));
 router.delete("/admin/:adminId", authMiddleware, roleMiddleware(['SUPERADMIN']), auditLog('ADMIN_DELETE'), authController.deleteAdmin.bind(authController));
 router.get("/system/overview", authMiddleware, roleMiddleware(['SUPERADMIN']), authController.getSystemOverview.bind(authController));
 

@@ -72,6 +72,8 @@ export const transactionApi = {
 
 // ============ Members ============
 export const memberApi = {
+  list: (params?: { page?: number; limit?: number }) =>
+    api.get('/auth/member/list', { params }),
   remove: (memberId: string) => api.delete(`/auth/member/${memberId}`),
 };
 
