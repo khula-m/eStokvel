@@ -164,7 +164,7 @@ const ls = StyleSheet.create({
   headerTitle: {
     fontSize: scaleFontSize(20), fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.3,
   },
-  scrollContent: { flexGrow: 1, paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xxl },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xxl },
   card: {
     backgroundColor: '#FFFFFF', borderRadius: RADIUS.xxl, padding: SPACING.lg,
     marginTop: SPACING.sm,
