@@ -49,18 +49,15 @@ export const LoginScreen = ({ onNavigate, onLogin }: LoginScreenProps) => {
 
   return (
     <View style={ls.root}>
-      {/* Gradient header */}
+      {/* Compact gradient header */}
       <LinearGradient colors={['#0A2463', '#0F3285', '#1A43A8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={ls.header}>
         <SafeAreaView edges={['top']}>
-          <TouchableOpacity onPress={() => onNavigate('landing')} style={ls.backBtn} accessibilityLabel="Back to home" accessibilityRole="button">
-            <Icon name="arrow-back" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
-          <View style={ls.headerContent}>
-            <View style={ls.logoWrap}>
-              <Icon name="account-balance-wallet" size={28} color="#FFFFFF" />
-            </View>
+          <View style={ls.headerRow}>
+            <TouchableOpacity onPress={() => onNavigate('landing')} style={ls.backBtn} accessibilityLabel="Back to home" accessibilityRole="button">
+              <Icon name="arrow-back" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
             <Text style={ls.headerTitle}>Welcome Back</Text>
-            <Text style={ls.headerSub}>Sign in to manage your stokvel</Text>
+            <View style={{ width: 40 }} />
           </View>
         </SafeAreaView>
       </LinearGradient>
@@ -154,29 +151,23 @@ export const LoginScreen = ({ onNavigate, onLogin }: LoginScreenProps) => {
 const ls = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F5F7FA' },
   flex: { flex: 1 },
-  header: { paddingBottom: 48 },
+  header: { paddingBottom: SPACING.md },
+  headerRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
+  },
   backBtn: {
     width: 40, height: 40, borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,0.12)',
     justifyContent: 'center', alignItems: 'center',
-    marginLeft: SPACING.md, marginTop: SPACING.sm,
-  },
-  headerContent: { alignItems: 'center', paddingVertical: SPACING.lg },
-  logoWrap: {
-    width: 56, height: 56, borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center', alignItems: 'center', marginBottom: SPACING.md,
   },
   headerTitle: {
-    fontSize: scaleFontSize(26), fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.3,
-  },
-  headerSub: {
-    fontSize: scaleFontSize(14), color: 'rgba(255,255,255,0.6)', marginTop: 6,
+    fontSize: scaleFontSize(20), fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.3,
   },
   scrollContent: { flexGrow: 1, paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xxl },
   card: {
     backgroundColor: '#FFFFFF', borderRadius: RADIUS.xxl, padding: SPACING.lg,
-    marginTop: -28,
+    marginTop: SPACING.sm,
     ...shadow(8, 30, 0.08),
   },
   fieldGroup: { marginBottom: SPACING.lg },
