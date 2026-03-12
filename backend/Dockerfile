@@ -23,6 +23,8 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
+ENV NODE_ENV=production
+
 # Create non-root user
 RUN addgroup -S estokvel && adduser -S estokvel -G estokvel
 
@@ -34,11 +36,12 @@ RUN npm ci --omit=dev --ignore-scripts
 COPY prisma ./prisma
 RUN npx prisma generate
 
-# Copy compiled output from builder
+# Copy compiled output from builder + boot wrapper
 COPY --from=builder /app/dist ./dist
+COPY boot.js ./dist/boot.js
 
 # Create entrypoint script that runs migrations then starts the app
-RUN printf '#!/bin/sh\nset -e\nnpx prisma migrate deploy\nexec node dist/server.js\n' > /app/entrypoint.sh \
+RUN printf '#!/bin/sh\nset -e\necho "[ENTRYPOINT] Running migrations..."\nnpx prisma migrate deploy\necho "[ENTRYPOINT] Starting server..."\nexec node dist/boot.js\n' > /app/entrypoint.sh \
     && chmod +x /app/entrypoint.sh
 
 # Set ownership
@@ -46,12 +49,12 @@ RUN chown -R estokvel:estokvel /app
 
 USER estokvel
 
-# Expose API port
+# Expose API port (Railway overrides with $PORT)
 EXPOSE 5000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget -qO- http://localhost:5000/health || exit 1
+# Health check (Railway also runs its own healthcheck)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD wget -qO- http://localhost:${PORT:-5000}/health || exit 1
 
 # Run entrypoint: migrate then start
 CMD ["/app/entrypoint.sh"]
