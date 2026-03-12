@@ -75,6 +75,30 @@ export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState;
           <Text style={ps.roleBadgeText}>{getRoleLabel(displayRole)}</Text>
         </View>
 
+        {/* Verification Status Badge */}
+        {!isSuperAdmin && (() => {
+          const vs = auth.user?.verificationStatus;
+          if (vs === 'VERIFIED') return (
+            <View style={[ps.verificationBadge, { backgroundColor: 'rgba(34,197,94,0.2)' }]}>
+              <Icon name="verified-user" size={14} color="#22C55E" />
+              <Text style={[ps.verificationBadgeText, { color: '#22C55E' }]}>Identity Verified</Text>
+            </View>
+          );
+          if (vs === 'PENDING_VERIFY') return (
+            <View style={[ps.verificationBadge, { backgroundColor: 'rgba(59,130,246,0.2)' }]}>
+              <Icon name="schedule" size={14} color="#3B82F6" />
+              <Text style={[ps.verificationBadgeText, { color: '#3B82F6' }]}>Verification Pending</Text>
+            </View>
+          );
+          if (vs === 'FAILED') return (
+            <View style={[ps.verificationBadge, { backgroundColor: 'rgba(239,68,68,0.2)' }]}>
+              <Icon name="warning" size={14} color="#EF4444" />
+              <Text style={[ps.verificationBadgeText, { color: '#EF4444' }]}>Verification Failed</Text>
+            </View>
+          );
+          return null;
+        })()}
+
         {!isSuperAdmin && (
           <View style={ps.statsRow}>
             <View style={ps.statItem}>
@@ -89,6 +113,24 @@ export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState;
           </View>
         )}
       </LinearGradient>
+
+      {/* Verify Identity Prompt */}
+      {!isSuperAdmin && (!auth.user?.verificationStatus || auth.user.verificationStatus === 'UNVERIFIED') && (
+        <TouchableOpacity
+          style={ps.verifyPrompt}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onNavigate?.('id-verification'); }}
+          accessibilityLabel="Verify your identity" accessibilityRole="button"
+        >
+          <View style={ps.verifyPromptIcon}>
+            <Icon name="verified-user" size={22} color="#0A2463" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={ps.verifyPromptTitle}>Verify Your Identity</Text>
+            <Text style={ps.verifyPromptDesc}>Complete ID verification to unlock payouts</Text>
+          </View>
+          <Icon name="chevron-right" size={20} color={COLORS.primary} />
+        </TouchableOpacity>
+      )}
 
       {/* Contact Information */}
       <View style={ps.section}>
@@ -192,6 +234,12 @@ const ps = StyleSheet.create({
     paddingVertical: 7, borderRadius: RADIUS.pill, marginBottom: SPACING.lg,
   },
   roleBadgeText: { fontSize: 12, fontWeight: '700', color: '#fff', letterSpacing: 0.3 },
+  verificationBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: SPACING.md, paddingVertical: 5,
+    borderRadius: RADIUS.pill, marginBottom: SPACING.md,
+  },
+  verificationBadgeText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },
   statsRow: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: RADIUS.lg,
@@ -201,6 +249,21 @@ const ps = StyleSheet.create({
   statValue: { fontSize: scaleFontSize(18), fontWeight: '800', color: '#fff' },
   statLabel: { fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 4, fontWeight: '500' },
   statDivider: { width: 1, height: 32, backgroundColor: 'rgba(255,255,255,0.15)' },
+
+  verifyPrompt: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#fff', marginHorizontal: SPACING.md, marginTop: SPACING.md,
+    borderRadius: RADIUS.xl, padding: SPACING.lg,
+    borderWidth: 1, borderColor: '#0A2463',
+    ...shadow(2, 8, 0.06),
+  } as any,
+  verifyPromptIcon: {
+    width: 42, height: 42, borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primarySoft,
+    justifyContent: 'center', alignItems: 'center', marginRight: SPACING.md,
+  },
+  verifyPromptTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  verifyPromptDesc: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
 
   section: {
     backgroundColor: '#fff', marginHorizontal: SPACING.md, marginTop: SPACING.md,

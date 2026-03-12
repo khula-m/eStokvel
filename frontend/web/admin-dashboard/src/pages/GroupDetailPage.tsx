@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { groupApi, memberApi } from '../api';
-import { ArrowLeft, Users, Coins, Calendar, Trash2, AlertCircle, X, AlertTriangle } from 'lucide-react';
+import { groupApi, memberApi, overrideApi } from '../api';
+import { ArrowLeft, Users, Coins, Calendar, Trash2, AlertCircle, X, AlertTriangle, DollarSign, UserCog, MoreVertical, KeyRound, Unlock } from 'lucide-react';
+import CopyButton from '../components/CopyButton';
 
 interface GroupDetail {
   id: string;
@@ -53,6 +54,17 @@ export default function GroupDetailPage() {
   const [actionError, setActionError] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
 
+  // Inline action state
+  const [actionMenu, setActionMenu] = useState<string | null>(null);
+  const [showAdjustment, setShowAdjustment] = useState(false);
+  const [adjustForm, setAdjustForm] = useState({ memberId: '', amount: '', reason: '' });
+  const [showTransferAdmin, setShowTransferAdmin] = useState(false);
+  const [transferForm, setTransferForm] = useState({ fromMemberId: '', toMemberId: '', reason: '' });
+  const [resetPinTarget, setResetPinTarget] = useState<{ id: string; name: string } | null>(null);
+  const [unlockTarget, setUnlockTarget] = useState<{ id: string; name: string } | null>(null);
+  const [newPin, setNewPin] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
+
   useEffect(() => {
     if (!id) return;
     const fetchAll = async () => {
@@ -89,6 +101,78 @@ export default function GroupDetailPage() {
       setRemoveConfirm(null);
     } finally {
       setRemovingMember(null);
+    }
+  };
+
+  const handleCreateAdjustment = async () => {
+    if (!id || !adjustForm.memberId || !adjustForm.amount || !adjustForm.reason) return;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await overrideApi.createAdjustment({
+        groupId: id,
+        memberId: adjustForm.memberId,
+        amount: parseFloat(adjustForm.amount),
+        reason: adjustForm.reason,
+      });
+      setActionSuccess('Adjustment created successfully');
+      setShowAdjustment(false);
+      setAdjustForm({ memberId: '', amount: '', reason: '' });
+    } catch (err: any) {
+      setActionError(err.response?.data?.message || 'Failed to create adjustment');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleTransferAdmin = async () => {
+    if (!id || !transferForm.fromMemberId || !transferForm.toMemberId || !transferForm.reason) return;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await overrideApi.transferGroupAdmin(id, {
+        fromMemberId: transferForm.fromMemberId,
+        toMemberId: transferForm.toMemberId,
+        reason: transferForm.reason,
+      });
+      setActionSuccess('Group admin transferred successfully');
+      setShowTransferAdmin(false);
+      setTransferForm({ fromMemberId: '', toMemberId: '', reason: '' });
+    } catch (err: any) {
+      setActionError(err.response?.data?.message || 'Failed to transfer admin');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleResetPin = async () => {
+    if (!resetPinTarget || !newPin) return;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await overrideApi.resetAdminPin(resetPinTarget.id, { newPin });
+      setActionSuccess(`PIN reset for ${resetPinTarget.name}`);
+      setResetPinTarget(null);
+      setNewPin('');
+    } catch (err: any) {
+      setActionError(err.response?.data?.message || 'Failed to reset PIN');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleUnlock = async () => {
+    if (!unlockTarget) return;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await overrideApi.unlockAccount(unlockTarget.id);
+      setActionSuccess(`Account unlocked for ${unlockTarget.name}`);
+      setUnlockTarget(null);
+    } catch (err: any) {
+      setActionError(err.response?.data?.message || 'Failed to unlock account');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -131,6 +215,22 @@ export default function GroupDetailPage() {
           }`}>
             {group.isActive ? 'Active' : 'Inactive'}
           </span>
+        </div>
+
+        {/* Group-level actions */}
+        <div className="flex gap-2 mt-4">
+          <button
+            onClick={() => setShowAdjustment(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-sm font-medium hover:bg-emerald-100 transition-colors"
+          >
+            <DollarSign className="w-4 h-4" /> Create Adjustment
+          </button>
+          <button
+            onClick={() => setShowTransferAdmin(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
+          >
+            <UserCog className="w-4 h-4" /> Transfer Admin
+          </button>
         </div>
 
         {/* Quick stats */}
@@ -201,7 +301,13 @@ export default function GroupDetailPage() {
               <tbody className="divide-y divide-gray-50">
                 {members.map((m) => (
                   <tr key={m.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-3 font-medium text-gray-900">{m.user?.fullName || '—'}</td>
+                    <td className="px-6 py-3">
+                      <p className="font-medium text-gray-900">{m.user?.fullName || '—'}</p>
+                      <div className="flex gap-1 mt-0.5">
+                        <CopyButton text={m.id} label="Member ID" />
+                        <CopyButton text={m.user?.id || ''} label="User ID" />
+                      </div>
+                    </td>
                     <td className="px-6 py-3 text-gray-500">{m.user?.phoneNumber || '—'}</td>
                     <td className="px-6 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -213,15 +319,36 @@ export default function GroupDetailPage() {
                     <td className="px-6 py-3 text-gray-500">
                       {new Date(m.joinedAt).toLocaleDateString()}
                     </td>
-                    <td className="px-6 py-3 text-right">
+                    <td className="px-6 py-3 text-right relative">
                       <button
-                        onClick={() => setRemoveConfirm({ id: m.id, name: m.user?.fullName || 'this member' })}
-                        disabled={removingMember === m.id}
-                        className="text-red-500 hover:text-red-700 disabled:opacity-50 p-1"
-                        title="Remove member"
+                        onClick={() => setActionMenu(actionMenu === m.id ? null : m.id)}
+                        className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <MoreVertical className="w-4 h-4" />
                       </button>
+                      {actionMenu === m.id && (
+                        <div className="absolute right-6 top-10 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 w-44">
+                          <button
+                            onClick={() => { setResetPinTarget({ id: m.user?.id, name: m.user?.fullName }); setActionMenu(null); }}
+                            className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                          >
+                            <KeyRound className="w-4 h-4" /> Reset PIN
+                          </button>
+                          <button
+                            onClick={() => { setUnlockTarget({ id: m.user?.id, name: m.user?.fullName }); setActionMenu(null); }}
+                            className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                          >
+                            <Unlock className="w-4 h-4" /> Unlock Account
+                          </button>
+                          <button
+                            onClick={() => { setRemoveConfirm({ id: m.id, name: m.user?.fullName || 'this member' }); setActionMenu(null); }}
+                            disabled={removingMember === m.id}
+                            className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                          >
+                            <Trash2 className="w-4 h-4" /> Remove Member
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -257,6 +384,148 @@ export default function GroupDetailPage() {
             <div className="flex gap-3">
               <button onClick={() => setRemoveConfirm(null)} className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Cancel</button>
               <button onClick={handleRemoveMember} disabled={!!removingMember} className="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-60 transition-colors">{removingMember ? 'Removing...' : 'Remove'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Adjustment Modal */}
+      {showAdjustment && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-emerald-100 p-2 rounded-full"><DollarSign className="w-5 h-5 text-emerald-600" /></div>
+              <h3 className="font-semibold text-gray-900">Create Adjustment</h3>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">Adjust balance for a member in <strong>{group.name}</strong></p>
+            {actionError && <div className="mb-3 p-2 bg-red-50 text-red-700 rounded-lg text-sm">{actionError}</div>}
+            <div className="space-y-3 mb-4">
+              <select
+                value={adjustForm.memberId}
+                onChange={e => setAdjustForm({ ...adjustForm, memberId: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0A2463] focus:border-transparent outline-none"
+              >
+                <option value="">Select member</option>
+                {members.map(m => (
+                  <option key={m.id} value={m.id}>{m.user?.fullName} ({m.user?.phoneNumber})</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                step="0.01"
+                value={adjustForm.amount}
+                onChange={e => setAdjustForm({ ...adjustForm, amount: e.target.value })}
+                placeholder="Amount (negative for debit)"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0A2463] focus:border-transparent outline-none"
+              />
+              <input
+                type="text"
+                value={adjustForm.reason}
+                onChange={e => setAdjustForm({ ...adjustForm, reason: e.target.value })}
+                placeholder="Reason for adjustment"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0A2463] focus:border-transparent outline-none"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => { setShowAdjustment(false); setActionError(''); }} className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Cancel</button>
+              <button onClick={handleCreateAdjustment} disabled={actionLoading || !adjustForm.memberId || !adjustForm.amount || !adjustForm.reason} className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 transition-colors">{actionLoading ? 'Creating...' : 'Create'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer Admin Modal */}
+      {showTransferAdmin && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-blue-100 p-2 rounded-full"><UserCog className="w-5 h-5 text-blue-600" /></div>
+              <h3 className="font-semibold text-gray-900">Transfer Admin</h3>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">Transfer admin role in <strong>{group.name}</strong></p>
+            {actionError && <div className="mb-3 p-2 bg-red-50 text-red-700 rounded-lg text-sm">{actionError}</div>}
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Current Admin</label>
+                <select
+                  value={transferForm.fromMemberId}
+                  onChange={e => setTransferForm({ ...transferForm, fromMemberId: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0A2463] focus:border-transparent outline-none"
+                >
+                  <option value="">Select current admin</option>
+                  {members.filter(m => m.role === 'ADMIN').map(m => (
+                    <option key={m.id} value={m.id}>{m.user?.fullName} ({m.user?.phoneNumber})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">New Admin</label>
+                <select
+                  value={transferForm.toMemberId}
+                  onChange={e => setTransferForm({ ...transferForm, toMemberId: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0A2463] focus:border-transparent outline-none"
+                >
+                  <option value="">Select new admin</option>
+                  {members.filter(m => m.id !== transferForm.fromMemberId).map(m => (
+                    <option key={m.id} value={m.id}>{m.user?.fullName} ({m.user?.phoneNumber})</option>
+                  ))}
+                </select>
+              </div>
+              <input
+                type="text"
+                value={transferForm.reason}
+                onChange={e => setTransferForm({ ...transferForm, reason: e.target.value })}
+                placeholder="Reason for transfer"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0A2463] focus:border-transparent outline-none"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => { setShowTransferAdmin(false); setActionError(''); }} className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Cancel</button>
+              <button onClick={handleTransferAdmin} disabled={actionLoading || !transferForm.fromMemberId || !transferForm.toMemberId || !transferForm.reason} className="flex-1 py-2.5 bg-[#0A2463] text-white rounded-lg text-sm font-medium hover:bg-[#1E3A8A] disabled:opacity-60 transition-colors">{actionLoading ? 'Transferring...' : 'Transfer'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset PIN Modal */}
+      {resetPinTarget && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-amber-100 p-2 rounded-full"><KeyRound className="w-5 h-5 text-amber-600" /></div>
+              <h3 className="font-semibold text-gray-900">Reset PIN</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">Set new PIN for <strong>{resetPinTarget.name}</strong></p>
+            {actionError && <div className="mb-3 p-2 bg-red-50 text-red-700 rounded-lg text-sm">{actionError}</div>}
+            <input
+              type="text"
+              maxLength={6}
+              value={newPin}
+              onChange={e => setNewPin(e.target.value.replace(/\D/g, ''))}
+              placeholder="New 4-6 digit PIN"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm mb-4 focus:ring-2 focus:ring-[#0A2463] focus:border-transparent outline-none"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => { setResetPinTarget(null); setNewPin(''); setActionError(''); }} className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Cancel</button>
+              <button onClick={handleResetPin} disabled={actionLoading || newPin.length < 4} className="flex-1 py-2.5 bg-[#0A2463] text-white rounded-lg text-sm font-medium hover:bg-[#1E3A8A] disabled:opacity-60 transition-colors">{actionLoading ? 'Resetting...' : 'Reset PIN'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unlock Account Modal */}
+      {unlockTarget && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-blue-100 p-2 rounded-full"><Unlock className="w-5 h-5 text-blue-600" /></div>
+              <h3 className="font-semibold text-gray-900">Unlock Account</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-6">Unlock the account for <strong>{unlockTarget.name}</strong>?</p>
+            {actionError && <div className="mb-3 p-2 bg-red-50 text-red-700 rounded-lg text-sm">{actionError}</div>}
+            <div className="flex gap-3">
+              <button onClick={() => { setUnlockTarget(null); setActionError(''); }} className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Cancel</button>
+              <button onClick={handleUnlock} disabled={actionLoading} className="flex-1 py-2.5 bg-[#0A2463] text-white rounded-lg text-sm font-medium hover:bg-[#1E3A8A] disabled:opacity-60 transition-colors">{actionLoading ? 'Unlocking...' : 'Unlock'}</button>
             </div>
           </div>
         </div>

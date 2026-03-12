@@ -8,19 +8,23 @@ datasource db {
 }
 
 model User {
-  id                   String         @id @default(cuid())
-  phoneNumber          String         @unique
-  fullName             String
-  pin                  String?        // 5-digit PIN (hashed) - for ADMIN/MEMBER
-  password             String?        // Complex password (hashed) - for SUPERADMIN
-  role                 UserRole       @default(MEMBER)
-  mustChangePin        Boolean        @default(true)
-  isVerified           Boolean        @default(false)
-  createdAt            DateTime       @default(now())
-  updatedAt            DateTime       @updatedAt
-  email                String?        @unique
-  idNumber             String?
-  language             String         @default("en")
+  id                   String              @id @default(cuid())
+  phoneNumber          String              @unique
+  firstName            String              @default("")
+  lastName             String              @default("")
+  fullName             String              // Kept for backward compat: "${firstName} ${lastName}"
+  pin                  String?             // 5-digit PIN (hashed) - for ADMIN/MEMBER
+  password             String?             // Complex password (hashed) - for SUPERADMIN
+  role                 UserRole            @default(MEMBER)
+  mustChangePin        Boolean             @default(true)
+  isVerified           Boolean             @default(false)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  email                String?             @unique
+  idNumberHash         String?             // SA ID number (hashed with bcrypt, never displayed)
+  verificationStatus   VerificationStatus  @default(UNVERIFIED)
+  verifiedAt           DateTime?           // When identity was verified by Smile Identity
+  language             String              @default("en")
   lastLogin            DateTime?
   lastLoginIp          String?        // Track login IP for audit
   failedAttempts       Int            @default(0)    // Failed login counter
@@ -155,6 +159,13 @@ enum UserRole {
   SUPERADMIN
   ADMIN
   MEMBER
+}
+
+enum VerificationStatus {
+  UNVERIFIED       // No ID submitted yet
+  PENDING_VERIFY   // ID submitted, awaiting Smile Identity verification
+  VERIFIED         // ID verified by Smile Identity
+  FAILED           // Verification failed
 }
 
 enum PayoutModel {
@@ -306,4 +317,20 @@ model AuditLog {
   @@index([userId])
   @@index([action, result])          // filtered audit queries
   @@map("audit_logs")
+}
+
+model PinResetOTP {
+  id           String   @id @default(cuid())
+  phoneNumber  String
+  otpHash      String      // bcrypt-hashed OTP code
+  expiresAt    DateTime    // OTP valid for 5 minutes
+  verified     Boolean  @default(false)
+  attempts     Int      @default(0)  // wrong-OTP attempts (max 3)
+  sessionToken String?  @unique      // issued after OTP verified, used to set new PIN
+  used         Boolean  @default(false) // true after PIN is successfully reset
+  createdAt    DateTime @default(now())
+
+  @@index([phoneNumber, createdAt])  // rate-limiting queries
+  @@index([sessionToken])            // fast token lookup
+  @@map("pin_reset_otps")
 }

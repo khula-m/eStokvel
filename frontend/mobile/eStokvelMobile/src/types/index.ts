@@ -11,11 +11,15 @@ export interface UserMembership {
 export interface User {
   id: string;
   fullName: string;
+  firstName?: string;
+  lastName?: string;
   phoneNumber: string;
   email?: string;
   role: string; // Global role: 'SUPERADMIN' | 'MEMBER'
   effectiveRole?: string; // Derived: 'ADMIN' if admin of any group, else 'MEMBER'
   mustChangePin?: boolean;
+  needsIdVerification?: boolean;
+  verificationStatus?: string;
   memberships?: UserMembership[]; // Per-group roles
   managedGroups?: any[]; // Backward compat: groups where user is admin
 }

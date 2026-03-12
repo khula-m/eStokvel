@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { adminApi } from '../api';
-import { Users, Plus, Trash2, AlertCircle, Phone, X, AlertTriangle } from 'lucide-react';
+import { adminApi, overrideApi } from '../api';
+import { Users, Plus, Trash2, AlertCircle, Phone, X, AlertTriangle, MoreVertical, KeyRound, Unlock, ShieldCheck, ShieldAlert, Clock } from 'lucide-react';
+import CopyButton from '../components/CopyButton';
 
 interface Admin {
   id: string;
@@ -10,6 +11,7 @@ interface Admin {
   role: string;
   createdAt: string;
   isVerified: boolean;
+  verificationStatus?: string;
   _count?: { members: number };
 }
 
@@ -20,11 +22,19 @@ export default function AdminsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [form, setForm] = useState({ phoneNumber: '', fullName: '' });
+  const [form, setForm] = useState({ phoneNumber: '', firstName: '', lastName: '' });
   const [createError, setCreateError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
   const [deleteError, setDeleteError] = useState('');
+
+  // Inline action state
+  const [actionMenu, setActionMenu] = useState<string | null>(null);
+  const [resetPinTarget, setResetPinTarget] = useState<{ id: string; name: string } | null>(null);
+  const [unlockTarget, setUnlockTarget] = useState<{ id: string; name: string } | null>(null);
+  const [newPin, setNewPin] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
+  const [inlineActionError, setInlineActionError] = useState('');
 
   const fetchAdmins = async () => {
     setLoading(true);
@@ -51,7 +61,7 @@ export default function AdminsPage() {
       const body = res.data;
       if (body.success) {
         setShowCreate(false);
-        setForm({ phoneNumber: '', fullName: '' });
+        setForm({ phoneNumber: '', firstName: '', lastName: '' });
         const pin = body.data?.tempPin;
         const msg = body.message || 'Admin created successfully';
         setSuccessMsg(pin ? `${msg}` : msg);
@@ -79,6 +89,37 @@ export default function AdminsPage() {
       setDeleteError(err.response?.data?.message || 'Failed to delete admin');
     } finally {
       setDeleting(null);
+    }
+  };
+
+  const handleResetPin = async () => {
+    if (!resetPinTarget || !newPin) return;
+    setActionLoading(true);
+    setInlineActionError('');
+    try {
+      await overrideApi.resetAdminPin(resetPinTarget.id, { newPin });
+      setSuccessMsg(`PIN reset for ${resetPinTarget.name}`);
+      setResetPinTarget(null);
+      setNewPin('');
+    } catch (err: any) {
+      setInlineActionError(err.response?.data?.message || 'Failed to reset PIN');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleUnlock = async () => {
+    if (!unlockTarget) return;
+    setActionLoading(true);
+    setInlineActionError('');
+    try {
+      await overrideApi.unlockAccount(unlockTarget.id);
+      setSuccessMsg(`Account unlocked for ${unlockTarget.name}`);
+      setUnlockTarget(null);
+    } catch (err: any) {
+      setInlineActionError(err.response?.data?.message || 'Failed to unlock account');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -138,12 +179,23 @@ export default function AdminsPage() {
                 <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">{createError}</div>
               )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
                 <input
                   type="text"
-                  value={form.fullName}
-                  onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-                  placeholder="John Doe"
+                  value={form.firstName}
+                  onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                  placeholder="John"
+                  required
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0A2463] focus:border-transparent outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                <input
+                  type="text"
+                  value={form.lastName}
+                  onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                  placeholder="Doe"
                   required
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0A2463] focus:border-transparent outline-none"
                 />
@@ -195,6 +247,7 @@ export default function AdminsPage() {
                   <th className="px-6 py-3 text-left">Name</th>
                   <th className="px-6 py-3 text-left">Phone</th>
                   <th className="px-6 py-3 text-left">Role</th>
+                  <th className="px-6 py-3 text-left">Verified</th>
                   <th className="px-6 py-3 text-left">Groups</th>
                   <th className="px-6 py-3 text-left">Created</th>
                   <th className="px-6 py-3 text-right">Actions</th>
@@ -207,6 +260,7 @@ export default function AdminsPage() {
                       <div>
                         <p className="font-medium text-gray-900">{admin.fullName}</p>
                         {admin.email && <p className="text-xs text-gray-400">{admin.email}</p>}
+                        <CopyButton text={admin.id} label="Copy User ID" />
                       </div>
                     </td>
                     <td className="px-6 py-3 text-gray-500 flex items-center gap-1.5">
@@ -222,22 +276,68 @@ export default function AdminsPage() {
                         {admin.role}
                       </span>
                     </td>
+                    <td className="px-6 py-3">
+                      {(() => {
+                        const vs = admin.verificationStatus;
+                        if (vs === 'VERIFIED') return (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">
+                            <ShieldCheck className="w-3 h-3" /> Verified
+                          </span>
+                        );
+                        if (vs === 'PENDING_VERIFY') return (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                            <Clock className="w-3 h-3" /> Pending
+                          </span>
+                        );
+                        if (vs === 'FAILED') return (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700">
+                            <ShieldAlert className="w-3 h-3" /> Failed
+                          </span>
+                        );
+                        return (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-50 text-gray-500">
+                            Unverified
+                          </span>
+                        );
+                      })()}
+                    </td>
                     <td className="px-6 py-3 text-gray-500">
                       {admin._count?.members ?? '—'}
                     </td>
                     <td className="px-6 py-3 text-gray-500">
                       {new Date(admin.createdAt).toLocaleDateString()}
                     </td>
-                    <td className="px-6 py-3 text-right">
-                      {admin.role !== 'SUPERADMIN' && (
-                        <button
-                          onClick={() => setDeleteConfirm({ id: admin.id, name: admin.fullName })}
-                          disabled={deleting === admin.id}
-                          className="text-red-500 hover:text-red-700 disabled:opacity-50 p-1"
-                          title="Delete admin"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                    <td className="px-6 py-3 text-right relative">
+                      <button
+                        onClick={() => setActionMenu(actionMenu === admin.id ? null : admin.id)}
+                        className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
+                      {actionMenu === admin.id && (
+                        <div className="absolute right-6 top-10 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 w-44">
+                          <button
+                            onClick={() => { setResetPinTarget({ id: admin.id, name: admin.fullName }); setActionMenu(null); }}
+                            className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                          >
+                            <KeyRound className="w-4 h-4" /> Reset PIN
+                          </button>
+                          <button
+                            onClick={() => { setUnlockTarget({ id: admin.id, name: admin.fullName }); setActionMenu(null); }}
+                            className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                          >
+                            <Unlock className="w-4 h-4" /> Unlock Account
+                          </button>
+                          {admin.role !== 'SUPERADMIN' && (
+                            <button
+                              onClick={() => { setDeleteConfirm({ id: admin.id, name: admin.fullName }); setActionMenu(null); }}
+                              disabled={deleting === admin.id}
+                              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                            >
+                              <Trash2 className="w-4 h-4" /> Delete Admin
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -263,6 +363,50 @@ export default function AdminsPage() {
             <div className="flex gap-3">
               <button onClick={() => { setDeleteConfirm(null); setDeleteError(''); }} className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Cancel</button>
               <button onClick={handleDelete} disabled={!!deleting} className="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-60 transition-colors">{deleting ? 'Deleting...' : 'Delete'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset PIN Modal */}
+      {resetPinTarget && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-amber-100 p-2 rounded-full"><KeyRound className="w-5 h-5 text-amber-600" /></div>
+              <h3 className="font-semibold text-gray-900">Reset PIN</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">Set new PIN for <strong>{resetPinTarget.name}</strong></p>
+            {inlineActionError && <div className="mb-3 p-2 bg-red-50 text-red-700 rounded-lg text-sm">{inlineActionError}</div>}
+            <input
+              type="text"
+              maxLength={6}
+              value={newPin}
+              onChange={e => setNewPin(e.target.value.replace(/\D/g, ''))}
+              placeholder="New 4-6 digit PIN"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm mb-4 focus:ring-2 focus:ring-[#0A2463] focus:border-transparent outline-none"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => { setResetPinTarget(null); setNewPin(''); setInlineActionError(''); }} className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Cancel</button>
+              <button onClick={handleResetPin} disabled={actionLoading || newPin.length < 4} className="flex-1 py-2.5 bg-[#0A2463] text-white rounded-lg text-sm font-medium hover:bg-[#1E3A8A] disabled:opacity-60 transition-colors">{actionLoading ? 'Resetting...' : 'Reset PIN'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unlock Account Modal */}
+      {unlockTarget && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-blue-100 p-2 rounded-full"><Unlock className="w-5 h-5 text-blue-600" /></div>
+              <h3 className="font-semibold text-gray-900">Unlock Account</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-6">Unlock the account for <strong>{unlockTarget.name}</strong>?</p>
+            {inlineActionError && <div className="mb-3 p-2 bg-red-50 text-red-700 rounded-lg text-sm">{inlineActionError}</div>}
+            <div className="flex gap-3">
+              <button onClick={() => { setUnlockTarget(null); setInlineActionError(''); }} className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Cancel</button>
+              <button onClick={handleUnlock} disabled={actionLoading} className="flex-1 py-2.5 bg-[#0A2463] text-white rounded-lg text-sm font-medium hover:bg-[#1E3A8A] disabled:opacity-60 transition-colors">{actionLoading ? 'Unlocking...' : 'Unlock'}</button>
             </div>
           </div>
         </div>

@@ -74,15 +74,15 @@ export class AuthController {
         return res.status(401).json({ success: false, message: "Not authenticated" });
       }
 
-      const { phoneNumber, fullName } = req.body;
-      if (!phoneNumber || !fullName) {
+      const { phoneNumber, firstName, lastName } = req.body;
+      if (!phoneNumber || !firstName || !lastName) {
         return res.status(400).json({
           success: false,
-          message: "Phone number and full name are required"
+          message: "Phone number, first name, and last name are required"
         });
       }
 
-      const result = await authService.createAdmin({ phoneNumber, fullName }, createdById);
+      const result = await authService.createAdmin({ phoneNumber, firstName, lastName }, createdById);
 
       if (!result.success) {
         return res.status(400).json(result);
@@ -106,15 +106,15 @@ export class AuthController {
         return res.status(401).json({ success: false, message: "Not authenticated" });
       }
 
-      const { phoneNumber, fullName, groupId } = req.body;
-      if (!phoneNumber || !fullName || !groupId) {
+      const { phoneNumber, firstName, lastName, groupId } = req.body;
+      if (!phoneNumber || !firstName || !lastName || !groupId) {
         return res.status(400).json({
           success: false,
-          message: "Phone number, full name, and group ID are required"
+          message: "Phone number, first name, last name, and group ID are required"
         });
       }
 
-      const result = await authService.addMember({ phoneNumber, fullName, groupId }, createdById);
+      const result = await authService.addMember({ phoneNumber, firstName, lastName, groupId }, createdById);
 
       if (!result.success) {
         return res.status(400).json(result);
@@ -254,6 +254,95 @@ export class AuthController {
         success: false,
         message: "Superadmin login failed"
       });
+    }
+  }
+
+  // ============ FORGOT PIN: Request OTP ============
+  async forgotPinRequest(req: Request, res: Response) {
+    try {
+      const { phoneNumber } = req.body;
+      const result = await authService.requestForgotPin(phoneNumber);
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+      return res.status(200).json(result);
+    } catch (error: any) {
+      logger.error('Forgot PIN request error:', error);
+      return res.status(500).json({ success: false, message: "Failed to process request" });
+    }
+  }
+
+  // ============ FORGOT PIN: Verify OTP ============
+  async forgotPinVerify(req: Request, res: Response) {
+    try {
+      const { phoneNumber, otp } = req.body;
+      const result = await authService.verifyForgotPinOTP(phoneNumber, otp);
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+      return res.status(200).json(result);
+    } catch (error: any) {
+      logger.error('Forgot PIN verify error:', error);
+      return res.status(500).json({ success: false, message: "Failed to verify OTP" });
+    }
+  }
+
+  // ============ FORGOT PIN: Reset PIN ============
+  async forgotPinReset(req: Request, res: Response) {
+    try {
+      const { sessionToken, newPin } = req.body;
+      const result = await authService.resetPinWithToken(sessionToken, newPin);
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+      return res.status(200).json(result);
+    } catch (error: any) {
+      logger.error('Forgot PIN reset error:', error);
+      return res.status(500).json({ success: false, message: "Failed to reset PIN" });
+    }
+  }
+
+  // ============ ADMIN SELF-REGISTRATION ============
+  async adminRegister(req: Request, res: Response) {
+    try {
+      const { phoneNumber, firstName, lastName, idNumber } = req.body;
+      const result = await authService.adminSelfRegister({ phoneNumber, firstName, lastName, idNumber });
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+      return res.status(201).json(result);
+    } catch (error: any) {
+      logger.error('Admin registration error:', error);
+      return res.status(500).json({ success: false, message: "Registration failed" });
+    }
+  }
+
+  // ============ MEMBER: Submit ID Number ============
+  async submitId(req: any, res: Response) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ success: false, message: "Not authenticated" });
+      }
+
+      const { idNumber } = req.body;
+      if (!idNumber) {
+        return res.status(400).json({ success: false, message: "ID number is required" });
+      }
+
+      const result = await authService.submitIdNumber(userId, idNumber);
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+      return res.status(200).json(result);
+    } catch (error: any) {
+      logger.error('Submit ID error:', error);
+      return res.status(500).json({ success: false, message: "Failed to submit ID" });
     }
   }
 }

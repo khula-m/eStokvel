@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { transactionApi } from '../api';
-import { ArrowLeftRight, AlertCircle, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { transactionApi, overrideApi } from '../api';
+import { ArrowLeftRight, AlertCircle, Search, ChevronLeft, ChevronRight, MoreVertical, RefreshCw, FileEdit, X } from 'lucide-react';
+import CopyButton from '../components/CopyButton';
 
 interface Transaction {
   id: string;
@@ -25,6 +26,15 @@ export default function TransactionsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
+  // Inline action state
+  const [actionMenu, setActionMenu] = useState<string | null>(null);
+  const [statusTarget, setStatusTarget] = useState<Transaction | null>(null);
+  const [statusForm, setStatusForm] = useState({ status: '', reason: '' });
+  const [retryTarget, setRetryTarget] = useState<Transaction | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [actionSuccess, setActionSuccess] = useState('');
+
   const fetchTransactions = async () => {
     setLoading(true);
     try {
@@ -40,6 +50,39 @@ export default function TransactionsPage() {
   };
 
   useEffect(() => { fetchTransactions(); }, [page]);
+
+  const handleUpdateStatus = async () => {
+    if (!statusTarget || !statusForm.status || !statusForm.reason) return;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await overrideApi.updateTransactionStatus(statusTarget.id, statusForm);
+      setActionSuccess(`Transaction status updated to ${statusForm.status}`);
+      setStatusTarget(null);
+      setStatusForm({ status: '', reason: '' });
+      fetchTransactions();
+    } catch (err: any) {
+      setActionError(err.response?.data?.message || 'Failed to update status');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRetryPayout = async () => {
+    if (!retryTarget) return;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await overrideApi.retryPayout(retryTarget.id);
+      setActionSuccess('Payout retry initiated');
+      setRetryTarget(null);
+      fetchTransactions();
+    } catch (err: any) {
+      setActionError(err.response?.data?.message || 'Failed to retry payout');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const statusColor = (s: string) => {
     switch (s) {
@@ -120,6 +163,7 @@ export default function TransactionsPage() {
                     <th className="px-6 py-3 text-left">Method</th>
                     <th className="px-6 py-3 text-left">Status</th>
                     <th className="px-6 py-3 text-left">Reference</th>
+                    <th className="px-6 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -150,6 +194,33 @@ export default function TransactionsPage() {
                       </td>
                       <td className="px-6 py-3 text-gray-400 text-xs font-mono">
                         {t.referenceNumber || '—'}
+                        <CopyButton text={t.id} label="Copy Txn ID" />
+                      </td>
+                      <td className="px-6 py-3 text-right relative">
+                        <button
+                          onClick={() => setActionMenu(actionMenu === t.id ? null : t.id)}
+                          className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                        {actionMenu === t.id && (
+                          <div className="absolute right-6 top-10 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 w-44">
+                            <button
+                              onClick={() => { setStatusTarget(t); setStatusForm({ status: '', reason: '' }); setActionMenu(null); }}
+                              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                            >
+                              <FileEdit className="w-4 h-4" /> Update Status
+                            </button>
+                            {t.transactionType === 'PAYOUT' && (t.status === 'FAILED' || t.status === 'PENDING') && (
+                              <button
+                                onClick={() => { setRetryTarget(t); setActionMenu(null); }}
+                                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                              >
+                                <RefreshCw className="w-4 h-4" /> Retry Payout
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -182,6 +253,74 @@ export default function TransactionsPage() {
           </>
         )}
       </div>
+
+      {/* Success toast */}
+      {actionSuccess && (
+        <div className="fixed bottom-4 right-4 z-50 p-4 bg-green-50 border border-green-200 text-green-800 rounded-lg text-sm shadow-lg flex items-center gap-3">
+          <span>{actionSuccess}</span>
+          <button onClick={() => setActionSuccess('')} className="text-green-600 hover:text-green-800"><X className="w-4 h-4" /></button>
+        </div>
+      )}
+
+      {/* Update Status Modal */}
+      {statusTarget && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-blue-100 p-2 rounded-full"><FileEdit className="w-5 h-5 text-blue-600" /></div>
+              <h3 className="font-semibold text-gray-900">Update Status</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-1">
+              <strong>{statusTarget.transactionType}</strong> — R{Number(statusTarget.amount).toFixed(2)}
+            </p>
+            <p className="text-xs text-gray-400 mb-4">{statusTarget.member?.user?.fullName || 'Unknown'} • {statusTarget.group?.name || '—'}</p>
+            {actionError && <div className="mb-3 p-2 bg-red-50 text-red-700 rounded-lg text-sm">{actionError}</div>}
+            <div className="space-y-3 mb-4">
+              <select
+                value={statusForm.status}
+                onChange={e => setStatusForm({ ...statusForm, status: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0A2463] focus:border-transparent outline-none"
+              >
+                <option value="">Select new status</option>
+                <option value="COMPLETED">COMPLETED</option>
+                <option value="PENDING">PENDING</option>
+                <option value="FAILED">FAILED</option>
+                <option value="REVERSED">REVERSED</option>
+              </select>
+              <input
+                type="text"
+                value={statusForm.reason}
+                onChange={e => setStatusForm({ ...statusForm, reason: e.target.value })}
+                placeholder="Reason for change"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#0A2463] focus:border-transparent outline-none"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => { setStatusTarget(null); setActionError(''); }} className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Cancel</button>
+              <button onClick={handleUpdateStatus} disabled={actionLoading || !statusForm.status || !statusForm.reason} className="flex-1 py-2.5 bg-[#0A2463] text-white rounded-lg text-sm font-medium hover:bg-[#1E3A8A] disabled:opacity-60 transition-colors">{actionLoading ? 'Updating...' : 'Update'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Retry Payout Modal */}
+      {retryTarget && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-amber-100 p-2 rounded-full"><RefreshCw className="w-5 h-5 text-amber-600" /></div>
+              <h3 className="font-semibold text-gray-900">Retry Payout</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-1">Retry payout of <strong>R{Number(retryTarget.amount).toFixed(2)}</strong></p>
+            <p className="text-xs text-gray-400 mb-6">{retryTarget.member?.user?.fullName || 'Unknown'} • {retryTarget.group?.name || '—'}</p>
+            {actionError && <div className="mb-3 p-2 bg-red-50 text-red-700 rounded-lg text-sm">{actionError}</div>}
+            <div className="flex gap-3">
+              <button onClick={() => { setRetryTarget(null); setActionError(''); }} className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">Cancel</button>
+              <button onClick={handleRetryPayout} disabled={actionLoading} className="flex-1 py-2.5 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 disabled:opacity-60 transition-colors">{actionLoading ? 'Retrying...' : 'Retry'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

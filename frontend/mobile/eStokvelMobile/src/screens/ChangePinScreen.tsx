@@ -41,7 +41,7 @@ export const ChangePinScreen = ({ auth, onNavigate }: ChangePinScreenProps) => {
       const headers = { Authorization: `Bearer ${auth.token}` };
       const response = await axios.post(`${API_URL}/api/auth/change-pin`, { currentPin, newPin }, { headers });
       if (response.data.success) {
-        showAlert('Success', 'Your PIN has been changed successfully.', [{ text: 'OK', onPress: () => onNavigate('main') }]);
+        showAlert('Success', 'Your PIN has been changed successfully.', [{ text: 'OK', onPress: () => onNavigate(auth.user?.needsIdVerification ? 'id-verification' : 'main') }]);
       } else { showAlert('Error', response.data.message || 'Failed to change PIN'); }
     } catch (error: any) {
       showAlert('Error', error.response?.data?.message || error.message || 'Failed to change PIN');

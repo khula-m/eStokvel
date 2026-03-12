@@ -38,7 +38,7 @@ export const LoginScreen = ({ onNavigate, onLogin }: LoginScreenProps) => {
       if (response.data.success) {
         const userData = response.data.data;
         onLogin(userData);
-        onNavigate(userData.user?.mustChangePin ? 'change-pin' : 'main');
+        onNavigate(userData.user?.mustChangePin ? 'change-pin' : userData.user?.needsIdVerification ? 'id-verification' : 'main');
       } else {
         showAlert('Error', response.data.message || 'Login failed');
       }
@@ -114,6 +114,9 @@ export const LoginScreen = ({ onNavigate, onLogin }: LoginScreenProps) => {
                   <Icon name={showPin ? 'visibility-off' : 'visibility'} size={20} color="#94A3B8" />
                 </TouchableOpacity>
               </View>
+              <TouchableOpacity onPress={() => onNavigate('forgot-pin')} style={ls.forgotLink}>
+                <Text style={ls.forgotText}>Forgot PIN?</Text>
+              </TouchableOpacity>
             </View>
 
             {/* Sign in */}
@@ -141,7 +144,10 @@ export const LoginScreen = ({ onNavigate, onLogin }: LoginScreenProps) => {
             </View>
           </Animated.View>
 
-          <Text style={ls.footer}>Contact your group admin to get access</Text>
+          <Text style={ls.footer}>Want to start a stokvel group?</Text>
+          <TouchableOpacity onPress={() => onNavigate('admin-register')} style={ls.registerLink}>
+            <Text style={ls.registerText}>Register as Group Admin</Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -208,4 +214,8 @@ const ls = StyleSheet.create({
   trustText: { fontSize: 12, color: '#94A3B8', fontWeight: '500' },
   trustDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: '#CBD5E1' },
   footer: { textAlign: 'center', color: '#94A3B8', fontSize: 13, marginTop: SPACING.xl },
+  forgotLink: { alignSelf: 'flex-end', marginTop: 8 },
+  forgotText: { fontSize: 13, color: COLORS.primary, fontWeight: '600' },
+  registerLink: { alignSelf: 'center', marginTop: SPACING.sm },
+  registerText: { color: COLORS.primary, fontSize: 15, fontWeight: '700' },
 });

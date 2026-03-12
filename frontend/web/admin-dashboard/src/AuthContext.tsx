@@ -7,8 +7,11 @@ interface User {
   id: string;
   email: string;
   fullName: string;
+  firstName?: string;
+  lastName?: string;
   phoneNumber: string;
   role: string;
+  verificationStatus?: string;
 }
 
 interface AuthContextType {

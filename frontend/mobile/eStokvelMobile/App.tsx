@@ -11,6 +11,9 @@ import { GlobalOverlay } from './src/components/GlobalOverlay';
 import { LandingScreen } from './src/screens/LandingScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { ChangePinScreen } from './src/screens/ChangePinScreen';
+import { ForgotPinScreen } from './src/screens/ForgotPinScreen';
+import { AdminRegisterScreen } from './src/screens/AdminRegisterScreen';
+import { IdVerificationScreen } from './src/screens/IdVerificationScreen';
 import { MainTabNavigator } from './src/navigation/MainTabNavigator';
 import { registerForPushNotifications } from './src/utils/notifications';
 import { API_URL } from './src/constants/config';
@@ -103,6 +106,9 @@ export default function App() {
       {currentScreen === 'landing' && <LandingScreen onGetStarted={() => navigate('login')} />}
       {currentScreen === 'login' && <LoginScreen onNavigate={navigate} onLogin={handleLogin} />}
       {currentScreen === 'change-pin' && <ChangePinScreen auth={auth} onNavigate={navigate} />}
+      {currentScreen === 'forgot-pin' && <ForgotPinScreen onNavigate={navigate} />}
+      {currentScreen === 'admin-register' && <AdminRegisterScreen onNavigate={navigate} />}
+      {currentScreen === 'id-verification' && auth.token && <IdVerificationScreen auth={auth} onNavigate={navigate} />}
       {currentScreen === 'main' && <MainTabNavigator auth={auth} onLogout={handleLogout} onNavigate={navigate} />}
       <GlobalOverlay />
     </SafeAreaProvider>

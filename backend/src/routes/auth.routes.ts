@@ -12,6 +12,11 @@ import {
   changePinSchema,
   createAdminSchema,
   addMemberSchema,
+  forgotPinRequestSchema,
+  forgotPinVerifySchema,
+  forgotPinResetSchema,
+  adminRegisterSchema,
+  submitIdSchema,
 } from "../middleware/zodValidation.middleware";
 
 const router = Router();
@@ -23,9 +28,18 @@ router.post("/login", authRateLimiter, validate(loginSchema), authController.log
 // Public routes - Superadmin web portal login (email + password)
 router.post("/superadmin/login", superadminRateLimiter, validate(superadminLoginSchema), authController.superadminLogin.bind(authController));
 
+// Public routes - Forgot PIN flow (rate limited)
+router.post("/forgot-pin/request", authRateLimiter, validate(forgotPinRequestSchema), authController.forgotPinRequest.bind(authController));
+router.post("/forgot-pin/verify", authRateLimiter, validate(forgotPinVerifySchema), authController.forgotPinVerify.bind(authController));
+router.post("/forgot-pin/reset", authRateLimiter, validate(forgotPinResetSchema), authController.forgotPinReset.bind(authController));
+
+// Public routes - Admin self-registration
+router.post("/admin/register", authRateLimiter, validate(adminRegisterSchema), authController.adminRegister.bind(authController));
+
 // Protected routes (any authenticated user)
 router.get("/me", authMiddleware, authController.getCurrentUser.bind(authController));
 router.post("/change-pin", authMiddleware, sensitiveLimiter, auditLog('PIN_CHANGE'), validate(changePinSchema), authController.changePin.bind(authController));
+router.post("/submit-id", authMiddleware, sensitiveLimiter, auditLog('ID_SUBMIT'), validate(submitIdSchema), authController.submitId.bind(authController));
 
 // SUPERADMIN-only routes
 router.post("/admin/create", authMiddleware, roleMiddleware(['SUPERADMIN']), auditLog('ADMIN_CREATE'), validate(createAdminSchema), authController.createAdmin.bind(authController));

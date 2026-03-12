@@ -106,6 +106,8 @@ ${mainMenu(state)}`;
         return this.handleGroupInfoFlow(state, inputs);
       case '5': // Contact Admin
         return this.handleContactFlow(state, inputs);
+      case '6': // Forgot PIN
+        return this.handleForgotPinFlow(state, inputs);
       default:
         return mainMenu(state);
     }
@@ -343,6 +345,74 @@ ${mainMenu(state)}`;
       return info;
     }
     
+    return mainMenu(state);
+  }
+
+  // ============ FORGOT PIN FLOW ============
+  private async handleForgotPinFlow(state: MenuState, inputs: string[]): Promise<string> {
+    // 6 → Show confirm menu (already handled by menuHandlers)
+    // 6*1 → Request OTP
+    if (inputs.length === 2) {
+      const choice = inputs[1];
+      if (choice === '0') return mainMenu(state);
+      if (choice === '1') {
+        // Request OTP for the USSD caller's phone number
+        try {
+          await axios.post(`${BACKEND_URL}/api/auth/forgot-pin/request`, {
+            phoneNumber: state.phoneNumber,
+          });
+        } catch {
+          // Don't reveal if account exists
+        }
+        state.data.forgotPinPhone = state.phoneNumber;
+        return 'CON An OTP has been sent via SMS.\nEnter the 6-digit code:';
+      }
+      return mainMenu(state);
+    }
+
+    // 6*1*<otp> → Verify OTP
+    if (inputs.length === 3) {
+      const otp = inputs[2];
+      if (!/^\d{6}$/.test(otp)) {
+        return 'END Invalid OTP format.\nPlease dial again to retry.';
+      }
+      try {
+        const response = await axios.post(`${BACKEND_URL}/api/auth/forgot-pin/verify`, {
+          phoneNumber: state.data.forgotPinPhone || state.phoneNumber,
+          otp,
+        });
+        if (response.data.success) {
+          state.data.resetSessionToken = response.data.data.sessionToken;
+          return 'CON OTP verified!\nEnter your new 5-digit PIN:';
+        }
+        return `END ${response.data.message || 'Invalid OTP.'}\nPlease dial again to retry.`;
+      } catch (error: any) {
+        const msg = error.response?.data?.message || 'Verification failed.';
+        return `END ${msg}\nPlease dial again to retry.`;
+      }
+    }
+
+    // 6*1*<otp>*<newpin> → Reset PIN
+    if (inputs.length === 4) {
+      const newPin = inputs[3];
+      if (!/^\d{5}$/.test(newPin)) {
+        return 'END PIN must be exactly 5 digits.\nPlease dial again to retry.';
+      }
+      try {
+        const response = await axios.post(`${BACKEND_URL}/api/auth/forgot-pin/reset`, {
+          sessionToken: state.data.resetSessionToken,
+          newPin,
+        });
+        if (response.data.success) {
+          return 'END Your PIN has been reset successfully!\nYou can now log in with your new PIN.';
+        }
+        return `END ${response.data.message || 'Failed to reset PIN.'}\nPlease dial again to retry.`;
+      } catch (error: any) {
+        const msg = error.response?.data?.message || 'Reset failed.';
+        return `END ${msg}\nPlease dial again to retry.`;
+      }
+    }
+
     return mainMenu(state);
   }
 }

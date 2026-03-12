@@ -1,27 +1,39 @@
 import { prisma } from '../utils/prisma';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { JWT_SECRET, JWT_EXPIRES_IN } from '../utils/jwt';
 import { validatePin } from '../utils/validation';
+import { validateSAId } from '../utils/saIdValidation';
 import { cacheGetOrSet } from '../utils/redis';
 import smsService from './sms.service';
+import verificationService from './verification.service';
 
 // ============ CONSTANTS ============
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 const SUPERADMIN_TOKEN_EXPIRY = '2h'; // Shorter expiry for superadmin
 
+// Forgot-PIN constants
+const OTP_EXPIRY_MS = 5 * 60 * 1000;          // 5 minutes
+const OTP_COOLDOWN_MS = 60 * 1000;             // 1 minute between requests
+const MAX_OTP_REQUESTS_PER_HOUR = 5;
+const MAX_OTP_VERIFY_ATTEMPTS = 3;
+const PIN_RESET_SESSION_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes to set new PIN after OTP verified
+
 // ============ INTERFACES ============
 
 interface CreateAdminInput {
   phoneNumber: string;
-  fullName: string;
+  firstName: string;
+  lastName: string;
   groupId?: string; // Optional: immediately assign as admin of a group
 }
 
 interface AddMemberInput {
   phoneNumber: string;
-  fullName: string;
+  firstName: string;
+  lastName: string;
   groupId: string;
 }
 
@@ -83,19 +95,23 @@ export class AuthService {
       return { success: false, message: 'Phone number must be 10 digits (e.g., 0831234567)' };
     }
 
-    if (!data.fullName || data.fullName.trim().length < 2) {
-      return { success: false, message: 'Full name must be at least 2 characters' };
+    const firstName = data.firstName?.trim();
+    const lastName = data.lastName?.trim();
+    if (!firstName || firstName.length < 2) {
+      return { success: false, message: 'First name must be at least 2 characters' };
     }
+    if (!lastName || lastName.length < 1) {
+      return { success: false, message: 'Last name is required' };
+    }
+    const fullName = `${firstName} ${lastName}`;
 
     const existing = await prisma.user.findUnique({ where: { phoneNumber } });
     if (existing) {
-      // User exists � if a groupId is specified, assign them as admin of that group
       if (data.groupId) {
         const existingMember = await prisma.member.findUnique({
           where: { userId_stokvelGroupId: { userId: existing.id, stokvelGroupId: data.groupId } }
         });
         if (existingMember) {
-          // Already a member � promote to ADMIN
           await prisma.member.update({
             where: { id: existingMember.id },
             data: { role: 'ADMIN' }
@@ -106,7 +122,6 @@ export class AuthService {
             message: `"${existing.fullName}" has been promoted to admin for this group`
           };
         }
-        // Not a member yet � add as ADMIN
         await prisma.member.create({
           data: { userId: existing.id, stokvelGroupId: data.groupId, role: 'ADMIN' }
         });
@@ -122,11 +137,12 @@ export class AuthService {
     const tempPin = this.generateTempPin();
     const hashedPin = await bcrypt.hash(tempPin, 10);
 
-    // Create user as ADMIN (global role) so they get the admin dashboard on mobile
     const admin = await prisma.user.create({
       data: {
         phoneNumber,
-        fullName: data.fullName.trim(),
+        firstName,
+        lastName,
+        fullName,
         pin: hashedPin,
         role: 'ADMIN',
         mustChangePin: true,
@@ -136,27 +152,26 @@ export class AuthService {
       select: {
         id: true,
         phoneNumber: true,
+        firstName: true,
+        lastName: true,
         fullName: true,
         role: true,
         createdAt: true,
       }
     });
 
-    // If groupId specified, immediately add as ADMIN of that group
     if (data.groupId) {
       await prisma.member.create({
         data: { userId: admin.id, stokvelGroupId: data.groupId, role: 'ADMIN' }
       });
     }
 
-    // Send SMS with login details to the new admin
     try {
       await smsService.sendSMS(
         phoneNumber,
-        `Welcome to eStokvel, ${admin.fullName}! You have been registered as an Admin. Your login PIN is: ${tempPin}. Please change it on first login. Download the app to get started.`
+        `Welcome to eStokvel, ${firstName}! You have been registered as an Admin. Your login PIN is: ${tempPin}. Please change it on first login. Download the app to get started.`
       );
     } catch (smsError) {
-      // Log but don't fail the admin creation if SMS fails
       console.warn('Failed to send SMS to new admin:', smsError);
     }
 
@@ -164,22 +179,29 @@ export class AuthService {
       success: true,
       data: {
         admin,
-        tempPin, // Return to superadmin so they can share with the admin
+        tempPin,
       },
-      message: `Admin "${admin.fullName}" created. Temp PIN: ${tempPin}. An SMS has been sent to ${phoneNumber}.`
+      message: `Admin "${fullName}" created. Temp PIN: ${tempPin}. An SMS has been sent to ${phoneNumber}.`
     };
   }
 
   // ============ ADMIN: Add Member to Group ============
+  // Admin provides firstName, lastName, phone only — member enters own ID on first login
   async addMember(data: AddMemberInput, createdById: string) {
     const phoneNumber = this.normalizePhone(data.phoneNumber);
     if (!phoneNumber) {
       return { success: false, message: 'Phone number must be 10 digits (e.g., 0831234567)' };
     }
 
-    if (!data.fullName || data.fullName.trim().length < 2) {
-      return { success: false, message: 'Full name must be at least 2 characters' };
+    const firstName = data.firstName?.trim();
+    const lastName = data.lastName?.trim();
+    if (!firstName || firstName.length < 2) {
+      return { success: false, message: 'First name must be at least 2 characters' };
     }
+    if (!lastName || lastName.length < 1) {
+      return { success: false, message: 'Last name is required' };
+    }
+    const fullName = `${firstName} ${lastName}`;
 
     // Verify group exists and is active
     const group = await prisma.stokvelGroup.findUnique({
@@ -192,7 +214,6 @@ export class AuthService {
     if (!group.isActive) {
       return { success: false, message: 'This group is no longer active' };
     }
-    // Verify caller is an admin of this group (per-group role check)
     const callerMembership = await prisma.member.findFirst({
       where: { userId: createdById, stokvelGroupId: data.groupId, role: 'ADMIN' }
     });
@@ -203,11 +224,9 @@ export class AuthService {
     const tempPin = this.generateTempPin();
     const hashedPin = await bcrypt.hash(tempPin, 10);
 
-    // Check if user already exists
     let user = await prisma.user.findUnique({ where: { phoneNumber } });
 
     if (user) {
-      // User exists � check if already a member of this group
       const existingMember = await prisma.member.findUnique({
         where: { userId_stokvelGroupId: { userId: user.id, stokvelGroupId: group.id } }
       });
@@ -215,11 +234,12 @@ export class AuthService {
         return { success: false, message: `${user.fullName} is already a member of this group` };
       }
     } else {
-      // Create new user
       user = await prisma.user.create({
         data: {
           phoneNumber,
-          fullName: data.fullName.trim(),
+          firstName,
+          lastName,
+          fullName,
           pin: hashedPin,
           role: 'MEMBER',
           mustChangePin: true,
@@ -229,7 +249,6 @@ export class AuthService {
       });
     }
 
-    // Add to group as MEMBER
     const membership = await prisma.member.create({
       data: {
         userId: user.id,
@@ -237,16 +256,15 @@ export class AuthService {
         role: 'MEMBER',
       },
       include: {
-        user: { select: { id: true, fullName: true, phoneNumber: true } },
+        user: { select: { id: true, firstName: true, lastName: true, fullName: true, phoneNumber: true } },
         group: { select: { id: true, name: true, code: true } }
       }
     });
 
-    // Send SMS with login details to the new member
     try {
       await smsService.sendSMS(
         phoneNumber,
-        `Welcome to eStokvel! You've been added to "${group.name}". Login with your phone number. Your temp PIN is: ${tempPin}. Please change it on first login.`
+        `Welcome to eStokvel, ${firstName}! You've been added to "${group.name}". Login with your phone number. Your temp PIN is: ${tempPin}. Please change it on first login.`
       );
     } catch (smsError) {
       console.warn('Failed to send SMS to new member:', smsError);
@@ -256,10 +274,10 @@ export class AuthService {
       success: true,
       data: {
         member: membership,
-        tempPin, // Admin shares this with the member
+        tempPin,
         smsMessage: `You've been added to \"${group.name}\". Download the app and login with your phone number. Your temp PIN is: ${tempPin}`,
       },
-      message: `Member \"${data.fullName}\" added to \"${group.name}\". Temp PIN: ${tempPin}. An SMS has been sent to ${phoneNumber}.`
+      message: `Member \"${fullName}\" added to \"${group.name}\". Temp PIN: ${tempPin}. An SMS has been sent to ${phoneNumber}.`
     };
   }
 
@@ -279,6 +297,8 @@ export class AuthService {
       select: {
         id: true,
         phoneNumber: true,
+        firstName: true,
+        lastName: true,
         fullName: true,
         pin: true,
         role: true,
@@ -290,6 +310,8 @@ export class AuthService {
         lastLogin: true,
         failedAttempts: true,
         lockedUntil: true,
+        verificationStatus: true,
+        idNumberHash: true,
       }
     });
 
@@ -378,11 +400,14 @@ export class AuthService {
         user: {
           id: user.id,
           phoneNumber: user.phoneNumber,
+          firstName: user.firstName,
+          lastName: user.lastName,
           fullName: user.fullName,
           role: user.role,
-          // Effective role: ADMIN if global role is ADMIN or admin of any group
           effectiveRole,
           mustChangePin: user.mustChangePin,
+          verificationStatus: user.verificationStatus,
+          needsIdVerification: !user.idNumberHash, // True if user hasn't submitted ID yet
           email: user.email,
           language: user.language,
           createdAt: user.createdAt,
@@ -667,9 +692,12 @@ export class AuthService {
             id: true,
             phoneNumber: true,
             fullName: true,
+            firstName: true,
+            lastName: true,
             role: true,
             createdAt: true,
             lastLogin: true,
+            verificationStatus: true,
           }
         },
         group: {
@@ -707,9 +735,12 @@ export class AuthService {
         id: true,
         phoneNumber: true,
         fullName: true,
+        firstName: true,
+        lastName: true,
         role: true,
         createdAt: true,
         lastLogin: true,
+        verificationStatus: true,
       }
     });
     for (const u of superAndCreated) {
@@ -740,9 +771,12 @@ export class AuthService {
               id: true,
               phoneNumber: true,
               fullName: true,
+              firstName: true,
+              lastName: true,
               role: true,
               createdAt: true,
               lastLogin: true,
+              verificationStatus: true,
             }
           },
           group: {
@@ -790,7 +824,7 @@ export class AuthService {
   // ============ SUPERADMIN: System overview ============
   async getSystemOverview() {
     return cacheGetOrSet('system:overview', 60, async () => {
-      const [adminMemberCount, groupCount, totalUserCount, transactionAgg] = await Promise.all([
+      const [adminMemberCount, groupCount, totalUserCount, transactionAgg, verificationCounts] = await Promise.all([
         // Count distinct users who are admin of at least one group
         prisma.member.groupBy({ by: ['userId'], where: { role: 'ADMIN' } }).then((r: any[]) => r.length),
         prisma.stokvelGroup.count({ where: { isActive: true } }),
@@ -800,7 +834,18 @@ export class AuthService {
           _sum: { amount: true },
           _count: true,
         }),
+        prisma.user.groupBy({
+          by: ['verificationStatus'],
+          where: { role: { in: ['MEMBER', 'ADMIN'] } },
+          _count: true,
+        }),
       ]);
+
+      // Build verification stats from groupBy result
+      const verificationMap: Record<string, number> = {};
+      for (const row of verificationCounts) {
+        verificationMap[row.verificationStatus] = row._count;
+      }
 
       return {
         success: true,
@@ -810,9 +855,336 @@ export class AuthService {
           members: totalUserCount,
           totalCollected: Number(transactionAgg._sum.amount || 0),
           totalTransactions: transactionAgg._count,
+          verification: {
+            verified: verificationMap['VERIFIED'] || 0,
+            pending: verificationMap['PENDING_VERIFY'] || 0,
+            unverified: verificationMap['UNVERIFIED'] || 0,
+            failed: verificationMap['FAILED'] || 0,
+          },
         },
         message: 'System overview retrieved'
       };
     });
+  }
+
+  // ============ FORGOT PIN: Step 1 – Request OTP ============
+  async requestForgotPin(phoneNumber: string) {
+    const normalized = this.normalizePhone(phoneNumber);
+    if (!normalized) {
+      return { success: false, message: 'Phone number must be 10 digits (e.g., 0831234567)' };
+    }
+
+    // Check that the user exists and is not SUPERADMIN
+    const user = await prisma.user.findUnique({
+      where: { phoneNumber: normalized },
+      select: { id: true, role: true, fullName: true, lockedUntil: true },
+    });
+    if (!user || user.role === 'SUPERADMIN') {
+      // Don't reveal whether the number exists
+      return { success: true, message: 'If this number is registered, you will receive an OTP via SMS.' };
+    }
+
+    // Check account lockout
+    if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
+      return { success: false, message: 'Account is locked. Please try again later.' };
+    }
+
+    // Rate limit: max 1 request per 60 seconds
+    const recentOTP = await prisma.pinResetOTP.findFirst({
+      where: {
+        phoneNumber: normalized,
+        createdAt: { gte: new Date(Date.now() - OTP_COOLDOWN_MS) },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (recentOTP) {
+      return { success: false, message: 'Please wait 60 seconds before requesting another OTP.' };
+    }
+
+    // Rate limit: max 5 requests per hour
+    const hourlyCount = await prisma.pinResetOTP.count({
+      where: {
+        phoneNumber: normalized,
+        createdAt: { gte: new Date(Date.now() - 60 * 60 * 1000) },
+      },
+    });
+    if (hourlyCount >= MAX_OTP_REQUESTS_PER_HOUR) {
+      return { success: false, message: 'Too many OTP requests. Please try again in an hour.' };
+    }
+
+    // Generate 6-digit OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const otpHash = await bcrypt.hash(otp, 10);
+
+    await prisma.pinResetOTP.create({
+      data: {
+        phoneNumber: normalized,
+        otpHash,
+        expiresAt: new Date(Date.now() + OTP_EXPIRY_MS),
+      },
+    });
+
+    // Send OTP via SMS
+    try {
+      await smsService.sendSMS(
+        normalized,
+        `Your eStokvel PIN reset code is: ${otp}. It expires in 5 minutes. Do not share this code.`
+      );
+    } catch (smsError) {
+      console.warn('Failed to send OTP SMS:', smsError);
+    }
+
+    return { success: true, message: 'If this number is registered, you will receive an OTP via SMS.' };
+  }
+
+  // ============ FORGOT PIN: Step 2 – Verify OTP ============
+  async verifyForgotPinOTP(phoneNumber: string, otp: string) {
+    const normalized = this.normalizePhone(phoneNumber);
+    if (!normalized) {
+      return { success: false, message: 'Invalid phone number format' };
+    }
+
+    // Find the latest non-used OTP for this number
+    const otpRecord = await prisma.pinResetOTP.findFirst({
+      where: {
+        phoneNumber: normalized,
+        used: false,
+        verified: false,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!otpRecord) {
+      return { success: false, message: 'No pending OTP found. Please request a new one.' };
+    }
+
+    // Check if expired
+    if (new Date() > otpRecord.expiresAt) {
+      return { success: false, message: 'OTP has expired. Please request a new one.' };
+    }
+
+    // Check max attempts
+    if (otpRecord.attempts >= MAX_OTP_VERIFY_ATTEMPTS) {
+      return { success: false, message: 'Too many wrong attempts. Please request a new OTP.' };
+    }
+
+    // Verify OTP
+    const isValid = await bcrypt.compare(otp, otpRecord.otpHash);
+    if (!isValid) {
+      await prisma.pinResetOTP.update({
+        where: { id: otpRecord.id },
+        data: { attempts: otpRecord.attempts + 1 },
+      });
+      const remaining = MAX_OTP_VERIFY_ATTEMPTS - (otpRecord.attempts + 1);
+      return { success: false, message: `Incorrect OTP. ${remaining} attempt(s) remaining.` };
+    }
+
+    // OTP is correct – generate session token for PIN reset
+    const sessionToken = crypto.randomBytes(32).toString('hex');
+    await prisma.pinResetOTP.update({
+      where: { id: otpRecord.id },
+      data: {
+        verified: true,
+        sessionToken,
+        expiresAt: new Date(Date.now() + PIN_RESET_SESSION_EXPIRY_MS), // extend expiry for PIN entry
+      },
+    });
+
+    return {
+      success: true,
+      data: { sessionToken },
+      message: 'OTP verified. You may now set a new PIN.',
+    };
+  }
+
+  // ============ FORGOT PIN: Step 3 – Reset PIN ============
+  async resetPinWithToken(sessionToken: string, newPin: string) {
+    // Validate new PIN complexity
+    const pinValidation = validatePin(newPin);
+    if (!pinValidation.isValid) {
+      return { success: false, message: pinValidation.message || 'Invalid PIN' };
+    }
+
+    const otpRecord = await prisma.pinResetOTP.findUnique({
+      where: { sessionToken },
+    });
+
+    if (!otpRecord || !otpRecord.verified || otpRecord.used) {
+      return { success: false, message: 'Invalid or expired reset session.' };
+    }
+
+    if (new Date() > otpRecord.expiresAt) {
+      return { success: false, message: 'Reset session has expired. Please start again.' };
+    }
+
+    // Find user
+    const user = await prisma.user.findUnique({
+      where: { phoneNumber: otpRecord.phoneNumber },
+      select: { id: true, fullName: true, phoneNumber: true },
+    });
+    if (!user) {
+      return { success: false, message: 'User not found.' };
+    }
+
+    // Hash and update PIN
+    const hashedPin = await bcrypt.hash(newPin, 10);
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: user.id },
+        data: {
+          pin: hashedPin,
+          mustChangePin: false,
+          failedAttempts: 0,
+          lockedUntil: null,
+        },
+      }),
+      prisma.pinResetOTP.update({
+        where: { id: otpRecord.id },
+        data: { used: true },
+      }),
+    ]);
+
+    // Send confirmation SMS
+    try {
+      await smsService.sendSMS(
+        user.phoneNumber,
+        `Hi ${user.fullName}, your eStokvel PIN has been successfully reset. If you did not do this, contact support immediately.`
+      );
+    } catch (smsError) {
+      console.warn('Failed to send PIN reset confirmation SMS:', smsError);
+    }
+
+    return { success: true, message: 'PIN has been reset successfully. You can now log in with your new PIN.' };
+  }
+
+  // ============ ADMIN SELF-REGISTRATION ============
+  async adminSelfRegister(data: { phoneNumber: string; firstName: string; lastName: string; idNumber: string }) {
+    const normalized = this.normalizePhone(data.phoneNumber);
+    if (!normalized) {
+      return { success: false, message: 'Phone number must be 10 digits (e.g., 0831234567)' };
+    }
+
+    const firstName = data.firstName?.trim();
+    const lastName = data.lastName?.trim();
+    if (!firstName || firstName.length < 2) {
+      return { success: false, message: 'First name must be at least 2 characters' };
+    }
+    if (!lastName || lastName.length < 1) {
+      return { success: false, message: 'Last name is required' };
+    }
+    const fullName = `${firstName} ${lastName}`;
+
+    // Validate SA ID number
+    const idValidation = validateSAId(data.idNumber);
+    if (!idValidation.isValid) {
+      return { success: false, message: idValidation.message || 'Invalid ID number' };
+    }
+
+    // Check if user already exists
+    const existing = await prisma.user.findUnique({ where: { phoneNumber: normalized } });
+    if (existing) {
+      return { success: false, message: 'An account with this phone number already exists. Please log in instead.' };
+    }
+
+    // Hash ID number for secure storage
+    const idNumberHash = await bcrypt.hash(data.idNumber, 10);
+
+    // Generate temp PIN and send via SMS
+    const tempPin = this.generateTempPin();
+    const hashedPin = await bcrypt.hash(tempPin, 10);
+
+    const admin = await prisma.user.create({
+      data: {
+        phoneNumber: normalized,
+        firstName,
+        lastName,
+        fullName,
+        pin: hashedPin,
+        role: 'ADMIN',
+        mustChangePin: true,
+        isVerified: true,
+        idNumberHash,
+        verificationStatus: 'PENDING_VERIFY',
+      },
+      select: {
+        id: true,
+        phoneNumber: true,
+        firstName: true,
+        lastName: true,
+        fullName: true,
+        role: true,
+        createdAt: true,
+      },
+    });
+
+    // Submit to Smile Identity for verification (async)
+    verificationService.submitVerification({
+      userId: admin.id,
+      firstName,
+      lastName,
+      idNumber: data.idNumber,
+      dateOfBirth: idValidation.dateOfBirth?.toISOString().split('T')[0],
+      phoneNumber: normalized,
+    }).catch(err => console.warn('Verification submission failed:', err));
+
+    // Send temp PIN via SMS
+    try {
+      await smsService.sendSMS(
+        normalized,
+        `Welcome to eStokvel, ${firstName}! You've registered as a Group Admin. Your temporary PIN is: ${tempPin}. Please change it on first login.`
+      );
+    } catch (smsError) {
+      console.warn('Failed to send registration SMS:', smsError);
+    }
+
+    return {
+      success: true,
+      data: { admin },
+      message: `Registration successful! A temporary PIN has been sent to ${normalized} via SMS.`,
+    };
+  }
+
+  // ============ MEMBER: Submit ID Number (first login) ============
+  async submitIdNumber(userId: string, idNumber: string) {
+    // Validate SA ID
+    const idValidation = validateSAId(idNumber);
+    if (!idValidation.isValid) {
+      return { success: false, message: idValidation.message || 'Invalid ID number' };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, firstName: true, lastName: true, phoneNumber: true, idNumberHash: true, verificationStatus: true },
+    });
+
+    if (!user) {
+      return { success: false, message: 'User not found' };
+    }
+
+    if (user.idNumberHash) {
+      return { success: false, message: 'ID number has already been submitted.' };
+    }
+
+    // Hash and store
+    const idNumberHash = await bcrypt.hash(idNumber, 10);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { idNumberHash, verificationStatus: 'PENDING_VERIFY' },
+    });
+
+    // Submit to Smile Identity for verification (async)
+    verificationService.submitVerification({
+      userId: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      idNumber,
+      dateOfBirth: idValidation.dateOfBirth?.toISOString().split('T')[0],
+      phoneNumber: user.phoneNumber,
+    }).catch(err => console.warn('Verification submission failed:', err));
+
+    return {
+      success: true,
+      message: 'ID number submitted successfully. Your identity will be verified shortly.',
+    };
   }
 }

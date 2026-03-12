@@ -49,7 +49,7 @@ export const systemApi = {
 // ============ Admins ============
 export const adminApi = {
   list: () => api.get('/auth/admin/list'),
-  create: (data: { phoneNumber: string; fullName: string }) =>
+  create: (data: { phoneNumber: string; firstName: string; lastName: string }) =>
     api.post('/auth/admin/create', data),
   delete: (adminId: string) => api.delete(`/auth/admin/${adminId}`),
 };

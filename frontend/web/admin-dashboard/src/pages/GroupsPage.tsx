@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { groupApi } from '../api';
 import { Building2, Users, Coins, ChevronRight, Search, AlertCircle, X, AlertTriangle } from 'lucide-react';
+import CopyButton from '../components/CopyButton';
 
 interface Group {
   id: string;
@@ -128,6 +129,7 @@ export default function GroupsPage() {
                   <div>
                     <h3 className="font-semibold text-gray-900">{group.name}</h3>
                     <p className="text-xs text-gray-400 mt-0.5 font-mono">Code: {group.code}</p>
+                    <CopyButton text={group.id} label="Copy Group ID" />
                   </div>
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                     group.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'

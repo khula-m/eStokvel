@@ -54,11 +54,22 @@ const pin = z
   .length(5, 'PIN must be exactly 5 digits')
   .regex(/^\d{5}$/, 'PIN must contain only digits');
 
-const fullName = z
-  .string({ error: 'Full name is required' })
+const firstName = z
+  .string({ error: 'First name is required' })
   .trim()
-  .min(2, 'Full name must be at least 2 characters')
-  .max(100, 'Full name must be at most 100 characters');
+  .min(2, 'First name must be at least 2 characters')
+  .max(50, 'First name must be at most 50 characters');
+
+const lastName = z
+  .string({ error: 'Last name is required' })
+  .trim()
+  .min(1, 'Last name is required')
+  .max(50, 'Last name must be at most 50 characters');
+
+const idNumber = z
+  .string({ error: 'ID number is required' })
+  .trim()
+  .regex(/^\d{13}$/, 'ID number must be exactly 13 digits');
 
 const email = z
   .string({ error: 'Email is required' })
@@ -101,13 +112,63 @@ export const changePinSchema = z.object({
 
 export const createAdminSchema = z.object({
   phoneNumber,
-  fullName,
+  firstName,
+  lastName,
 });
 
 export const addMemberSchema = z.object({
   phoneNumber,
-  fullName,
+  firstName,
+  lastName,
   groupId,
+});
+
+// ============================================
+//  FORGOT PIN SCHEMAS
+// ============================================
+
+export const forgotPinRequestSchema = z.object({
+  phoneNumber: z
+    .string({ error: 'Phone number is required' })
+    .trim()
+    .min(1, 'Phone number is required'),
+});
+
+export const forgotPinVerifySchema = z.object({
+  phoneNumber: z
+    .string({ error: 'Phone number is required' })
+    .trim()
+    .min(1, 'Phone number is required'),
+  otp: z
+    .string({ error: 'OTP is required' })
+    .length(6, 'OTP must be 6 digits')
+    .regex(/^\d{6}$/, 'OTP must contain only digits'),
+});
+
+export const forgotPinResetSchema = z.object({
+  sessionToken: z
+    .string({ error: 'Session token is required' })
+    .min(1, 'Session token is required'),
+  newPin: pin,
+});
+
+// ============================================
+//  ADMIN SELF-REGISTRATION SCHEMA
+// ============================================
+
+export const adminRegisterSchema = z.object({
+  phoneNumber,
+  firstName,
+  lastName,
+  idNumber,
+});
+
+// ============================================
+//  ID VERIFICATION SCHEMA
+// ============================================
+
+export const submitIdSchema = z.object({
+  idNumber,
 });
 
 // ============================================

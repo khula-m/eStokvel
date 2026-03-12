@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { overrideApi } from '../api';
+import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { systemApi } from '../api';
 import {
   Wrench,
   ArrowLeftRight,
@@ -8,192 +9,180 @@ import {
   KeyRound,
   Unlock,
   UserCog,
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
+  ExternalLink,
+  ShieldCheck,
+  ShieldAlert,
+  ShieldQuestion,
+  Users,
+  Clock,
 } from 'lucide-react';
 
-interface ToolResult {
-  success: boolean;
-  message: string;
-}
+const tools = [
+  {
+    title: 'Reset PIN',
+    description: 'Reset a user\'s login PIN from their row in the table.',
+    icon: KeyRound,
+    color: 'bg-amber-50 text-amber-700',
+    location: 'Members or Admins page',
+    link: '/members',
+  },
+  {
+    title: 'Unlock Account',
+    description: 'Unlock a locked user account directly from the user list.',
+    icon: Unlock,
+    color: 'bg-blue-50 text-blue-700',
+    location: 'Members or Admins page',
+    link: '/members',
+  },
+  {
+    title: 'Update Transaction Status',
+    description: 'Change the status of any transaction from its row.',
+    icon: ArrowLeftRight,
+    color: 'bg-purple-50 text-purple-700',
+    location: 'Transactions page',
+    link: '/transactions',
+  },
+  {
+    title: 'Retry Failed Payout',
+    description: 'Retry a failed or pending payout from the transaction row.',
+    icon: RotateCcw,
+    color: 'bg-red-50 text-red-700',
+    location: 'Transactions page (PAYOUT rows)',
+    link: '/transactions',
+  },
+  {
+    title: 'Create Adjustment',
+    description: 'Create a balance adjustment for a group member.',
+    icon: DollarSign,
+    color: 'bg-emerald-50 text-emerald-700',
+    location: 'Group Detail page',
+    link: '/groups',
+  },
+  {
+    title: 'Transfer Group Admin',
+    description: 'Transfer the admin role between group members.',
+    icon: UserCog,
+    color: 'bg-teal-50 text-teal-700',
+    location: 'Group Detail page',
+    link: '/groups',
+  },
+];
 
-function ToolCard({ title, icon: Icon, color, children }: {
-  title: string;
-  icon: React.ElementType;
-  color: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className={`flex items-center gap-3 px-5 py-4 border-b border-gray-100 ${color}`}>
-        <Icon className="w-5 h-5" />
-        <h3 className="font-semibold text-sm">{title}</h3>
-      </div>
-      <div className="p-5">{children}</div>
-    </div>
-  );
-}
-
-function ResultBanner({ result, onDismiss }: { result: ToolResult; onDismiss: () => void }) {
-  return (
-    <div className={`flex items-start gap-3 p-3 rounded-lg text-sm mb-4 ${result.success ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
-      {result.success ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" /> : <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />}
-      <span className="flex-1">{result.message}</span>
-      <button onClick={onDismiss} className="text-gray-400 hover:text-gray-600">&times;</button>
-    </div>
-  );
+interface VerificationStats {
+  verified: number;
+  pending: number;
+  unverified: number;
+  failed: number;
 }
 
 export default function SuperAdminToolsPage() {
-  // ── Update Transaction Status ──
-  const [txId, setTxId] = useState('');
-  const [txStatus, setTxStatus] = useState('COMPLETED');
-  const [txReason, setTxReason] = useState('');
-  const [txResult, setTxResult] = useState<ToolResult | null>(null);
-  const [txLoading, setTxLoading] = useState(false);
+  const [verificationStats, setVerificationStats] = useState<VerificationStats | null>(null);
 
-  // ── Create Adjustment ──
-  const [adjGroupId, setAdjGroupId] = useState('');
-  const [adjMemberId, setAdjMemberId] = useState('');
-  const [adjAmount, setAdjAmount] = useState('');
-  const [adjReason, setAdjReason] = useState('');
-  const [adjResult, setAdjResult] = useState<ToolResult | null>(null);
-  const [adjLoading, setAdjLoading] = useState(false);
-
-  // ── Retry Payout ──
-  const [retryTxId, setRetryTxId] = useState('');
-  const [retryResult, setRetryResult] = useState<ToolResult | null>(null);
-  const [retryLoading, setRetryLoading] = useState(false);
-
-  // ── Reset PIN ──
-  const [pinUserId, setPinUserId] = useState('');
-  const [newPin, setNewPin] = useState('');
-  const [pinResult, setPinResult] = useState<ToolResult | null>(null);
-  const [pinLoading, setPinLoading] = useState(false);
-
-  // ── Unlock Account ──
-  const [unlockUserId, setUnlockUserId] = useState('');
-  const [unlockResult, setUnlockResult] = useState<ToolResult | null>(null);
-  const [unlockLoading, setUnlockLoading] = useState(false);
-
-  // ── Transfer Admin ──
-  const [transferGroupId, setTransferGroupId] = useState('');
-  const [fromMemberId, setFromMemberId] = useState('');
-  const [toMemberId, setToMemberId] = useState('');
-  const [transferReason, setTransferReason] = useState('');
-  const [transferResult, setTransferResult] = useState<ToolResult | null>(null);
-  const [transferLoading, setTransferLoading] = useState(false);
-
-  const handleApiCall = async (
-    fn: () => Promise<any>,
-    setLoading: (v: boolean) => void,
-    setResult: (v: ToolResult) => void,
-  ) => {
-    setLoading(true);
-    try {
-      const res = await fn();
-      setResult({ success: res.data.success, message: res.data.message || 'Success' });
-    } catch (err: any) {
-      setResult({ success: false, message: err.response?.data?.message || err.message || 'Request failed' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const inputClass = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0A2463]/20 focus:border-[#0A2463]';
-  const btnClass = 'flex items-center justify-center gap-2 px-4 py-2 bg-[#0A2463] text-white rounded-lg text-sm font-medium hover:bg-[#0A2463]/90 transition-colors disabled:opacity-50';
+  useEffect(() => {
+    systemApi.getOverview().then(res => {
+      const d = res.data?.data;
+      if (d?.verification) setVerificationStats(d.verification);
+    }).catch(() => {});
+  }, []);
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-8">
+      <div className="flex items-center gap-3 mb-2">
         <Wrench className="w-7 h-7 text-[#0A2463]" />
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">SuperAdmin Tools</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Manual override tools for recovery scenarios</p>
+        <h1 className="text-2xl font-bold text-gray-900">SuperAdmin Tools</h1>
+      </div>
+      <p className="text-sm text-gray-500 mb-8">
+        All admin actions are available <strong>inline</strong> on data pages.
+        Click the <strong>3-dot menu</strong> (&#8942;) on any row to take action.
+      </p>
+
+      {/* Identity Verification Overview */}
+      {verificationStats && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Identity Verification</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-1.5 rounded-lg bg-green-50"><ShieldCheck className="w-4 h-4 text-green-600" /></div>
+                <span className="text-xs font-medium text-gray-500">Verified</span>
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{verificationStats.verified}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-1.5 rounded-lg bg-blue-50"><Clock className="w-4 h-4 text-blue-600" /></div>
+                <span className="text-xs font-medium text-gray-500">Pending</span>
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{verificationStats.pending}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-1.5 rounded-lg bg-gray-50"><ShieldQuestion className="w-4 h-4 text-gray-400" /></div>
+                <span className="text-xs font-medium text-gray-500">Unverified</span>
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{verificationStats.unverified}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-1.5 rounded-lg bg-red-50"><ShieldAlert className="w-4 h-4 text-red-500" /></div>
+                <span className="text-xs font-medium text-gray-500">Failed</span>
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{verificationStats.failed}</p>
+            </div>
+          </div>
         </div>
+      )}
+
+      {/* Quick Actions Grid */}
+      <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Quick Actions</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {tools.map((tool) => (
+          <Link
+            key={tool.title}
+            to={tool.link}
+            className="group bg-white rounded-xl border border-gray-100 shadow-sm p-5 hover:border-[#0A2463]/30 hover:shadow-md transition-all"
+          >
+            <div className={`inline-flex items-center justify-center w-10 h-10 rounded-lg mb-3 ${tool.color}`}>
+              <tool.icon className="w-5 h-5" />
+            </div>
+            <h3 className="font-semibold text-gray-900 mb-1">{tool.title}</h3>
+            <p className="text-sm text-gray-500 mb-3">{tool.description}</p>
+            <div className="flex items-center gap-1.5 text-xs font-medium text-[#0A2463] group-hover:underline">
+              <ExternalLink className="w-3.5 h-3.5" />
+              Go to {tool.location}
+            </div>
+          </Link>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Update Transaction Status */}
-        <ToolCard title="Update Transaction Status" icon={ArrowLeftRight} color="bg-blue-50 text-blue-700">
-          {txResult && <ResultBanner result={txResult} onDismiss={() => setTxResult(null)} />}
-          <form onSubmit={(e) => { e.preventDefault(); handleApiCall(() => overrideApi.updateTransactionStatus(txId, { status: txStatus, reason: txReason }), setTxLoading, setTxResult); }} className="space-y-3">
-            <input placeholder="Transaction ID" value={txId} onChange={e => setTxId(e.target.value)} className={inputClass} required />
-            <select value={txStatus} onChange={e => setTxStatus(e.target.value)} className={inputClass}>
-              <option value="COMPLETED">COMPLETED</option>
-              <option value="FAILED">FAILED</option>
-              <option value="CANCELLED">CANCELLED</option>
-              <option value="REVERSED">REVERSED</option>
-            </select>
-            <input placeholder="Reason (min 5 chars)" value={txReason} onChange={e => setTxReason(e.target.value)} className={inputClass} required minLength={5} />
-            <button type="submit" disabled={txLoading} className={btnClass}>
-              {txLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Update Status
-            </button>
-          </form>
-        </ToolCard>
-
-        {/* Create Adjustment */}
-        <ToolCard title="Create Adjustment" icon={DollarSign} color="bg-amber-50 text-amber-700">
-          {adjResult && <ResultBanner result={adjResult} onDismiss={() => setAdjResult(null)} />}
-          <form onSubmit={(e) => { e.preventDefault(); handleApiCall(() => overrideApi.createAdjustment({ groupId: adjGroupId, memberId: adjMemberId, amount: Number(adjAmount), reason: adjReason }), setAdjLoading, setAdjResult); }} className="space-y-3">
-            <input placeholder="Group ID" value={adjGroupId} onChange={e => setAdjGroupId(e.target.value)} className={inputClass} required />
-            <input placeholder="Member ID" value={adjMemberId} onChange={e => setAdjMemberId(e.target.value)} className={inputClass} required />
-            <input placeholder="Amount (ZAR)" type="number" step="0.01" value={adjAmount} onChange={e => setAdjAmount(e.target.value)} className={inputClass} required />
-            <input placeholder="Reason (min 5 chars)" value={adjReason} onChange={e => setAdjReason(e.target.value)} className={inputClass} required minLength={5} />
-            <button type="submit" disabled={adjLoading} className={btnClass}>
-              {adjLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Create Adjustment
-            </button>
-          </form>
-        </ToolCard>
-
-        {/* Retry Failed Payout */}
-        <ToolCard title="Retry Failed Payout" icon={RotateCcw} color="bg-purple-50 text-purple-700">
-          {retryResult && <ResultBanner result={retryResult} onDismiss={() => setRetryResult(null)} />}
-          <form onSubmit={(e) => { e.preventDefault(); handleApiCall(() => overrideApi.retryPayout(retryTxId), setRetryLoading, setRetryResult); }} className="space-y-3">
-            <input placeholder="Payout Transaction ID" value={retryTxId} onChange={e => setRetryTxId(e.target.value)} className={inputClass} required />
-            <button type="submit" disabled={retryLoading} className={btnClass}>
-              {retryLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Retry Payout
-            </button>
-          </form>
-        </ToolCard>
-
-        {/* Reset Admin PIN */}
-        <ToolCard title="Reset User PIN" icon={KeyRound} color="bg-red-50 text-red-700">
-          {pinResult && <ResultBanner result={pinResult} onDismiss={() => setPinResult(null)} />}
-          <form onSubmit={(e) => { e.preventDefault(); handleApiCall(() => overrideApi.resetAdminPin(pinUserId, { newPin }), setPinLoading, setPinResult); }} className="space-y-3">
-            <input placeholder="User ID" value={pinUserId} onChange={e => setPinUserId(e.target.value)} className={inputClass} required />
-            <input placeholder="New PIN (5 digits)" value={newPin} onChange={e => setNewPin(e.target.value)} className={inputClass} required pattern="\d{5}" maxLength={5} />
-            <button type="submit" disabled={pinLoading} className={btnClass}>
-              {pinLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Reset PIN
-            </button>
-          </form>
-        </ToolCard>
-
-        {/* Unlock Account */}
-        <ToolCard title="Unlock Account" icon={Unlock} color="bg-emerald-50 text-emerald-700">
-          {unlockResult && <ResultBanner result={unlockResult} onDismiss={() => setUnlockResult(null)} />}
-          <form onSubmit={(e) => { e.preventDefault(); handleApiCall(() => overrideApi.unlockAccount(unlockUserId), setUnlockLoading, setUnlockResult); }} className="space-y-3">
-            <input placeholder="User ID" value={unlockUserId} onChange={e => setUnlockUserId(e.target.value)} className={inputClass} required />
-            <button type="submit" disabled={unlockLoading} className={btnClass}>
-              {unlockLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Unlock Account
-            </button>
-          </form>
-        </ToolCard>
-
-        {/* Transfer Group Admin */}
-        <ToolCard title="Transfer Group Admin" icon={UserCog} color="bg-teal-50 text-teal-700">
-          {transferResult && <ResultBanner result={transferResult} onDismiss={() => setTransferResult(null)} />}
-          <form onSubmit={(e) => { e.preventDefault(); handleApiCall(() => overrideApi.transferGroupAdmin(transferGroupId, { fromMemberId, toMemberId, reason: transferReason }), setTransferLoading, setTransferResult); }} className="space-y-3">
-            <input placeholder="Group ID" value={transferGroupId} onChange={e => setTransferGroupId(e.target.value)} className={inputClass} required />
-            <input placeholder="Current Admin Member ID" value={fromMemberId} onChange={e => setFromMemberId(e.target.value)} className={inputClass} required />
-            <input placeholder="New Admin Member ID" value={toMemberId} onChange={e => setToMemberId(e.target.value)} className={inputClass} required />
-            <input placeholder="Reason" value={transferReason} onChange={e => setTransferReason(e.target.value)} className={inputClass} required />
-            <button type="submit" disabled={transferLoading} className={btnClass}>
-              {transferLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Transfer Admin
-            </button>
-          </form>
-        </ToolCard>
+      {/* How Verification Works */}
+      <div className="mt-8 bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <ShieldCheck className="w-5 h-5 text-[#0A2463]" />
+          <h2 className="font-semibold text-gray-900">How Identity Verification Works</h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm text-gray-600">
+          <div className="flex items-start gap-2">
+            <span className="mt-0.5 w-5 h-5 rounded-full bg-[#0A2463] text-white text-xs flex items-center justify-center shrink-0 font-bold">1</span>
+            <p>Member registers or logs in for the first time. They are prompted to enter their SA ID number.</p>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="mt-0.5 w-5 h-5 rounded-full bg-[#0A2463] text-white text-xs flex items-center justify-center shrink-0 font-bold">2</span>
+            <p>The ID number is validated locally with a Luhn check, then hashed and stored securely. It is never stored in plain text.</p>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="mt-0.5 w-5 h-5 rounded-full bg-[#0A2463] text-white text-xs flex items-center justify-center shrink-0 font-bold">3</span>
+            <p>The ID is submitted to <strong>Smile Identity</strong> for async KYC verification. Status moves to <em>Pending</em>.</p>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="mt-0.5 w-5 h-5 rounded-full bg-[#0A2463] text-white text-xs flex items-center justify-center shrink-0 font-bold">4</span>
+            <p>Once verified, the member's status moves to <em>Verified</em>. Payouts are gated to verified members only.</p>
+          </div>
+        </div>
+        <div className="mt-4 flex items-center gap-2 px-3 py-2 bg-amber-50 rounded-lg text-sm text-amber-800">
+          <Users className="w-4 h-4 shrink-0" />
+          <p>Admins <strong>never</strong> see member ID numbers. Members enter their own ID on first login.</p>
+        </div>
       </div>
     </div>
   );

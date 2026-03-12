@@ -25,6 +25,7 @@ Your Digital Savings Partner
 3. Payment Status
 4. Group Info
 5. Contact Admin
+6. Forgot PIN
 0. Exit`;
 }
 
@@ -39,6 +40,7 @@ export const menuHandlers: Record<string, (state: MenuState, service: USSDServic
   '3': () => 'CON Enter your 5-digit PIN:',
   '4': () => 'CON Enter your 5-digit PIN:',
   '5': () => 'CON Enter your 5-digit PIN:',
+  '6': () => 'CON Forgot PIN\nAn OTP will be sent to your phone.\n\n1. Send OTP to my number\n0. Back',
 };
 
 /**

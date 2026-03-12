@@ -26,6 +26,8 @@ async function main() {
   const superadmin = await prisma.user.create({
     data: {
       phoneNumber: "0800000000",
+      firstName: "System",
+      lastName: "Admin",
       fullName: "System Admin",
       email: "admin@estokvel.co.za",
       password: await hashPassword("Secure@2026!Zkm"),
@@ -45,9 +47,12 @@ async function main() {
   const admin = await prisma.user.create({
     data: {
       phoneNumber: "0831234567",
+      firstName: "John",
+      lastName: "Doe",
       fullName: "John Doe",
       email: "john@example.com",
-      idNumber: "8001015009087",
+      idNumberHash: await bcrypt.hash("8001015009087", 10),
+      verificationStatus: "VERIFIED",
       pin: await hashPin("56789"),
       role: "MEMBER",
       mustChangePin: true,
@@ -63,11 +68,11 @@ async function main() {
   console.log("📝 Creating MEMBER users...");
 
   const memberData = [
-    { phoneNumber: "0831234568", fullName: "Jane Smith", email: "jane@example.com", idNumber: "8502026008087" },
-    { phoneNumber: "0831234569", fullName: "Bob Johnson", email: "bob@example.com", idNumber: "9003037007087" },
-    { phoneNumber: "0831234570", fullName: "Alice Williams", email: "alice@example.com", idNumber: "9504048006087" },
-    { phoneNumber: "0831234571", fullName: "Charlie Brown", email: "charlie@example.com", idNumber: "8705059005087" },
-    { phoneNumber: "0831234572", fullName: "Diana Prince", email: "diana@example.com", idNumber: "9206061234087" },
+    { phoneNumber: "0831234568", firstName: "Jane", lastName: "Smith", fullName: "Jane Smith", email: "jane@example.com" },
+    { phoneNumber: "0831234569", firstName: "Bob", lastName: "Johnson", fullName: "Bob Johnson", email: "bob@example.com" },
+    { phoneNumber: "0831234570", firstName: "Alice", lastName: "Williams", fullName: "Alice Williams", email: "alice@example.com" },
+    { phoneNumber: "0831234571", firstName: "Charlie", lastName: "Brown", fullName: "Charlie Brown", email: "charlie@example.com" },
+    { phoneNumber: "0831234572", firstName: "Diana", lastName: "Prince", fullName: "Diana Prince", email: "diana@example.com" },
   ];
 
   const members: any[] = [];

@@ -72,7 +72,8 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
 
   // ---- ADMIN ADD MEMBER STATE ----
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
-  const [newMemberName, setNewMemberName] = useState('');
+  const [newMemberFirstName, setNewMemberFirstName] = useState('');
+  const [newMemberLastName, setNewMemberLastName] = useState('');
   const [newMemberPhone, setNewMemberPhone] = useState('');
   const [addingMember, setAddingMember] = useState(false);
   const [addedMemberPin, setAddedMemberPin] = useState('');
@@ -245,17 +246,17 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
   };
 
   const handleAddMember = async () => {
-    if (!newMemberName.trim() || !newMemberPhone.trim()) { showAlert('Error', 'Please enter both name and phone number'); return; }
+    if (!newMemberFirstName.trim() || !newMemberLastName.trim() || !newMemberPhone.trim()) { showAlert('Error', 'Please enter first name, last name, and phone number'); return; }
     if (!/^0\d{9}$/.test(newMemberPhone.trim())) { showAlert('Error', 'Phone must be 10 digits starting with 0'); return; }
     if (!selectedGroup) { showAlert('Error', 'No group selected'); return; }
     setAddingMember(true); setAddedMemberPin('');
     try {
       const res = await axios.post(`${API_URL}/api/auth/member/add`, {
-        fullName: newMemberName.trim(), phoneNumber: newMemberPhone.trim(), groupId: selectedGroup.id,
+        firstName: newMemberFirstName.trim(), lastName: newMemberLastName.trim(), phoneNumber: newMemberPhone.trim(), groupId: selectedGroup.id,
       }, { headers });
       if (res.data.success) {
         setAddedMemberPin(res.data.data?.tempPin || '');
-        setNewMemberName(''); setNewMemberPhone('');
+        setNewMemberFirstName(''); setNewMemberLastName(''); setNewMemberPhone('');
         // Refresh members list
         const membersRes = await axios.get(`${API_URL}/api/groups/${selectedGroup.id}/members`, { headers });
         setGroupMembers(membersRes.data.data || []);
@@ -935,8 +936,12 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                 ) : (
                   <>
                     <View style={styles.inputContainer}>
-                      <Text style={styles.label}>Full Name *</Text>
-                      <TextInput style={styles.input} value={newMemberName} onChangeText={setNewMemberName} placeholder="Enter full name" />
+                      <Text style={styles.label}>First Name *</Text>
+                      <TextInput style={styles.input} value={newMemberFirstName} onChangeText={setNewMemberFirstName} placeholder="Enter first name" />
+                    </View>
+                    <View style={styles.inputContainer}>
+                      <Text style={styles.label}>Last Name *</Text>
+                      <TextInput style={styles.input} value={newMemberLastName} onChangeText={setNewMemberLastName} placeholder="Enter last name" />
                     </View>
                     <View style={styles.inputContainer}>
                       <Text style={styles.label}>Phone Number *</Text>
@@ -970,7 +975,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                 </View>
                 <View>
                   <Text style={styles.greeting}>Welcome back,</Text>
-                  <Text style={styles.userName}>{auth.user?.fullName?.split(' ')[0] || 'Admin'}</Text>
+                  <Text style={styles.userName}>{auth.user?.firstName || auth.user?.fullName?.split(' ')[0] || 'Admin'}</Text>
                 </View>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
@@ -1230,7 +1235,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
               </View>
               <View>
                 <Text style={styles.greeting}>Welcome back,</Text>
-                <Text style={styles.userName}>{auth.user?.fullName?.split(' ')[0] || 'Member'}</Text>
+                <Text style={styles.userName}>{auth.user?.firstName || auth.user?.fullName?.split(' ')[0] || 'Member'}</Text>
               </View>
             </View>
             <View style={[styles.roleBadge, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
