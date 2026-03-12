@@ -1,9 +1,8 @@
 [build]
-# Use the Dockerfile instead of Railpack/Nixpacks auto-detection
-builder = "dockerfile"
-dockerfilePath = "Dockerfile"
+buildCommand = "npx prisma generate && npx tsc"
 
 [deploy]
+startCommand = "npx prisma migrate deploy && node dist/server.js"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "on_failure"
