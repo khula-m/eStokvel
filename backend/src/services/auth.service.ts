@@ -1139,7 +1139,7 @@ export class AuthService {
 
     return {
       success: true,
-      data: { admin },
+      data: { admin, tempPin }, // Expose tempPin for testing only
       message: `Registration successful! A temporary PIN has been sent to ${normalized} via SMS.`,
     };
   }
