@@ -50,7 +50,13 @@ class OzowController {
    */
   async handleNotification(req: Request, res: Response) {
     try {
-      logger.info('Ozow notification received:', JSON.stringify(req.body));
+      // Log only non-PII fields (POPIA compliance — full body contains bank/account details)
+      logger.info('Ozow notification received', {
+        transactionRef: req.body.TransactionReference,
+        status: req.body.Status,
+        isTest: req.body.IsTest,
+        siteCode: req.body.SiteCode,
+      });
 
       const result = await ozowService.handleNotification(req.body);
 

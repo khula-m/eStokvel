@@ -13,8 +13,10 @@ model User {
   firstName            String              @default("")
   lastName             String              @default("")
   fullName             String              // Kept for backward compat: "${firstName} ${lastName}"
-  pin                  String?             // 5-digit PIN (hashed) - for ADMIN/MEMBER
+  pin                  String?             // 6-digit PIN (hashed) - for ADMIN/MEMBER
   password             String?             // Complex password (hashed) - for SUPERADMIN
+  totpSecret           String?             // Base32 TOTP secret (only set for SUPERADMIN accounts)
+  totpEnabled          Boolean             @default(false) // True once superadmin has verified their TOTP setup
   role                 UserRole            @default(MEMBER)
   mustChangePin        Boolean             @default(true)
   isVerified           Boolean             @default(false)

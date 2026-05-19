@@ -5,15 +5,20 @@ export function validatePhoneNumber(phone: string): boolean {
   return phoneRegex.test(phone);
 }
 
-// ============ PIN VALIDATION (5-digit for ADMIN/MEMBER) ============
+// ============ PIN VALIDATION (6-digit for ADMIN/MEMBER) ============
 
-const COMMON_PINS = ['12345', '54321', '00000', '11111', '22222', '33333', '44444',
-  '55555', '66666', '77777', '88888', '99999', '123456', '13579', '24680'];
+const COMMON_PINS = [
+  '123456', '654321', '000000', '111111', '222222', '333333', '444444',
+  '555555', '666666', '777777', '888888', '999999', '112233', '121212',
+  '123123', '246810', '135790', '100000', '200000',
+  // Legacy 5-digit common PINs kept for reference during login backward compat
+  '12345', '54321', '00000', '11111',
+];
 
 function isSequential(pin: string): boolean {
-  const ascending = '0123456789';
-  const descending = '9876543210';
-  return ascending.includes(pin) || descending.includes(pin);
+  const asc = '0123456789';
+  const desc = '9876543210';
+  return asc.includes(pin) || desc.includes(pin);
 }
 
 function isAllRepeating(pin: string): boolean {
@@ -21,14 +26,14 @@ function isAllRepeating(pin: string): boolean {
 }
 
 export function validatePin(pin: string): { isValid: boolean; message?: string } {
-  if (!/^\d{5}$/.test(pin)) {
-    return { isValid: false, message: "PIN must be exactly 5 digits" };
+  if (!/^\d{6}$/.test(pin)) {
+    return { isValid: false, message: "PIN must be exactly 6 digits" };
   }
   if (isAllRepeating(pin)) {
-    return { isValid: false, message: "PIN cannot be all the same digit (e.g., 11111)" };
+    return { isValid: false, message: "PIN cannot be all the same digit (e.g., 111111)" };
   }
   if (isSequential(pin)) {
-    return { isValid: false, message: "PIN cannot be a sequential number (e.g., 12345)" };
+    return { isValid: false, message: "PIN cannot be a sequential number (e.g., 123456)" };
   }
   if (COMMON_PINS.includes(pin)) {
     return { isValid: false, message: "This PIN is too common. Please choose a more secure PIN." };

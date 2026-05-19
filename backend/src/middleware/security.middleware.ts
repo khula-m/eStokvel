@@ -38,16 +38,19 @@ function createRedisStore(prefix: string): RedisStore | undefined {
  * General API rate limiter
  * 100 requests per 15 minutes per IP
  */
+// Hide rate-limit headers in production — they reveal our limits to attackers
+const isProd = process.env.NODE_ENV === 'production';
+
 export const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'production' ? 100 : 1000, // Relaxed in dev
+  windowMs: 15 * 60 * 1000,
+  max: isProd ? 100 : 1000,
   message: {
     success: false,
     error: 'Too many requests, please try again later.',
     retryAfter: '15 minutes',
   },
-  standardHeaders: true, // Return rate limit info in headers
-  legacyHeaders: false, // Disable X-RateLimit-* headers
+  standardHeaders: !isProd,
+  legacyHeaders: false,
   store: createRedisStore('general'),
 });
 
@@ -57,86 +60,67 @@ export const generalLimiter = rateLimit({
  * Prevents brute force attacks on PIN and password login
  */
 export const authLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: process.env.NODE_ENV === 'production' ? 5 : 50, // Strict in production, relaxed in dev
+  windowMs: 60 * 60 * 1000,
+  max: isProd ? 5 : 50,
   message: {
     success: false,
     error: 'Too many authentication attempts, please try again in 1 hour.',
     retryAfter: '1 hour',
   },
-  standardHeaders: true,
+  standardHeaders: !isProd,
   legacyHeaders: false,
-  skipSuccessfulRequests: true, // Don't count successful logins
+  skipSuccessfulRequests: true,
   store: createRedisStore('auth'),
 });
 
-/**
- * Sensitive operations limiter
- * 10 requests per hour for PIN change, etc.
- */
 export const sensitiveLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
+  windowMs: 60 * 60 * 1000,
   max: 10,
   message: {
     success: false,
     error: 'Too many attempts, please try again later.',
     retryAfter: '1 hour',
   },
-  standardHeaders: true,
+  standardHeaders: !isProd,
   legacyHeaders: false,
   store: createRedisStore('sensitive'),
 });
 
-/**
- * SMS sending limiter
- * 3 SMS-triggering requests per hour per IP
- * Prevents SMS bombing abuse
- */
 export const smsLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: process.env.NODE_ENV === 'production' ? 3 : 50,
+  windowMs: 60 * 60 * 1000,
+  max: isProd ? 3 : 50,
   message: {
     success: false,
     error: 'Too many SMS requests, please try again later.',
     retryAfter: '1 hour',
   },
-  standardHeaders: true,
+  standardHeaders: !isProd,
   legacyHeaders: false,
   store: createRedisStore('sms'),
 });
 
-/**
- * Group creation limiter
- * 5 groups per day per IP
- * Prevents spam group creation
- */
 export const groupCreateLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000, // 24 hours
-  max: process.env.NODE_ENV === 'production' ? 5 : 50,
+  windowMs: 24 * 60 * 60 * 1000,
+  max: isProd ? 5 : 50,
   message: {
     success: false,
     error: 'Group creation limit reached, please try again tomorrow.',
     retryAfter: '24 hours',
   },
-  standardHeaders: true,
+  standardHeaders: !isProd,
   legacyHeaders: false,
   store: createRedisStore('group-create'),
 });
 
-/**
- * Member addition limiter
- * 20 member additions per hour per IP
- * Prevents mass invite abuse
- */
 export const memberAddLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: process.env.NODE_ENV === 'production' ? 20 : 200,
+  windowMs: 60 * 60 * 1000,
+  max: isProd ? 20 : 200,
   message: {
     success: false,
     error: 'Too many member additions, please try again later.',
     retryAfter: '1 hour',
   },
-  standardHeaders: true,
+  standardHeaders: !isProd,
   legacyHeaders: false,
   store: createRedisStore('member-add'),
 });
@@ -210,12 +194,12 @@ export const configureCors = () => cors(corsOptions);
 // ============================================
 
 export const helmetOptions = {
-  // Content Security Policy
+  // Content Security Policy — no unsafe-inline (prevents CSS injection / data exfiltration)
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'"],
       imgSrc: ["'self'", 'data:', 'https:'],
       connectSrc: ["'self'"],
       fontSrc: ["'self'"],

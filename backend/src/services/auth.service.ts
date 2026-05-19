@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { JWT_SECRET, JWT_EXPIRES_IN } from '../utils/jwt';
+import { getRedisClient, isRedisReady } from '../utils/redis';
+import { REVOKE_PREFIX } from '../middleware/auth.middleware';
 import { validatePin } from '../utils/validation';
 import { validateSAId } from '../utils/saIdValidation';
 import { cacheGetOrSet } from '../utils/redis';
@@ -144,7 +146,9 @@ export class AuthService {
         lastName,
         fullName,
         pin: hashedPin,
-        role: 'ADMIN',
+        // Admin status is per-group (Member.role), not a global user property.
+        // Using 'ADMIN' here would bleed admin UI into every group this person joins later.
+        role: 'MEMBER',
         mustChangePin: true,
         isVerified: true,
         createdById,
@@ -281,15 +285,27 @@ export class AuthService {
     };
   }
 
-  // ============ LOGIN (Phone + PIN) � ADMIN & MEMBER ONLY ============
+  // ============ LOGIN (Phone + PIN) — ADMIN & MEMBER ONLY ============
   async login(data: LoginInput) {
-    if (!data.pin || data.pin.length < 5) {
-      return { success: false, message: 'PIN must be 5 digits' };
+    // Accept 5-digit PINs during the migration window (existing users who haven't changed yet)
+    if (!data.pin || data.pin.length < 5 || data.pin.length > 6) {
+      return { success: false, message: 'PIN must be 5 or 6 digits' };
     }
 
     const phoneNumber = this.normalizePhone(data.phoneNumber);
     if (!phoneNumber) {
       return { success: false, message: 'Phone number must be 10 digits (e.g., 0831234567)' };
+    }
+
+    // Per-phone rate limit: max 10 attempts per hour regardless of source IP.
+    // Defends against distributed botnet attacks that bypass IP-based limits.
+    if (isRedisReady()) {
+      const phoneKey = `rl:login:phone:${phoneNumber}`;
+      const attempts = await getRedisClient()!.incr(phoneKey);
+      if (attempts === 1) await getRedisClient()!.expire(phoneKey, 3600);
+      if (attempts > 10) {
+        return { success: false, message: 'Too many login attempts for this phone number. Try again in 1 hour.' };
+      }
     }
 
     const user = await prisma.user.findUnique({
@@ -388,11 +404,12 @@ export class AuthService {
         }
       });
 
-    // Derive if the user is an admin of any group (for backward compatibility)
+    // Admin status is per-group only — derive from Member.role, never from User.role.
+    // User.role === 'ADMIN' (set by old createAdmin) must NOT override this — a person
+    // added as a plain member to a different group must not see admin controls there.
     const adminMemberships = memberships.filter((m: any) => m.role === 'ADMIN');
     const isGroupAdmin = adminMemberships.length > 0;
-    // effectiveRole: use global role ADMIN if set, or derive from per-group memberships
-    const effectiveRole = user.role === 'ADMIN' || isGroupAdmin ? 'ADMIN' : 'MEMBER';
+    const effectiveRole = user.role === 'SUPERADMIN' ? 'SUPERADMIN' : (isGroupAdmin ? 'ADMIN' : 'MEMBER');
 
     return {
       success: true,
@@ -518,8 +535,8 @@ export class AuthService {
     }
   }
 
-  // ============ SUPERADMIN LOGIN (Email + Password) ============
-  async superadminLogin(data: SuperadminLoginInput, ipAddress?: string) {
+  // ============ SUPERADMIN LOGIN (Email + Password + TOTP) ============
+  async superadminLogin(data: SuperadminLoginInput & { totpToken?: string }, ipAddress?: string) {
     if (!data.email || !data.password) {
       return { success: false, message: 'Email and password are required' };
     }
@@ -538,6 +555,8 @@ export class AuthService {
         lastLogin: true,
         failedAttempts: true,
         lockedUntil: true,
+        totpSecret: true,
+        totpEnabled: true,
       }
     });
 
@@ -548,11 +567,7 @@ export class AuthService {
     // Check lockout
     if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
       const minutesLeft = Math.ceil((new Date(user.lockedUntil).getTime() - Date.now()) / 60000);
-      return {
-        success: false,
-        message: `Account locked. Try again in ${minutesLeft} minute(s).`,
-        locked: true,
-      };
+      return { success: false, message: `Account locked. Try again in ${minutesLeft} minute(s).`, locked: true };
     }
 
     if (!user.password) {
@@ -563,27 +578,30 @@ export class AuthService {
     if (!isPasswordValid) {
       const newFailedAttempts = (user.failedAttempts || 0) + 1;
       const updateData: any = { failedAttempts: newFailedAttempts };
-
       if (newFailedAttempts >= MAX_FAILED_ATTEMPTS) {
         updateData.lockedUntil = new Date(Date.now() + LOCKOUT_DURATION_MS);
       }
       await prisma.user.update({ where: { id: user.id }, data: updateData });
-
       return { success: false, message: 'Invalid credentials' };
     }
 
-    // Success � reset failed attempts, log IP
+    // TOTP check — required once enabled
+    if (user.totpEnabled && user.totpSecret) {
+      if (!data.totpToken) {
+        return { success: false, message: '2FA token required', requiresTotp: true };
+      }
+      const { totpService } = await import('./totp.service');
+      if (!(await totpService.validate(user.totpSecret, data.totpToken))) {
+        return { success: false, message: 'Invalid 2FA token. Check your authenticator app.' };
+      }
+    }
+
+    // Success — reset failed attempts, log IP
     await prisma.user.update({
       where: { id: user.id },
-      data: {
-        lastLogin: new Date(),
-        lastLoginIp: ipAddress || null,
-        failedAttempts: 0,
-        lockedUntil: null,
-      }
+      data: { lastLogin: new Date(), lastLoginIp: ipAddress || null, failedAttempts: 0, lockedUntil: null },
     });
 
-    // Short-lived JWT for superadmin (2 hours vs 7 days for mobile)
     const token = jwt.sign(
       { userId: user.id, phoneNumber: user.phoneNumber, role: user.role },
       JWT_SECRET as jwt.Secret,
@@ -602,10 +620,11 @@ export class AuthService {
           language: user.language,
           createdAt: user.createdAt,
           lastLogin: user.lastLogin,
+          totpEnabled: user.totpEnabled,
         },
         token,
       },
-      message: 'Superadmin login successful'
+      message: 'Superadmin login successful',
     };
   }
 
@@ -648,6 +667,14 @@ export class AuthService {
       where: { id: userId },
       data: { pin: hashedPin, mustChangePin: false }
     });
+
+    // Revoke all previously issued tokens for this user.
+    // Any token with iat < now will be rejected by auth middleware.
+    if (isRedisReady()) {
+      const nowSec = Math.floor(Date.now() / 1000);
+      const TOKEN_MAX_AGE_SEC = 7 * 24 * 3600; // matches longest possible token life (7d dev)
+      await getRedisClient()!.set(`${REVOKE_PREFIX}${userId}`, String(nowSec), 'EX', TOKEN_MAX_AGE_SEC);
+    }
 
     return { success: true, message: 'PIN changed successfully' };
   }

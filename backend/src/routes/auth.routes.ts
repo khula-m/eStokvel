@@ -5,6 +5,7 @@ import { roleMiddleware } from "../middleware/role.middleware";
 import { authRateLimiter, superadminRateLimiter } from "../middleware/rateLimiter.middleware";
 import { sensitiveLimiter, memberAddLimiter } from "../middleware/security.middleware";
 import { auditLog } from "../middleware/audit.middleware";
+import { totpService } from "../services/totp.service";
 import {
   validate,
   loginSchema,
@@ -50,6 +51,33 @@ router.get("/system/overview", authMiddleware, roleMiddleware(['SUPERADMIN']), a
 
 // ADMIN-only routes (per-group admin check is done in the service layer)
 router.post("/member/add", authMiddleware, memberAddLimiter, auditLog('MEMBER_ADD'), validate(addMemberSchema), authController.addMember.bind(authController));
+
+// SUPERADMIN TOTP 2FA setup — must be authenticated as SUPERADMIN
+router.post(
+  '/superadmin/totp/setup',
+  authMiddleware,
+  roleMiddleware(['SUPERADMIN']),
+  sensitiveLimiter,
+  auditLog('SUPERADMIN_TOTP_SETUP'),
+  async (req, res) => {
+    const result = await totpService.setupTotp((req as any).user!.id);
+    return res.status(result.success ? 200 : 400).json(result);
+  }
+);
+
+router.post(
+  '/superadmin/totp/verify',
+  authMiddleware,
+  roleMiddleware(['SUPERADMIN']),
+  sensitiveLimiter,
+  auditLog('SUPERADMIN_TOTP_ENABLE'),
+  async (req, res) => {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ success: false, message: 'token is required' });
+    const result = await totpService.verifyAndEnable((req as any).user!.id, String(token));
+    return res.status(result.success ? 200 : 400).json(result);
+  }
+);
 
 // SUPERADMIN-only: Remove a member from a group
 import { MemberController } from '../controllers/member.controller';

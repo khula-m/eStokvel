@@ -20,7 +20,7 @@ router.get("/:id", controller.getGroup.bind(controller));
 // Per-group admin check for update (requireAdminRole checks Member.role for the group)
 router.put("/:id", requireAdminRole, auditLog('GROUP_UPDATE'), validate(updateGroupSchema), controller.updateGroup.bind(controller));
 // Delete: service handles per-group admin + SUPERADMIN override
-router.delete("/:id", auditLog('GROUP_DELETE'), controller.deleteGroup.bind(controller));
+router.delete("/:id", requireAdminRole, auditLog('GROUP_DELETE'), controller.deleteGroup.bind(controller));
 router.post("/:id/join", auditLog('GROUP_JOIN'), controller.joinGroup.bind(controller));
 router.get("/:id/stats", controller.getGroupStats.bind(controller));
 router.get("/:id/members", controller.getGroupMembers.bind(controller));

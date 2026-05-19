@@ -25,7 +25,11 @@ interface AuditEntry {
 /**
  * Sensitive fields to redact from audit logs
  */
-const SENSITIVE_FIELDS = ['pin', 'password', 'currentPin', 'newPin', 'accountNumber', 'token'];
+const SENSITIVE_FIELDS = [
+  'pin', 'password', 'currentPin', 'newPin',
+  'accountNumber', 'payoutAccountNumber', 'branchCode', 'payoutBranchCode',
+  'token', 'otp', 'idNumber', 'idNumberHash', 'totpToken', 'totpSecret',
+];
 
 function redactSensitiveData(data: Record<string, any>): Record<string, any> {
   if (!data || typeof data !== 'object') return data;

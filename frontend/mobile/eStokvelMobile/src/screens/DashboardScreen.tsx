@@ -24,15 +24,25 @@ interface DashboardScreenProps {
   auth: AuthState;
   onLogout: () => void;
   onNavigateTab: (tab: string, groupId?: string) => void;
+  onAuthRefresh: () => Promise<void>;
 }
 
-export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScreenProps) => {
+export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }: DashboardScreenProps) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const userRole = auth.user?.role || 'MEMBER';
   const isSuperAdmin = userRole === 'SUPERADMIN';
-  // Per-group admin: use effectiveRole (ADMIN if admin of any group)
-  const isAdmin = auth.user?.effectiveRole === 'ADMIN' || userRole === 'ADMIN';
+  // isAdmin = true if the user is admin of AT LEAST ONE group.
+  // Use this only to decide which top-level view to show.
+  // For group-specific actions, always use getGroupRole(groupId) instead.
+  const isAdmin = auth.user?.effectiveRole === 'ADMIN' || isSuperAdmin;
+
+  // Returns 'ADMIN' or 'MEMBER' for a specific group based on the login memberships array.
+  // Falls back to 'MEMBER' if the group is not in the memberships list.
+  const getGroupRole = (groupId: string): 'ADMIN' | 'MEMBER' => {
+    const m = auth.user?.memberships?.find((m: any) => m.groupId === groupId);
+    return m?.role === 'ADMIN' ? 'ADMIN' : 'MEMBER';
+  };
   const headers = { Authorization: `Bearer ${auth.token}` };
 
   // ---- ADMIN STATE ----
@@ -239,6 +249,9 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
         durationMonths: parseInt(newGroupDuration) || 12, payoutModel: newGroupPayoutModel,
       }, { headers });
       setNewGroupName(''); setNewGroupDesc(''); setNewGroupAmount(''); setNewGroupDuration('12'); setNewGroupPayoutModel('ROTATING'); setShowCreateGroupModal(false);
+      // Refresh auth state first so effectiveRole updates to ADMIN before the
+      // dashboard data fetch — this handles the "member creates first group" scenario.
+      await onAuthRefresh();
       fetchDashboardData();
       showAlert('Success', 'Group created!');
     } catch (e: any) { showAlert('Error', e.response?.data?.message || 'Failed'); }
@@ -817,10 +830,12 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                 <View style={styles.sectionHeaderRow}>
                   <Icon name="people" size={20} color={COLORS.primary} />
                   <Text style={styles.sectionTitle}>Members ({groupMembers.length})</Text>
-                  <TouchableOpacity onPress={() => { setShowAddMemberModal(true); setAddedMemberPin(''); }} style={styles.addBtnSmall}>
-                    <Icon name="person-add" size={16} color="#fff" />
-                    <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>Add</Text>
-                  </TouchableOpacity>
+                  {selectedGroup && getGroupRole(selectedGroup.id) === 'ADMIN' && (
+                    <TouchableOpacity onPress={() => { setShowAddMemberModal(true); setAddedMemberPin(''); }} style={styles.addBtnSmall}>
+                      <Icon name="person-add" size={16} color="#fff" />
+                      <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>Add</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
                 {groupMembers.length === 0 ? (
                   <View style={styles.emptyStateCard}>
@@ -980,7 +995,9 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <View style={[styles.roleBadge, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-                  <Text style={styles.roleBadgeText}>ADMIN</Text>
+                  <Text style={styles.roleBadgeText}>
+                    {isSuperAdmin ? 'SUPERADMIN' : (auth.user?.effectiveRole === 'ADMIN' ? 'GROUP ADMIN' : 'MEMBER')}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -1054,35 +1071,50 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                   </View>
                 </View>
 
-                {/* Action Buttons - Compact 2-row grid */}
-                <View style={styles.groupActionRow}>
-                  <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('analytics', group)}>
-                    <Icon name="bar-chart" size={16} color={COLORS.primary} />
-                    <Text style={styles.groupActionText}>Analytics</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('members', group)}>
-                    <Icon name="people" size={16} color={COLORS.primary} />
-                    <Text style={styles.groupActionText}>Members</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('payments', group)}>
-                    <Icon name="payments" size={16} color={COLORS.primary} />
-                    <Text style={styles.groupActionText}>Payments</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.groupActionRow}>
-                  <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('announcements', group)}>
-                    <Icon name="announcement" size={16} color={COLORS.primary} />
-                    <Text style={styles.groupActionText}>Announce</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('meetings', group)}>
-                    <Icon name="event" size={16} color={COLORS.primary} />
-                    <Text style={styles.groupActionText}>Meetings</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.groupActionBtn} onPress={() => onNavigateTab('chat', group.id)}>
-                    <Icon name="chat-bubble" size={16} color={COLORS.primary} />
-                    <Text style={styles.groupActionText}>Chat</Text>
-                  </TouchableOpacity>
-                </View>
+                {/* Action Buttons — admin-only actions gated by per-group role */}
+                {(() => {
+                  const myGroupRole = getGroupRole(group.id);
+                  const isGroupAdmin = myGroupRole === 'ADMIN';
+                  return (
+                    <>
+                      <View style={styles.groupActionRow}>
+                        <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('analytics', group)}>
+                          <Icon name="bar-chart" size={16} color={COLORS.primary} />
+                          <Text style={styles.groupActionText}>Analytics</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('members', group)}>
+                          <Icon name="people" size={16} color={COLORS.primary} />
+                          <Text style={styles.groupActionText}>Members</Text>
+                        </TouchableOpacity>
+                        {isGroupAdmin ? (
+                          <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('payments', group)}>
+                            <Icon name="payments" size={16} color={COLORS.primary} />
+                            <Text style={styles.groupActionText}>Payments</Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <View style={[styles.groupActionBtn, { opacity: 0.35 }]}>
+                            <Icon name="payments" size={16} color={COLORS.textLight} />
+                            <Text style={[styles.groupActionText, { color: COLORS.textLight }]}>Payments</Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.groupActionRow}>
+                        <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('announcements', group)}>
+                          <Icon name="announcement" size={16} color={COLORS.primary} />
+                          <Text style={styles.groupActionText}>Announce</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('meetings', group)}>
+                          <Icon name="event" size={16} color={COLORS.primary} />
+                          <Text style={styles.groupActionText}>Meetings</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.groupActionBtn} onPress={() => onNavigateTab('chat', group.id)}>
+                          <Icon name="chat-bubble" size={16} color={COLORS.primary} />
+                          <Text style={styles.groupActionText}>Chat</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  );
+                })()}
 
                 {/* Quick Pay Button */}
                 <TouchableOpacity
@@ -1092,12 +1124,14 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
                   <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>Pay {formatCurrency(group.contributionAmount)}</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, marginTop: 8, borderTopWidth: 1, borderTopColor: COLORS.border }}
-                  onPress={() => handleDeleteGroup(group)}>
-                  <Icon name="delete" size={16} color={COLORS.error} />
-                  <Text style={{ color: COLORS.error, fontSize: 13, fontWeight: '600', marginLeft: 6 }}>Delete Group</Text>
-                </TouchableOpacity>
+                {getGroupRole(group.id) === 'ADMIN' && (
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, marginTop: 8, borderTopWidth: 1, borderTopColor: COLORS.border }}
+                    onPress={() => handleDeleteGroup(group)}>
+                    <Icon name="delete" size={16} color={COLORS.error} />
+                    <Text style={{ color: COLORS.error, fontSize: 13, fontWeight: '600', marginLeft: 6 }}>Delete Group</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             );
           })}
@@ -1250,6 +1284,14 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
           )}
         </LinearGradient>
 
+        {/* Create Group — available to all members, not just existing admins */}
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16, paddingTop: 12 }}>
+          <TouchableOpacity onPress={() => setShowCreateGroupModal(true)} style={styles.addBtnSmall}>
+            <Icon name="add" size={16} color="#fff" />
+            <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>New Group</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Group Selector for multi-group members */}
         {memberGroups.length > 1 && (
           <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
@@ -1274,7 +1316,13 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
               <Icon name="groups" size={40} color={COLORS.primary} />
             </View>
             <Text style={styles.emptyTitle}>Not in a Group</Text>
-            <Text style={[styles.emptyText, { marginBottom: 20 }]}>Join a stokvel using an invite code from your group admin</Text>
+            <Text style={[styles.emptyText, { marginBottom: 20 }]}>Join a stokvel using an invite code, or start your own group</Text>
+            <TouchableOpacity
+              style={[styles.primaryButton, { width: '80%', marginBottom: 12 }]}
+              onPress={() => setShowCreateGroupModal(true)}>
+              <Icon name="add" size={18} color="#fff" />
+              <Text style={styles.buttonText}>  Create a Group</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={[styles.primaryButton, { width: '80%' }]}
               onPress={() => { setJoinGroupCode(''); setShowJoinGroupModal(true); }}
@@ -1491,6 +1539,73 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab }: DashboardScre
         onClose={() => setShowOzowWebView(false)}
         apiUrl={API_URL}
       />
+
+      {/* Create Group Modal — available from member view too */}
+      <Modal visible={showCreateGroupModal} animationType="slide" transparent={false}>
+        <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#fff' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
+              <TouchableOpacity onPress={() => setShowCreateGroupModal(false)} style={{ paddingRight: 12 }}>
+                <Icon name="close" size={24} color={COLORS.textLight} />
+              </TouchableOpacity>
+              <Icon name="group-add" size={22} color={COLORS.primary} />
+              <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.text, marginLeft: 8, flex: 1 }}>Create New Group</Text>
+            </View>
+            <ScrollView style={{ flex: 1, padding: 20 }} keyboardShouldPersistTaps="handled">
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Group Name *</Text>
+                <TextInput style={styles.input} value={newGroupName} onChangeText={setNewGroupName} placeholder="e.g., Family Stokvel" />
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Description</Text>
+                <TextInput style={[styles.input, { height: 80, textAlignVertical: 'top' }]} value={newGroupDesc} onChangeText={setNewGroupDesc} placeholder="Brief description..." multiline />
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Contribution Amount (R) *</Text>
+                <TextInput style={styles.input} value={newGroupAmount} onChangeText={setNewGroupAmount} placeholder="500" keyboardType="numeric" />
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Frequency</Text>
+                <View style={styles.frequencyRow}>
+                  {['WEEKLY', 'MONTHLY'].map(f => (
+                    <TouchableOpacity key={f} style={[styles.frequencyBtn, newGroupFreq === f && styles.frequencyBtnActive]} onPress={() => setNewGroupFreq(f)}>
+                      <Text style={[styles.frequencyBtnText, newGroupFreq === f && styles.frequencyBtnTextActive]}>{f}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Payout Model</Text>
+                <View style={styles.frequencyRow}>
+                  {([['ROTATING', 'Rotating'], ['END_OF_TERM', 'End-of-Term']] as const).map(([val, label]) => (
+                    <TouchableOpacity key={val} style={[styles.frequencyBtn, { flex: 1 }, newGroupPayoutModel === val && styles.frequencyBtnActive]} onPress={() => setNewGroupPayoutModel(val)}>
+                      <Text style={[styles.frequencyBtnText, newGroupPayoutModel === val && styles.frequencyBtnTextActive]}>{label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Duration (months)</Text>
+                <View style={styles.frequencyRow}>
+                  {['3', '6', '12', '24'].map(d => (
+                    <TouchableOpacity key={d} style={[styles.frequencyBtn, newGroupDuration === d && styles.frequencyBtnActive]} onPress={() => setNewGroupDuration(d)}>
+                      <Text style={[styles.frequencyBtnText, newGroupDuration === d && styles.frequencyBtnTextActive]}>{d}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              <View style={[styles.modalButtons, { marginBottom: 30 }]}>
+                <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowCreateGroupModal(false)}>
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.button, creatingGroup && styles.buttonDisabled]} onPress={handleCreateGroup} disabled={creatingGroup}>
+                  {creatingGroup ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Create</Text>}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Join Group by Code Modal */}
       <Modal visible={showJoinGroupModal} transparent={false} animationType="slide" onRequestClose={() => setShowJoinGroupModal(false)}>

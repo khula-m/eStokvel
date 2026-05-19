@@ -15,9 +15,10 @@ interface MainTabNavigatorProps {
   auth: AuthState;
   onLogout: () => void;
   onNavigate: (screen: string) => void;
+  onAuthRefresh: () => Promise<void>;
 }
 
-export const MainTabNavigator = ({ auth, onLogout, onNavigate }: MainTabNavigatorProps) => {
+export const MainTabNavigator = ({ auth, onLogout, onNavigate, onAuthRefresh }: MainTabNavigatorProps) => {
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [chatGroupId, setChatGroupId] = useState<string | null>(null);
   const [showTour, setShowTour] = useState(false);
@@ -43,7 +44,7 @@ export const MainTabNavigator = ({ auth, onLogout, onNavigate }: MainTabNavigato
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.tabContent}>
-        {currentTab === 'dashboard' && <DashboardScreen auth={auth} onLogout={onLogout} onNavigateTab={navigateTab} />}
+        {currentTab === 'dashboard' && <DashboardScreen auth={auth} onLogout={onLogout} onNavigateTab={navigateTab} onAuthRefresh={onAuthRefresh} />}
         {currentTab === 'ledger' && <LedgerScreen auth={auth} />}
         {currentTab === 'chat' && <ChatScreen auth={auth} initialGroupId={chatGroupId} />}
         {currentTab === 'notifications' && <NotificationsScreen auth={auth} />}

@@ -1,98 +1,104 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { Request } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 
-// Ensure uploads directory exists
+// ── Magic-byte signatures for allowed types ───────────────────────────────
+// Checking actual file content prevents MIME spoofing (e.g. .php renamed to .jpg).
+type Signature = { offset: number; bytes: number[] };
+const MAGIC_SIGNATURES: Record<string, Signature[]> = {
+  'image/jpeg':      [{ offset: 0, bytes: [0xFF, 0xD8, 0xFF] }],
+  'image/png':       [{ offset: 0, bytes: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A] }],
+  'image/gif':       [{ offset: 0, bytes: [0x47, 0x49, 0x46, 0x38] }],
+  'image/webp':      [{ offset: 0, bytes: [0x52, 0x49, 0x46, 0x46] }], // "RIFF" header
+  'application/pdf': [{ offset: 0, bytes: [0x25, 0x50, 0x44, 0x46] }], // "%PDF"
+};
+
+function matchesMagicBytes(buf: Buffer, mime: string): boolean {
+  const sigs = MAGIC_SIGNATURES[mime];
+  if (!sigs) return false;
+  return sigs.some(({ offset, bytes }) =>
+    bytes.every((b, i) => buf[offset + i] === b)
+  );
+}
+
+// ── Uploads directory ──────────────────────────────────────────────────────
 const uploadsDir = path.resolve('uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Configure storage
-const storage = multer.diskStorage({
-  destination: (_req: Request, _file: Express.Multer.File, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (_req: Request, file: Express.Multer.File, cb) => {
-    const uniqueSuffix = uuidv4();
-    const ext = path.extname(file.originalname);
-    cb(null, `${uniqueSuffix}${ext}`);
-  }
-});
+// ── All uploads land in memory first so we can inspect magic bytes ─────────
+const memStore = multer.memoryStorage();
 
-// File filter - only allow images and PDFs
+const ALLOWED_MIMES = Object.keys(MAGIC_SIGNATURES);
+
 const fileFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-  const allowedMimes = [
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'image/webp',
-    'application/pdf'
-  ];
-
-  if (allowedMimes.includes(file.mimetype)) {
+  if (ALLOWED_MIMES.includes(file.mimetype)) {
     cb(null, true);
   } else {
     cb(new Error('Invalid file type. Only JPEG, PNG, GIF, WebP, and PDF files are allowed.'));
   }
 };
 
-// Configure multer
-const upload = multer({
-  storage,
+const memUpload = multer({
+  storage: memStore,
   fileFilter,
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
-    files: 1 // Max 1 file per upload
-  }
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
 });
 
-// Single file upload for payment proof
-export const uploadPaymentProof = upload.single('paymentProof');
+/**
+ * Full upload pipeline for payment proof:
+ *   1. Multer reads into memory (MIME header check)
+ *   2. Magic-byte validation (prevents MIME spoofing)
+ *   3. Write to disk with a UUID filename
+ *
+ * Attach as: router.post('/...', uploadPaymentProof, handleUploadError, controller)
+ */
+export const uploadPaymentProof = [
+  memUpload.single('paymentProof'),
+  (req: Request, res: Response, next: NextFunction) => {
+    if (!req.file) return next(); // no file — let the controller decide if required
 
-// Memory storage for processing without saving to disk
-const memoryStorage = multer.memoryStorage();
+    if (!matchesMagicBytes(req.file.buffer, req.file.mimetype)) {
+      return res.status(400).json({
+        success: false,
+        message: 'File content does not match its declared type. Upload rejected.',
+      });
+    }
 
-export const uploadToMemory = multer({
-  storage: memoryStorage,
-  fileFilter,
-  limits: {
-    fileSize: 5 * 1024 * 1024,
-    files: 1
-  }
-}).single('paymentProof');
+    // Write validated buffer to disk
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    const filename = `${uuidv4()}${ext}`;
+    const dest = path.join(uploadsDir, filename);
+    fs.writeFile(dest, req.file.buffer, (err) => {
+      if (err) return next(err);
+      // Expose the saved path the same way disk storage would
+      (req.file as any).path = dest;
+      (req.file as any).filename = filename;
+      next();
+    });
+  },
+];
 
-// Error handler middleware for multer
-export const handleUploadError = (err: any, _req: Request, res: any, next: any) => {
+/** Memory-only upload (no disk write) — used when the caller handles the buffer directly. */
+export const uploadToMemory = memUpload.single('paymentProof');
+
+export const handleUploadError = (err: any, _req: Request, res: Response, next: NextFunction) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({
-        success: false,
-        message: 'File too large. Maximum size is 5MB.'
-      });
+      return res.status(400).json({ success: false, message: 'File too large. Maximum size is 5MB.' });
     }
     if (err.code === 'LIMIT_FILE_COUNT') {
-      return res.status(400).json({
-        success: false,
-        message: 'Too many files. Only 1 file allowed.'
-      });
+      return res.status(400).json({ success: false, message: 'Too many files. Only 1 file allowed.' });
     }
-    return res.status(400).json({
-      success: false,
-      message: `Upload error: ${err.message}`
-    });
+    return res.status(400).json({ success: false, message: `Upload error: ${err.message}` });
   }
-  
   if (err) {
-    return res.status(400).json({
-      success: false,
-      message: err.message || 'File upload failed'
-    });
+    return res.status(400).json({ success: false, message: err.message || 'File upload failed' });
   }
-  
-  next();
+  return next();
 };
 
-export default upload;
+export default memUpload;

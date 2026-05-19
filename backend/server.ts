@@ -1,5 +1,6 @@
 ﻿import express, { Request, Response } from "express";
 import compression from 'compression';
+import { randomUUID } from 'crypto';
 require("dotenv").config();
 
 // Import security middleware
@@ -50,34 +51,21 @@ app.use(generalLimiter);
 app.use(express.json({ limit: jsonLimit }));
 app.use(express.urlencoded({ extended: true, limit: urlEncodedLimit }));
 
-// Basic routes
+// X-Request-ID: attach a correlation ID to every request and response
+app.use((req: Request, res: Response, next) => {
+  const id = (req.headers['x-request-id'] as string) || randomUUID();
+  (req as any).id = id;
+  res.setHeader('X-Request-ID', id);
+  next();
+});
+
+// Public routes — minimal information exposure
 app.get("/", (_req: Request, res: Response) => {
-  res.json({
-    success: true,
-    message: "eStokvel API v1.0",
-    version: "1.0.0",
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || "development",
-    status: "Authentication working, Day 4 routes ready for testing",
-  });
+  res.json({ success: true, message: "eStokvel API", version: "1.0.0" });
 });
 
 app.get("/health", (_req: Request, res: Response) => {
-  const { isRedisReady } = require("./src/utils/redis");
-  const mem = process.memoryUsage();
-  res.json({
-    success: true,
-    status: "healthy",
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    pid: process.pid,
-    memory: {
-      rss: `${Math.round(mem.rss / 1024 / 1024)}MB`,
-      heapUsed: `${Math.round(mem.heapUsed / 1024 / 1024)}MB`,
-      heapTotal: `${Math.round(mem.heapTotal / 1024 / 1024)}MB`,
-    },
-    redis: isRedisReady() ? "connected" : "disconnected",
-  });
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
 if (process.env.NODE_ENV === "development") {

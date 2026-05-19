@@ -75,11 +75,26 @@ export default function App() {
 
   const handleLogin = (data: any) => {
     setAuth({ user: data.user, token: data.token });
-    // Send push token to backend after login
     if (pushTokenRef.current && data.token) {
       axios.post(`${API_URL}/api/notifications/push-token`, { pushToken: pushTokenRef.current }, {
         headers: { Authorization: `Bearer ${data.token}` }
       }).catch(() => {});
+    }
+  };
+
+  // Re-fetch /auth/me and update the in-memory user (effectiveRole, memberships, etc.)
+  // Call this after any action that changes group membership (create group, join group).
+  const handleAuthRefresh = async () => {
+    if (!auth.token) return;
+    try {
+      const res = await axios.get(`${API_URL}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
+      if (res.data?.success && res.data?.data?.user) {
+        setAuth(prev => ({ ...prev, user: { ...prev.user, ...res.data.data.user } }));
+      }
+    } catch {
+      // Non-fatal — auth state will refresh on next login
     }
   };
 
@@ -109,7 +124,7 @@ export default function App() {
       {currentScreen === 'forgot-pin' && <ForgotPinScreen onNavigate={navigate} />}
       {currentScreen === 'admin-register' && <AdminRegisterScreen onNavigate={navigate} />}
       {currentScreen === 'id-verification' && auth.token && <IdVerificationScreen auth={auth} onNavigate={navigate} />}
-      {currentScreen === 'main' && <MainTabNavigator auth={auth} onLogout={handleLogout} onNavigate={navigate} />}
+      {currentScreen === 'main' && <MainTabNavigator auth={auth} onLogout={handleLogout} onNavigate={navigate} onAuthRefresh={handleAuthRefresh} />}
       <GlobalOverlay />
     </SafeAreaProvider>
   );

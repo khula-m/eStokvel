@@ -14,11 +14,13 @@
 
 import { prisma } from '../utils/prisma';
 import { ozowService } from '../services/ozow.service';
+import { getRedisClient, isRedisReady } from '../utils/redis';
 import logger from '../utils/logger';
 
 const PAYOUT_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const PAYOUT_LOCK_KEY = 'payout:distributed:lock';
+const PAYOUT_LOCK_TTL_SEC = 3600; // 1 hour max lock — auto-releases if process dies
 let intervalHandle: ReturnType<typeof setInterval> | null = null;
-let isProcessing = false; // In-process lock to prevent overlapping runs
 
 // ── Scheduler status tracking ──
 interface SchedulerStatus {
@@ -43,33 +45,55 @@ const schedulerStatus: SchedulerStatus = {
   startedAt: null,
 };
 
-export function getSchedulerStatus(): SchedulerStatus & { isProcessing: boolean; intervalMs: number } {
+export function getSchedulerStatus(): SchedulerStatus & { intervalMs: number } {
   return {
     ...schedulerStatus,
-    isProcessing,
     intervalMs: PAYOUT_CHECK_INTERVAL_MS,
   };
 }
 
 /**
+ * Acquire a cross-process Redis lock. Returns true if the lock was acquired.
+ * Uses SET NX EX so the lock auto-expires if the process dies unexpectedly.
+ */
+async function acquirePayoutLock(): Promise<boolean> {
+  if (!isRedisReady()) {
+    // Redis unavailable — fall back to single-run safety (log loudly)
+    logger.error('[PayoutJob] Redis unavailable — cannot acquire distributed lock. Skipping payout run to prevent duplicate payouts in cluster mode.');
+    return false;
+  }
+  const redis = getRedisClient()!;
+  const result = await redis.set(PAYOUT_LOCK_KEY, process.pid.toString(), 'EX', PAYOUT_LOCK_TTL_SEC, 'NX');
+  return result === 'OK';
+}
+
+async function releasePayoutLock(): Promise<void> {
+  if (!isRedisReady()) return;
+  try {
+    await getRedisClient()!.del(PAYOUT_LOCK_KEY);
+  } catch (err: any) {
+    logger.warn('[PayoutJob] Failed to release distributed lock:', err.message);
+  }
+}
+
+/**
  * Check all active groups and process any due payouts.
- * Idempotent: Uses an in-process lock and checks for existing PENDING payouts
- * before creating new ones.
+ * Uses a Redis distributed lock (SET NX EX) so only one worker in a cluster
+ * runs payouts at a time, preventing duplicate payments.
  */
 export async function processPayouts(): Promise<void> {
-  // Prevent overlapping runs (e.g., if previous run is still executing)
-  if (isProcessing) {
-    logger.warn('[PayoutJob] Previous run still in progress, skipping this cycle.');
+  const lockAcquired = await acquirePayoutLock();
+  if (!lockAcquired) {
+    logger.info('[PayoutJob] Another worker holds the payout lock — skipping this cycle.');
     return;
   }
 
-  isProcessing = true;
   schedulerStatus.rotatingGroupsProcessed = 0;
   schedulerStatus.endOfTermGroupsProcessed = 0;
   schedulerStatus.totalPayoutsCreated = 0;
   try {
     const now = new Date();
-    logger.info(`[PayoutJob] Checking for due payouts at ${now.toISOString()}`);
+    logger.info(`[PayoutJob] Lock acquired (PID ${process.pid}). Checking due payouts at ${now.toISOString()}`);
 
     // ──────────────────────────────────────────────
     //  1. ROTATING MODEL — round-robin payouts
@@ -91,7 +115,7 @@ export async function processPayouts(): Promise<void> {
     schedulerStatus.lastError = error.message;
     logger.error(`[PayoutJob] Fatal error: ${error.message}`);
   } finally {
-    isProcessing = false;
+    await releasePayoutLock();
   }
 }
 
