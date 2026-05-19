@@ -108,34 +108,52 @@ export class SMSService {
 
       logger.info(`SMS attempt: to=${formattedNumber} username=${this._username} keyLen=${this._apiKey.length}`);
 
-      // Africa's Talking SMS API
-      const AfricasTalking = require('africastalking');
-      const at = AfricasTalking({ apiKey: this._apiKey, username: this._username });
-      const sms = at.SMS;
-      const sendOptions: any = {
-        to: [formattedNumber],
+      // Call Africa's Talking REST API directly (no SDK dependency).
+      // Using Node 20's built-in fetch to avoid transitive vulnerabilities from the AT SDK.
+      const isSandbox = this._username === 'sandbox';
+      const apiUrl = isSandbox
+        ? 'https://api.sandbox.africastalking.com/version1/messaging'
+        : 'https://api.africastalking.com/version1/messaging';
+
+      const params = new URLSearchParams({
+        username: this._username,
+        to: formattedNumber,
         message,
-      };
-      // Only set 'from' if a custom sender ID is registered with AT
+      });
       if (process.env.SMS_SENDER_ID) {
-        sendOptions.from = process.env.SMS_SENDER_ID;
+        params.set('from', process.env.SMS_SENDER_ID);
       }
-      const result = await sms.send(sendOptions);
-      
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          apiKey: this._apiKey,
+          Accept: 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: params.toString(),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        logger.warn(`SMS HTTP error: status=${response.status} body=${errText}`);
+        return { success: false, error: `HTTP ${response.status}` };
+      }
+
+      const result: any = await response.json();
       logger.info(`SMS raw response: ${JSON.stringify(result)}`);
-      
+
       const msgData = result?.SMSMessageData?.Recipients?.[0];
       if (msgData?.statusCode === 101) {
         logger.info(`SMS sent successfully: to=${formattedNumber} messageId=${msgData.messageId}`);
         return { success: true, messageId: msgData.messageId };
       } else {
-        const status = msgData?.status || 'Unknown error';
-        const fullMsg = result?.SMSMessageData?.Message || 'no message';
-        logger.warn(`SMS delivery issue: to=${formattedNumber} status=${status} message=${fullMsg} statusCode=${msgData?.statusCode}`);
+        const status = msgData?.status || result?.SMSMessageData?.Message || 'Unknown error';
+        logger.warn(`SMS delivery issue: to=${formattedNumber} status=${status} statusCode=${msgData?.statusCode}`);
         return { success: false, error: status };
       }
     } catch (error: any) {
-      logger.error(`SMS Error: ${error.message} status=${error.response?.status} data=${JSON.stringify(error.response?.data)} username=${this._username}`);
+      logger.error(`SMS Error: ${error.message} username=${this._username}`);
       return { success: false, error: error.message };
     }
   }
