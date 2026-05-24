@@ -53,13 +53,13 @@ export const AdminRegisterScreen = ({ onNavigate }: AdminRegisterScreenProps) =>
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         idNumber: idNumber.trim(),
-      });
+      }, { timeout: 15000 });
       if (response.data.success) {
-        showAlert(
-          'Registration Successful',
-          'A temporary PIN has been sent to your phone via SMS. Please log in and change your PIN.',
-          [{ text: 'Go to Login', onPress: () => onNavigate('login') }]
-        );
+        const tempPin = response.data.data?.tempPin;
+        const pinMsg = tempPin
+          ? `Your temporary PIN is: ${tempPin}\n\nWrite it down — you will need it to log in. Change it on first login.`
+          : 'A temporary PIN has been sent to your phone via SMS. Please log in and change your PIN.';
+        showAlert('Registration Successful', pinMsg, [{ text: 'Go to Login', onPress: () => onNavigate('login') }]);
       } else {
         showAlert('Error', response.data.message || 'Registration failed');
       }

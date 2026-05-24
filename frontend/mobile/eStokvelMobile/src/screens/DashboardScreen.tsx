@@ -266,7 +266,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
     try {
       const res = await axios.post(`${API_URL}/api/auth/member/add`, {
         firstName: newMemberFirstName.trim(), lastName: newMemberLastName.trim(), phoneNumber: newMemberPhone.trim(), groupId: selectedGroup.id,
-      }, { headers });
+      }, { headers, timeout: 15000 });
       if (res.data.success) {
         setAddedMemberPin(res.data.data?.tempPin || '');
         setNewMemberFirstName(''); setNewMemberLastName(''); setNewMemberPhone('');

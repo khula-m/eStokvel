@@ -170,11 +170,8 @@ export class AuthService {
       });
     }
 
-    try {
-      await smsService.sendSMS(phoneNumber, `Welcome to eStokvel, ${firstName}! You have been registered as an Admin. Your login PIN is: ${tempPin}. Please change it on first login. Download the app to get started.`);
-    } catch (smsError) {
-      console.warn('Failed to send SMS to new admin:', smsError);
-    }
+    smsService.sendSMS(phoneNumber, `Welcome to eStokvel, ${firstName}! You have been registered as an Admin. Your login PIN is: ${tempPin}. Please change it on first login. Download the app to get started.`)
+      .catch(smsError => console.warn('Failed to send SMS to new admin:', smsError));
 
     return {
       success: true,
@@ -262,11 +259,9 @@ export class AuthService {
       }
     });
 
-    try {
-      await smsService.sendSMS(phoneNumber, `Welcome to eStokvel, ${firstName}! You've been added to "${group.name}". Login with your phone number. Your temp PIN is: ${tempPin}. Please change it on first login.`);
-    } catch (smsError) {
-      console.warn('Failed to send SMS to new member:', smsError);
-    }
+    // Fire SMS in background — never block the response waiting for SMS
+    smsService.sendSMS(phoneNumber, `Welcome to eStokvel, ${firstName}! You've been added to "${group.name}". Login with your phone number. Your temp PIN is: ${tempPin}. Please change it on first login.`)
+      .catch(smsError => console.warn('Failed to send SMS to new member:', smsError));
 
     return {
       success: true,
@@ -1179,12 +1174,9 @@ export class AuthService {
       phoneNumber: normalized,
     }).catch(err => console.warn('Verification submission failed:', err));
 
-    // Send temp PIN via SMS
-    try {
-      await smsService.sendSMS(normalized, `Welcome to eStokvel, ${firstName}! You've registered as a Group Admin. Your temporary PIN is: ${tempPin}. Please change it on first login.`);
-    } catch (smsError) {
-      console.warn('Failed to send registration SMS:', smsError);
-    }
+    // Fire SMS in background — never block the response waiting for SMS
+    smsService.sendSMS(normalized, `Welcome to eStokvel, ${firstName}! You've registered as a Group Admin. Your temporary PIN is: ${tempPin}. Please change it on first login.`)
+      .catch(smsError => console.warn('Failed to send registration SMS:', smsError));
 
     return {
       success: true,
