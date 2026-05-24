@@ -17,10 +17,11 @@ interface MainTabNavigatorProps {
   onLogout: () => void;
   onNavigate: (screen: string) => void;
   onAuthRefresh: () => Promise<void>;
+  initialTab?: string;
 }
 
-export const MainTabNavigator = ({ auth, onLogout, onNavigate, onAuthRefresh }: MainTabNavigatorProps) => {
-  const [currentTab, setCurrentTab] = useState('dashboard');
+export const MainTabNavigator = ({ auth, onLogout, onNavigate, onAuthRefresh, initialTab }: MainTabNavigatorProps) => {
+  const [currentTab, setCurrentTab] = useState(initialTab || 'dashboard');
   const [chatGroupId, setChatGroupId] = useState<string | null>(null);
   const [showTour, setShowTour] = useState(false);
 

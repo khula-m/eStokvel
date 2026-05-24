@@ -157,11 +157,19 @@ export const LedgerScreen = ({ auth }: { auth: AuthState }) => {
             <Icon name="menu-book" size={22} color="#fff" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={ls.headerTitle}>{selectedGroupName}</Text>
-            <Text style={ls.headerSubtitle}>
-              {tab === 'group' ? 'Group ledger' : tab === 'mine' ? 'My contributions' : 'Group summary'}
-              {myGroupRole === 'ADMIN' ? ' · 👑 Admin' : ''}
-            </Text>
+            <Text style={ls.headerTitle} numberOfLines={1} ellipsizeMode="tail">{selectedGroupName}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+              <Text style={ls.headerSubtitle}>
+                {tab === 'group' ? 'Group ledger' : tab === 'mine' ? 'My contributions' : 'Group summary'}
+              </Text>
+              {myGroupRole === 'ADMIN' && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                  <Text style={ls.headerSubtitle}> · </Text>
+                  <Icon name="star" size={11} color="rgba(255,255,255,0.8)" />
+                  <Text style={ls.headerSubtitle}> Admin</Text>
+                </View>
+              )}
+            </View>
           </View>
         </View>
 
@@ -222,9 +230,10 @@ export const LedgerScreen = ({ auth }: { auth: AuthState }) => {
                 onPress={() => { setSelectedGroupId(g.id); Haptics.selectionAsync(); }}
                 accessibilityLabel={`Select group ${g.name} (you are ${role.toLowerCase()})`} accessibilityRole="button"
                 style={[ls.groupChip, active && ls.groupChipActive]}>
-                <Text style={[ls.groupChipText, active && ls.groupChipTextActive]}>
-                  {role === 'ADMIN' ? '👑 ' : ''}{g.name}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  {role === 'ADMIN' && <Icon name="star" size={11} color={active ? '#fff' : COLORS.primary} />}
+                  <Text style={[ls.groupChipText, active && ls.groupChipTextActive]} numberOfLines={1}>{g.name}</Text>
+                </View>
               </TouchableOpacity>
             );
           })}
@@ -290,27 +299,31 @@ export const LedgerScreen = ({ auth }: { auth: AuthState }) => {
               <>
                 <View style={ls.paidCountsRow}>
                   <View style={[ls.paidCountBadge, { backgroundColor: COLORS.accentSoft }]}>
+                    <Icon name="check-circle" size={12} color={COLORS.success} />
                     <Text style={[ls.paidCountText, { color: COLORS.success }]}>
-                      ✓ {members.filter(m => m.paymentStatus === 'PAID').length} paid
+                      {members.filter(m => m.paymentStatus === 'PAID').length} paid
                     </Text>
                   </View>
                   <View style={[ls.paidCountBadge, { backgroundColor: COLORS.warningSoft }]}>
+                    <Icon name="schedule" size={12} color={COLORS.warning} />
                     <Text style={[ls.paidCountText, { color: COLORS.warning }]}>
-                      ⏳ {members.filter(m => m.paymentStatus === 'PENDING').length} pending
+                      {members.filter(m => m.paymentStatus === 'PENDING').length} pending
                     </Text>
                   </View>
                   <View style={[ls.paidCountBadge, { backgroundColor: COLORS.errorSoft }]}>
+                    <Icon name="warning" size={12} color={COLORS.error} />
                     <Text style={[ls.paidCountText, { color: COLORS.error }]}>
-                      ⚠ {members.filter(m => m.paymentStatus === 'OVERDUE').length} overdue
+                      {members.filter(m => m.paymentStatus === 'OVERDUE').length} overdue
                     </Text>
                   </View>
                 </View>
                 {members.map(m => (
                   <View key={m.id} style={ls.memberRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={ls.memberName}>
-                        {m.role === 'ADMIN' ? '👑 ' : ''}{m.user.fullName}
-                      </Text>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        {m.role === 'ADMIN' && <Icon name="star" size={11} color={COLORS.primary} />}
+                        <Text style={ls.memberName} numberOfLines={1} ellipsizeMode="tail">{m.user.fullName}</Text>
+                      </View>
                       {m.lastContributionDate && (
                         <Text style={ls.memberSub}>Last paid {formatDate(m.lastContributionDate)}</Text>
                       )}
@@ -545,7 +558,7 @@ const ls = StyleSheet.create({
   summaryValue: { fontSize: scaleFontSize(16), fontWeight: '800', color: COLORS.text, marginTop: 2 },
 
   paidCountsRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.md, flexWrap: 'wrap' },
-  paidCountBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: RADIUS.pill },
+  paidCountBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: RADIUS.pill },
   paidCountText: { fontSize: 12, fontWeight: '700' },
 
   memberRow: {

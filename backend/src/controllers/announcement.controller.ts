@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { announcementService } from '../services/announcement.service';
+import { notificationService } from '../services/notification.service';
 import logger from '../utils/logger';
 
 export class AnnouncementController {
@@ -14,6 +15,11 @@ export class AnnouncementController {
         createdBy: (req as any).user.id,
         pinned, expiresAt: expiresAt ? new Date(expiresAt) : undefined,
       });
+      if (result.success) {
+        const user = (req as any).user;
+        notificationService.notifyAnnouncementPosted(groupId, title, user.fullName || 'Admin', user.id)
+          .catch((e: any) => logger.warn('Announcement push notification failed:', e));
+      }
       return res.status(result.success ? 201 : 400).json(result);
     } catch (error: any) {
       logger.error('Create announcement error:', error);

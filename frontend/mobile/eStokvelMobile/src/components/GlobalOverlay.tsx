@@ -74,7 +74,7 @@ const SingleToast = ({ item, onRemove }: { item: ToastItem; onRemove: (id: strin
         </View>
         <View style={toastStyles.textContainer}>
           <Text style={toastStyles.title}>{item.title}</Text>
-          {item.message ? <Text style={toastStyles.message} numberOfLines={3}>{item.message}</Text> : null}
+          {item.message ? <Text style={toastStyles.message} numberOfLines={3} ellipsizeMode="tail">{item.message}</Text> : null}
         </View>
         <TouchableOpacity onPress={dismiss} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Icon name="close" size={16} color="#9CA3AF" />

@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Haptics from 'expo-haptics';
+import * as Notifications from 'expo-notifications';
 import axios from 'axios';
 import 'react-native-get-random-values';
 import { showAlert } from './src/utils/alert';
@@ -15,7 +16,7 @@ import { ForgotPinScreen } from './src/screens/ForgotPinScreen';
 import { AdminRegisterScreen } from './src/screens/AdminRegisterScreen';
 import { IdVerificationScreen } from './src/screens/IdVerificationScreen';
 import { MainTabNavigator } from './src/navigation/MainTabNavigator';
-import { registerForPushNotifications } from './src/utils/notifications';
+import { registerForPushNotifications, dismissAllNotifications } from './src/utils/notifications';
 import { API_URL } from './src/constants/config';
 import { AuthState } from './src/types';
 
@@ -35,6 +36,7 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
   const appState = useRef(AppState.currentState);
   const pushTokenRef = useRef<string | null>(null);
+  const notifTabRef = useRef<string | null>(null);
 
   // Initialization: push notifications + splash screen
   useEffect(() => {
@@ -54,11 +56,27 @@ export default function App() {
     init();
   }, []);
 
-  // Force re-login when app comes back from background
+  // Navigate to the right tab when user taps a push notification
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as Record<string, string>;
+      const screen = data?.screen;
+      if (screen === 'notifications') {
+        notifTabRef.current = 'notifications';
+      } else if (screen === 'dashboard') {
+        notifTabRef.current = 'dashboard';
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  // Force re-login when app comes back from background; clear badge
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (appState.current.match(/inactive|background/) && nextState === 'active') {
+        dismissAllNotifications().catch(() => {});
+      }
       if (appState.current.match(/active/) && nextState === 'background') {
-        // App going to background — clear session so next open requires login
         setAuth({ user: null, token: null });
         setCurrentScreen('landing');
       }
@@ -124,7 +142,7 @@ export default function App() {
       {currentScreen === 'forgot-pin' && <ForgotPinScreen onNavigate={navigate} />}
       {currentScreen === 'admin-register' && <AdminRegisterScreen onNavigate={navigate} />}
       {currentScreen === 'id-verification' && auth.token && <IdVerificationScreen auth={auth} onNavigate={navigate} />}
-      {currentScreen === 'main' && <MainTabNavigator auth={auth} onLogout={handleLogout} onNavigate={navigate} onAuthRefresh={handleAuthRefresh} />}
+      {currentScreen === 'main' && <MainTabNavigator auth={auth} onLogout={handleLogout} onNavigate={navigate} onAuthRefresh={handleAuthRefresh} initialTab={notifTabRef.current || 'dashboard'} />}
       <GlobalOverlay />
     </SafeAreaProvider>
   );

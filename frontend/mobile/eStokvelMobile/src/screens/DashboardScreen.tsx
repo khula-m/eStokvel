@@ -996,12 +996,11 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
                   <Text style={styles.userName}>{auth.user?.firstName || auth.user?.fullName?.split(' ')[0] || 'There'}</Text>
                 </View>
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <View style={[styles.roleBadge, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-                  {/* No global role here — roles are per-group. This badge is a
-                      summary only; the real role badge lives on each group card. */}
-                  <Text style={styles.roleBadgeText}>
-                    {hasAnyAdminRole ? 'GROUP ADMIN IN SOME GROUPS' : 'MEMBER'}
+              <View style={{ alignItems: 'flex-end', flexShrink: 0 }}>
+                <View style={[styles.roleBadge, { backgroundColor: 'rgba(255,255,255,0.2)', flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+                  <Icon name={hasAnyAdminRole ? 'star' : 'person'} size={11} color="#fff" />
+                  <Text style={styles.roleBadgeText} numberOfLines={1}>
+                    {hasAnyAdminRole ? 'GROUP ADMIN' : 'MEMBER'}
                   </Text>
                 </View>
               </View>
@@ -1040,22 +1039,21 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
                     <View style={[styles.groupIconBg, { backgroundColor: COLORS.primarySoft }]}>
                       <Icon name="account-balance" size={22} color={COLORS.primary} />
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.groupCardName}>{group.name}</Text>
-                      <Text style={styles.groupCardSub}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.groupCardName} numberOfLines={1} ellipsizeMode="tail">{group.name}</Text>
+                      <Text style={styles.groupCardSub} numberOfLines={1}>
                         {formatCurrency(group.contributionAmount)}/{group.contributionFrequency === 'MONTHLY' ? 'month' : 'week'}
                       </Text>
                     </View>
                   </View>
-                  {/* Per-group role badge. This is the user's role in THIS
-                      specific group — not derived from any global flag. */}
+                  {/* Per-group role badge — role is specific to THIS group */}
                   <View style={{
                     backgroundColor: cardIsAdmin ? COLORS.primarySoft : COLORS.accentSoft,
-                    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12,
-                    flexDirection: 'row', alignItems: 'center', gap: 4,
+                    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10,
+                    flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0,
                   }}
                   accessibilityLabel={cardIsAdmin ? `You are admin of ${group.name}` : `You are a member of ${group.name}`}>
-                    <Text style={{ fontSize: 12 }}>{cardIsAdmin ? '👑' : '👤'}</Text>
+                    <Icon name={cardIsAdmin ? 'star' : 'person'} size={11} color={cardIsAdmin ? COLORS.primary : COLORS.success} />
                     <Text style={{ fontSize: 11, fontWeight: '700', color: cardIsAdmin ? COLORS.primary : COLORS.success }}>
                       {cardIsAdmin ? 'ADMIN' : 'MEMBER'}
                     </Text>

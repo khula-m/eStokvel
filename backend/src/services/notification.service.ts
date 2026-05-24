@@ -36,6 +36,109 @@ export class NotificationService {
   }
 
   /**
+   * Send push notification to all members of a group (fire-and-forget)
+   */
+  async sendPushToGroup(
+    groupId: string,
+    title: string,
+    body: string,
+    data: Record<string, unknown> = {},
+    channelId: string = 'default',
+    excludeUserId?: string
+  ) {
+    try {
+      const group = await prisma.stokvelGroup.findUnique({
+        where: { id: groupId },
+        include: { members: { include: { user: { select: { id: true, expoPushToken: true } } } } },
+      });
+      if (!group) return;
+      const messages: ExpoPushMessage[] = group.members
+        .filter((m: any) => m.user.expoPushToken && m.user.id !== excludeUserId)
+        .map((m: any) => ({
+          to: m.user.expoPushToken!,
+          title,
+          body,
+          data: { groupId, ...data },
+          sound: 'default',
+          channelId,
+        }));
+      await this.sendPushNotifications(messages);
+    } catch (error) {
+      logger.error('Error sending group push notification:', error);
+    }
+  }
+
+  /**
+   * Notify all group members when a meeting is created
+   */
+  async notifyMeetingCreated(groupId: string, meetingTitle: string, meetingDate: string, createdByName: string) {
+    this.sendPushToGroup(
+      groupId,
+      'Meeting Scheduled',
+      `${createdByName} scheduled "${meetingTitle}" on ${meetingDate}`,
+      { type: 'meeting', screen: 'dashboard' },
+      'meetings'
+    ).catch((e) => logger.error('Meeting push failed:', e));
+  }
+
+  /**
+   * Notify all group members when an announcement is posted
+   */
+  async notifyAnnouncementPosted(groupId: string, announcementTitle: string, postedByName: string, excludeUserId?: string) {
+    this.sendPushToGroup(
+      groupId,
+      'New Announcement',
+      `${postedByName}: ${announcementTitle}`,
+      { type: 'announcement', screen: 'dashboard' },
+      'announcements',
+      excludeUserId
+    ).catch((e) => logger.error('Announcement push failed:', e));
+  }
+
+  /**
+   * Notify a member when they are added to a group
+   */
+  async notifyMemberAdded(userId: string, groupName: string, tempPin: string) {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { expoPushToken: true } });
+      if (!user?.expoPushToken) return;
+      await this.sendPushNotifications([{
+        to: user.expoPushToken,
+        title: 'Added to Group',
+        body: `You have been added to ${groupName}. Your temporary PIN is: ${tempPin}`,
+        data: { type: 'member_added', screen: 'dashboard' },
+        sound: 'default',
+        channelId: 'default',
+      }]);
+    } catch (error) {
+      logger.error('Error sending member-added push:', error);
+    }
+  }
+
+  /**
+   * Send push notification when a transaction is recorded for a member
+   */
+  async notifyTransactionPush(userId: string, type: string, amount: number, groupName: string) {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { expoPushToken: true } });
+      if (!user?.expoPushToken) return;
+      const isContribution = type === 'CONTRIBUTION';
+      await this.sendPushNotifications([{
+        to: user.expoPushToken,
+        title: isContribution ? 'Contribution Received' : 'Payout Processed',
+        body: isContribution
+          ? `R${amount.toFixed(2)} contribution recorded for ${groupName}`
+          : `R${amount.toFixed(2)} payout processed from ${groupName}`,
+        data: { type: 'transaction', screen: 'notifications' },
+        sound: 'default',
+        channelId: 'payments',
+      }]);
+    } catch (error) {
+      logger.error('Error sending transaction push:', error);
+    }
+  }
+
+  /**
    * Send push notifications via Expo Push API
    */
   async sendPushNotifications(messages: ExpoPushMessage[]) {
@@ -119,23 +222,19 @@ export class NotificationService {
       const group = transaction.group;
       const amount = Number(transaction.amount);
 
-      // Send SMS based on transaction type
+      // Send SMS + push notification based on transaction type
       switch (transaction.transactionType) {
         case 'CONTRIBUTION':
-          await smsService.sendContributionReceived(
-            user.phoneNumber,
-            user.fullName,
-            amount,
-            group.name
-          );
+          smsService.sendContributionReceived(user.phoneNumber, user.fullName, amount, group.name)
+            .catch((e) => logger.warn('Contribution SMS failed:', e));
+          this.notifyTransactionPush(user.id, 'CONTRIBUTION', amount, group.name)
+            .catch((e) => logger.warn('Contribution push failed:', e));
           break;
         case 'PAYOUT':
-          await smsService.sendPayoutNotification(
-            user.phoneNumber,
-            user.fullName,
-            amount,
-            group.name
-          );
+          smsService.sendPayoutNotification(user.phoneNumber, user.fullName, amount, group.name)
+            .catch((e) => logger.warn('Payout SMS failed:', e));
+          this.notifyTransactionPush(user.id, 'PAYOUT', amount, group.name)
+            .catch((e) => logger.warn('Payout push failed:', e));
           break;
       }
     } catch (error) {

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { meetingService } from '../services/meeting.service';
+import { notificationService } from '../services/notification.service';
 import logger from '../utils/logger';
 
 export class MeetingController {
@@ -13,6 +14,12 @@ export class MeetingController {
         title, description, date: new Date(date), location, groupId,
         createdBy: (req as any).user.id,
       });
+      if (result.success) {
+        const user = (req as any).user;
+        const formattedDate = new Date(date).toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short' });
+        notificationService.notifyMeetingCreated(groupId, title, formattedDate, user.fullName || 'Admin')
+          .catch((e: any) => logger.warn('Meeting push notification failed:', e));
+      }
       return res.status(result.success ? 201 : 400).json(result);
     } catch (error: any) {
       logger.error('Create meeting error:', error);
