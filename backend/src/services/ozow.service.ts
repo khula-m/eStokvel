@@ -162,6 +162,9 @@ class OzowService {
       // Create a pending transaction in our DB first
       const refNumber = `OZW-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
+      // Member tapped Pay in-app — origin is member, regardless of the rail
+      // (Ozow happens to be the gateway). The Ozow webhook later flips status
+      // to COMPLETED but does not change source.
       const transaction = await prisma.transaction.create({
         data: {
           stokvelGroupId: groupId,
@@ -175,6 +178,7 @@ class OzowService {
           status: TransactionStatus.PENDING,
           referenceNumber: refNumber,
           notes: `Ozow payment initiated by ${membership.user.fullName}`,
+          source: 'MEMBER_PAYMENT',
         }
       });
 
@@ -415,6 +419,9 @@ class OzowService {
       // Create payout transaction record
       const refNumber = `PYT-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
+      // Auto-payout dispatched by the system via Ozow rails. The row exists
+      // because a scheduler decided this member is next in line, not because
+      // any human initiated it — so SYSTEM, not ADMIN_MANUAL_RECORD.
       const transaction = await prisma.transaction.create({
         data: {
           stokvelGroupId: groupId,
@@ -429,6 +436,7 @@ class OzowService {
           referenceNumber: refNumber,
           notes: reason || `Automatic payout from ${group.name}`,
           metadata: { payoutBankSnapshot: bankSnapshot },
+          source: 'SYSTEM',
         }
       });
 

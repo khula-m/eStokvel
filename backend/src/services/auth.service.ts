@@ -386,7 +386,12 @@ export class AuthService {
       data: { lastLogin: new Date(), failedAttempts: 0, lockedUntil: null }
     });
 
-    const token = this.generateToken(user.id, user.phoneNumber, user.role);
+    // JWT carries SUPERADMIN or MEMBER only. Admin status is per-group and read
+    // from Member.role at the point of authorization — never from the token.
+    // Embedding 'ADMIN' here would let legacy users with User.role === 'ADMIN'
+    // pass roleMiddleware(['ADMIN']) checks against groups they don't admin.
+    const tokenRole = user.role === 'SUPERADMIN' ? 'SUPERADMIN' : 'MEMBER';
+    const token = this.generateToken(user.id, user.phoneNumber, tokenRole);
 
     // Fetch memberships with per-group roles
     const memberships = await prisma.member.findMany({
@@ -404,12 +409,7 @@ export class AuthService {
         }
       });
 
-    // Admin status is per-group only — derive from Member.role, never from User.role.
-    // User.role === 'ADMIN' (set by old createAdmin) must NOT override this — a person
-    // added as a plain member to a different group must not see admin controls there.
     const adminMemberships = memberships.filter((m: any) => m.role === 'ADMIN');
-    const isGroupAdmin = adminMemberships.length > 0;
-    const effectiveRole = user.role === 'SUPERADMIN' ? 'SUPERADMIN' : (isGroupAdmin ? 'ADMIN' : 'MEMBER');
 
     return {
       success: true,
@@ -420,8 +420,9 @@ export class AuthService {
           firstName: user.firstName,
           lastName: user.lastName,
           fullName: user.fullName,
-          role: user.role,
-          effectiveRole,
+          // role is SUPERADMIN or MEMBER. Group-admin status is per-group only,
+          // and clients must read it from `memberships[].role`, not from `role`.
+          role: tokenRole,
           mustChangePin: user.mustChangePin,
           verificationStatus: user.verificationStatus,
           needsIdVerification: !user.idNumberHash, // True if user hasn't submitted ID yet
@@ -686,6 +687,8 @@ export class AuthService {
       select: {
         id: true,
         phoneNumber: true,
+        firstName: true,
+        lastName: true,
         fullName: true,
         email: true,
         role: true,
@@ -701,9 +704,43 @@ export class AuthService {
       return { success: false, message: 'User not found' };
     }
 
+    // Memberships drive per-group role display on the client. /auth/me is hit
+    // after create/join group so the client picks up the new ADMIN membership
+    // without forcing a full re-login.
+    const memberships = await prisma.member.findMany({
+      where: { userId },
+      include: {
+        group: {
+          select: {
+            id: true, name: true, code: true,
+            contributionAmount: true, contributionFrequency: true,
+            durationMonths: true, startDate: true, endDate: true,
+            isActive: true,
+            _count: { select: { members: true, transactions: true } }
+          }
+        }
+      }
+    });
+
     return {
       success: true,
-      data: { user },
+      data: {
+        user: {
+          ...user,
+          // Strip global ADMIN from the surface — clients must read per-group
+          // role from memberships, not from this field.
+          role: user.role === 'SUPERADMIN' ? 'SUPERADMIN' : 'MEMBER',
+          memberships: memberships.map((m: any) => ({
+            id: m.id,
+            role: m.role,
+            groupId: m.stokvelGroupId,
+            groupName: m.group.name,
+            groupCode: m.group.code,
+            groupActive: m.group.isActive,
+            memberCount: m.group._count.members,
+          })),
+        }
+      },
       message: 'User retrieved successfully'
     };
   }

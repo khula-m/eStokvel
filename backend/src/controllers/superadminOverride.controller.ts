@@ -112,6 +112,7 @@ export class SuperAdminOverrideController {
           status: 'COMPLETED',
           referenceNumber: `ADJ-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
           notes: `[SUPERADMIN ADJUSTMENT by ${userId}] Amount: R${Number(amount).toFixed(2)} for ${member.user.fullName}. Reason: ${reason}`,
+          source: 'SUPERADMIN_ADJUSTMENT',
         },
       });
 

@@ -101,18 +101,11 @@ export class StokvelGroupController {
   async updateGroup(req: Request, res: Response) {
     try {
       const id = String(req.params.id);
-      const userId = (req as any).user?.id;
       const input: UpdateStokvelGroupInput = req.body;
 
-      // Verify user is the creator (in a real app, you'd check permissions)
-      const group = await stokvelGroupService.getGroupById(id, userId);
-      if (!group.success || group.data?.createdBy?.id !== userId) {
-        return res.status(403).json({
-          success: false,
-          message: 'You are not authorized to update this group'
-        });
-      }
-
+      // Authorization is enforced upstream by requireAdminRole middleware,
+      // which checks Member.role === 'ADMIN' for THIS group. Any group admin
+      // (not just the original creator) may update the group.
       const result = await stokvelGroupService.updateGroup(id, input);
       
       if (result.success) {
@@ -202,9 +195,10 @@ export class StokvelGroupController {
       const userId = (req as any).user?.id;
       const userRole = (req as any).user?.role;
 
-      // SUPERADMIN and global ADMIN can view any group's stats
-      if (userRole !== 'SUPERADMIN' && userRole !== 'ADMIN') {
-        // Check if user is a member of the group
+      // Admin status is per-group only. SUPERADMIN bypasses; everyone else must
+      // be a member of THIS specific group. A user who is admin in Group A must
+      // not see Group B's stats just because they hold an ADMIN flag elsewhere.
+      if (userRole !== 'SUPERADMIN') {
         const group = await stokvelGroupService.getGroupById(id, userId);
         if (!group.success || !group.data?.isMember) {
           return res.status(403).json({

@@ -98,7 +98,9 @@ export class TransactionService {
       // Generate reference number if not provided
       const referenceNumber = data.referenceNumber || this.generateReferenceNumber();
 
-      // Create the transaction
+      // Create the transaction. This generic endpoint is SUPERADMIN-gated at
+      // the route, so any row created here is a superadmin manually filing
+      // money — treat it as an adjustment-class entry by origin.
       const transaction = await prisma.transaction.create({
         data: {
           stokvelGroupId: data.stokvelGroupId,
@@ -112,6 +114,7 @@ export class TransactionService {
           transactionDate: data.transactionDate || new Date(),
           status: TransactionStatus.PENDING,
           notes: data.notes || (data as any).description || null,
+          source: 'SUPERADMIN_ADJUSTMENT',
         },
         include: {
           group: {
@@ -197,7 +200,7 @@ export class TransactionService {
 
         const referenceNumber = this.generateReferenceNumber();
 
-        // Create the contribution transaction atomically
+        // Member self-service contribution — they tapped Pay themselves.
         const transaction = await tx.transaction.create({
           data: {
             stokvelGroupId: data.stokvelGroupId,
@@ -213,6 +216,7 @@ export class TransactionService {
             currency: group.currency,
             transactionDate: new Date(),
             status: TransactionStatus.COMPLETED,
+            source: 'MEMBER_PAYMENT',
           },
           include: {
             group: { select: { id: true, name: true, currency: true } },
@@ -368,10 +372,52 @@ export class TransactionService {
         };
       }
 
-      // If updating status to COMPLETED, update the updatedAt timestamp
+      // Immutability rule for completed transactions.
+      //
+      // The stokvel ledger is the book on the table — once a row is COMPLETED
+      // (money confirmed moved), the money-shape of that row is frozen. If
+      // something is wrong (overstated amount, paid to the wrong member, wrong
+      // payment method), the correction must go in as a NEW ADJUSTMENT row,
+      // not by silently rewriting history. This keeps the ledger replayable
+      // and means a member who saw "R500 from Sipho on the 5th" can never log
+      // back in tomorrow and find that same row reading R300.
+      //
+      // Allowed on completed rows: notes, receiptUrl, metadata, status
+      // changes only in the REVERSE direction (e.g. COMPLETED → REVERSED, which
+      // itself produces a new row of audit context via the AuditLog table).
       const updateData: any = { ...data };
-      if ((data as any).status === TransactionStatus.COMPLETED && transaction.status !== TransactionStatus.COMPLETED) {
-        // updatedAt is auto-managed by Prisma @updatedAt
+      if (transaction.status === TransactionStatus.COMPLETED) {
+        const FROZEN_FIELDS = [
+          'amount',
+          'transactionType',
+          'memberId',
+          'stokvelGroupId',
+          'paymentMethod',
+          'transactionDate',
+          'currency',
+          'referenceNumber',
+        ] as const;
+
+        for (const field of FROZEN_FIELDS) {
+          if (field in updateData && (updateData as any)[field] !== undefined &&
+              (updateData as any)[field] !== (transaction as any)[field]) {
+            return {
+              success: false,
+              message: `Cannot modify "${field}" on a completed transaction. Record an ADJUSTMENT transaction instead to correct this entry.`,
+            };
+          }
+        }
+
+        // A completed row can move to REVERSED or CANCELLED (with audit trail)
+        // but cannot go back to PENDING — that would erase confirmation history.
+        if ((updateData as any).status &&
+            (updateData as any).status !== transaction.status &&
+            !['REVERSED', 'CANCELLED'].includes((updateData as any).status)) {
+          return {
+            success: false,
+            message: `Cannot change status of a completed transaction to "${(updateData as any).status}". Only REVERSED or CANCELLED are permitted, and both create a new ledger entry for traceability.`,
+          };
+        }
       }
 
       const updatedTransaction = await prisma.transaction.update({
@@ -840,7 +886,7 @@ export class TransactionService {
 
         const referenceNumber = this.generateReferenceNumber();
 
-        // Create the payout transaction atomically
+        // Group admin manually recording a payout to a member.
         const transaction = await tx.transaction.create({
           data: {
             stokvelGroupId: data.stokvelGroupId,
@@ -854,6 +900,7 @@ export class TransactionService {
             transactionDate: data.transactionDate || new Date(),
             status: TransactionStatus.PENDING,
             notes: data.notes || 'Group payout',
+            source: 'ADMIN_MANUAL_RECORD',
           },
           include: {
             group: { select: { id: true, name: true, currency: true } },
@@ -963,10 +1010,12 @@ export class TransactionService {
 
       const memberIds = userMemberships.map((m: any) => m.id);
 
-      // Build where clause with ROLE-BASED LEDGER SEPARATION:
-      // - ADMIN in a group: sees ALL group transactions (full ledger)
-      // - MEMBER in a group: sees only THEIR OWN transactions
-      // - personalOnly=true: always sees only own transactions (for /my endpoint)
+      // Ledger visibility is per-group, NOT per-role. A stokvel ledger is the
+      // book on the table: every member of the group reads the same page.
+      // The only switch is scope:
+      //   personalOnly=true  → caller's own transactions only (used by /my)
+      //   personalOnly=false → the full ledger of the group(s) the caller
+      //                        belongs to (used by /transactions)
       const whereClause: any = {};
 
       // Apply additional filters
@@ -981,31 +1030,17 @@ export class TransactionService {
         }
         whereClause.stokvelGroupId = filters.stokvelGroupId;
 
-        // LEDGER VIEW SEPARATION: MEMBER sees only their own transactions
-        if (personalOnly || membership.role === 'MEMBER') {
+        if (personalOnly) {
           whereClause.memberId = membership.id;
         }
-        // ADMIN sees all transactions in the group (no memberId filter)
+        // else: no memberId filter — full group ledger for any member.
       } else {
-        // No specific group � different behavior based on personalOnly
+        // No specific group requested → fan out across the caller's groups.
         if (personalOnly) {
-          // /my endpoint: always own transactions only
           whereClause.memberId = { in: memberIds };
         } else {
-          // /transactions endpoint: ADMIN groups see all, MEMBER groups see own
-          const adminGroupIds = userMemberships.filter((m: any) => m.role === 'ADMIN').map((m: any) => m.stokvelGroupId);
-          const memberOnlyMemberIds = userMemberships.filter((m: any) => m.role === 'MEMBER').map((m: any) => m.id);
-
-          if (adminGroupIds.length > 0 && memberOnlyMemberIds.length > 0) {
-            whereClause.OR = [
-              { stokvelGroupId: { in: adminGroupIds } },
-              { memberId: { in: memberOnlyMemberIds } }
-            ];
-          } else if (adminGroupIds.length > 0) {
-            whereClause.stokvelGroupId = { in: adminGroupIds };
-          } else {
-            whereClause.memberId = { in: memberOnlyMemberIds };
-          }
+          // Full ledger of every group the caller is in. Role is irrelevant.
+          whereClause.stokvelGroupId = { in: userMemberships.map((m: any) => m.stokvelGroupId) };
         }
       }
 

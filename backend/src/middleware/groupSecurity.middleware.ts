@@ -2,14 +2,15 @@ import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma';
 import logger from '../utils/logger';
 
-// Helper to extract groupId from request
+// Pulls the group id out of wherever the caller put it. We accept both
+// `groupId` and `stokvelGroupId` everywhere because different endpoints
+// historically used different names — and missing one of them silently
+// skips the membership check, which would let a non-member touch group data.
 const getGroupIdFromRequest = (req: Request): string | null => {
-  // Safely access params, query, and body with null checks
-  // Check both :groupId and :id params (groups routes use /:id)
-  const paramsGroupId = req.params?.groupId || req.params?.id;
-  const queryGroupId = req.query?.groupId as string;
+  const paramsGroupId = req.params?.groupId || req.params?.id || req.params?.stokvelGroupId;
+  const queryGroupId = (req.query?.groupId as string) || (req.query?.stokvelGroupId as string);
   const bodyGroupId = req.body?.groupId || req.body?.stokvelGroupId;
-  
+
   return paramsGroupId || queryGroupId || bodyGroupId || null;
 };
 

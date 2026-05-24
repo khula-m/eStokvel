@@ -119,6 +119,11 @@ model Transaction {
   currency        String            @default("ZAR")
   referenceNumber String?           @unique
   paymentMethod   PaymentMethod
+  // Origin of the row — who/what put this transaction in the ledger.
+  // Distinct from paymentMethod (the rails used) and recordedById (the user
+  // record). Lets the UI and auditors answer "where did this entry come
+  // from?" in one field instead of inferring from three.
+  source          TransactionSource @default(ADMIN_MANUAL_RECORD)
   transactionDate DateTime
   recordDate      DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
@@ -148,6 +153,8 @@ model Transaction {
   @@index([memberId, stokvelGroupId, status])         // double-click prevention
   @@index([stokvelGroupId, transactionType, status]) // group balance calculations, payout checks
   @@index([stokvelGroupId, recordDate(sort: Desc)])  // recent transactions per group
+  @@index([source])                                   // "show me all gateway-confirmed rows" etc.
+  @@index([stokvelGroupId, source])                   // per-group source filtering on ledger
 }
 
 enum TransactionType {
@@ -155,6 +162,17 @@ enum TransactionType {
   PAYOUT
   EXPENSE
   ADJUSTMENT
+}
+
+// Where a Transaction row originated. Read alongside TransactionType:
+//   type   = "what kind of money movement is this?"   (contribution / payout / adjustment)
+//   source = "who or what put this row in the ledger?" (member / gateway / admin / superadmin / system)
+enum TransactionSource {
+  MEMBER_PAYMENT           // Member self-served via the contribute flow
+  GATEWAY_WEBHOOK          // Set/confirmed by an external payment gateway callback (Ozow)
+  ADMIN_MANUAL_RECORD      // Group admin recorded a member's cash/EFT receipt
+  SUPERADMIN_ADJUSTMENT    // SuperAdmin correction (overpayment, refund, missed-payment fix)
+  SYSTEM                   // Background job (rotating-payout scheduler, term-end distribution, etc.)
 }
 
 enum UserRole {

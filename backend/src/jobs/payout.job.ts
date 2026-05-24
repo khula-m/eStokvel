@@ -211,7 +211,8 @@ async function processRotatingPayouts(now: Date): Promise<void> {
           return { skipped: true, reason: `Insufficient funds. Pool: R${totalPool.toFixed(2)}, Already paid: R${totalPaidOut.toFixed(2)}` } as const;
         }
 
-        // Create the payout transaction record atomically
+        // Create the payout transaction record atomically. Scheduler-issued
+        // payout — no human in the loop, so SYSTEM.
         const payoutTx = await tx.transaction.create({
           data: {
             stokvelGroupId: group.id,
@@ -225,6 +226,7 @@ async function processRotatingPayouts(now: Date): Promise<void> {
             status: 'PENDING',
             notes: `Automatic rotating payout from ${group.name} (round ${nextRecipient.nextPayoutOrder || 1})`,
             referenceNumber: `PAYOUT-${group.id.slice(0, 8)}-${Date.now().toString(36)}`.toUpperCase(),
+            source: 'SYSTEM',
           }
         });
 
@@ -442,6 +444,7 @@ async function processEndOfTermPayouts(now: Date): Promise<void> {
               status: 'PENDING',
               notes: `End-of-term pro-rata payout from ${group.name} — contributed R${contributed.toFixed(2)}, receiving R${amount.toFixed(2)}`,
               referenceNumber: `PAYOUT-EOT-${group.id.slice(0, 6)}-${member.id.slice(0, 6)}-${Date.now().toString(36)}`.toUpperCase(),
+              source: 'SYSTEM',
             },
           });
         }

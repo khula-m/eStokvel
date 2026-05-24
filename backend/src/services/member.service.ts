@@ -87,6 +87,9 @@ export class MemberService {
         }
       });
 
+      // Zero-amount audit row marking the member-join event. It's a system
+      // bookkeeping entry, not money movement — labelled SYSTEM so it doesn't
+      // get filtered into "adjustments by SuperAdmin" reports.
       await tx.transaction.create({
         data: {
           stokvelGroupId: data.stokvelGroupId,
@@ -98,7 +101,8 @@ export class MemberService {
           transactionDate: new Date(),
           recordedById: invitedById || data.userId,
           status: 'COMPLETED',
-          notes: `${user.fullName} joined the group`
+          notes: `${user.fullName} joined the group`,
+          source: 'SYSTEM',
         }
       });
 
@@ -292,7 +296,8 @@ export class MemberService {
           transactionDate: new Date(),
           recordedById: removedById,
           status: 'COMPLETED',
-          notes: removalNote
+          notes: removalNote,
+          source: 'SYSTEM',
         }
       });
 
