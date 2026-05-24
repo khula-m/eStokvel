@@ -171,10 +171,7 @@ export class AuthService {
     }
 
     try {
-      await smsService.sendSMS(
-        phoneNumber,
-        `Welcome to eStokvel, ${firstName}! You have been registered as an Admin. Your login PIN is: ${tempPin}. Please change it on first login. Download the app to get started.`
-      );
+      await smsService.sendSMS(phoneNumber, `Welcome to eStokvel, ${firstName}! You have been registered as an Admin. Your login PIN is: ${tempPin}. Please change it on first login. Download the app to get started.`);
     } catch (smsError) {
       console.warn('Failed to send SMS to new admin:', smsError);
     }
@@ -266,10 +263,7 @@ export class AuthService {
     });
 
     try {
-      await smsService.sendSMS(
-        phoneNumber,
-        `Welcome to eStokvel, ${firstName}! You've been added to "${group.name}". Login with your phone number. Your temp PIN is: ${tempPin}. Please change it on first login.`
-      );
+      await smsService.sendSMS(phoneNumber, `Welcome to eStokvel, ${firstName}! You've been added to "${group.name}". Login with your phone number. Your temp PIN is: ${tempPin}. Please change it on first login.`);
     } catch (smsError) {
       console.warn('Failed to send SMS to new member:', smsError);
     }
@@ -990,10 +984,7 @@ export class AuthService {
 
     // Send OTP via SMS
     try {
-      await smsService.sendSMS(
-        normalized,
-        `Your eStokvel PIN reset code is: ${otp}. It expires in 5 minutes. Do not share this code.`
-      );
+      await smsService.sendSMS(normalized, `Your eStokvel PIN reset code is: ${otp}. It expires in 5 minutes. Do not share this code.`);
     } catch (smsError) {
       console.warn('Failed to send OTP SMS:', smsError);
     }
@@ -1110,10 +1101,7 @@ export class AuthService {
 
     // Send confirmation SMS
     try {
-      await smsService.sendSMS(
-        user.phoneNumber,
-        `Hi ${user.fullName}, your eStokvel PIN has been successfully reset. If you did not do this, contact support immediately.`
-      );
+      await smsService.sendSMS(user.phoneNumber, `Hi ${user.fullName}, your eStokvel PIN has been successfully reset. If you did not do this, contact support immediately.`);
     } catch (smsError) {
       console.warn('Failed to send PIN reset confirmation SMS:', smsError);
     }
@@ -1193,10 +1181,7 @@ export class AuthService {
 
     // Send temp PIN via SMS
     try {
-      await smsService.sendSMS(
-        normalized,
-        `Welcome to eStokvel, ${firstName}! You've registered as a Group Admin. Your temporary PIN is: ${tempPin}. Please change it on first login.`
-      );
+      await smsService.sendSMS(normalized, `Welcome to eStokvel, ${firstName}! You've registered as a Group Admin. Your temporary PIN is: ${tempPin}. Please change it on first login.`);
     } catch (smsError) {
       console.warn('Failed to send registration SMS:', smsError);
     }

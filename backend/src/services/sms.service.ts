@@ -132,6 +132,7 @@ export class SMSService {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: params.toString(),
+        signal: AbortSignal.timeout(8000),
       });
 
       if (!response.ok) {
@@ -153,8 +154,9 @@ export class SMSService {
         return { success: false, error: status };
       }
     } catch (error: any) {
-      logger.error(`SMS Error: ${error.message} username=${this._username}`);
-      return { success: false, error: error.message };
+      const msg = error.name === 'TimeoutError' ? 'SMS provider timeout (8s)' : error.message;
+      logger.error(`SMS Error: ${msg} username=${this._username}`);
+      return { success: false, error: msg };
     }
   }
 
