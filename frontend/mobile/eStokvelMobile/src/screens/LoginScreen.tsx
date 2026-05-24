@@ -105,10 +105,10 @@ export const LoginScreen = ({ onNavigate, onLogin }: LoginScreenProps) => {
                   placeholder="Enter your PIN"
                   placeholderTextColor="#94A3B8"
                   value={pin}
-                  onChangeText={(t) => setPin(t.replace(/[^0-9]/g, '').slice(0, 5))}
+                  onChangeText={(t) => setPin(t.replace(/[^0-9]/g, '').slice(0, 6))}
                   secureTextEntry={!showPin}
                   keyboardType="number-pad"
-                  maxLength={5}
+                  maxLength={6}
                 />
                 <TouchableOpacity onPress={() => setShowPin(!showPin)} style={ls.eyeBtn}>
                   <Icon name={showPin ? 'visibility-off' : 'visibility'} size={20} color="#94A3B8" />

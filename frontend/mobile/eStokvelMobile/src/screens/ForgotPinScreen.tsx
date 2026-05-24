@@ -222,10 +222,10 @@ export const ForgotPinScreen = ({ onNavigate }: ForgotPinScreenProps) => {
                       placeholder="Enter new PIN"
                       placeholderTextColor="#94A3B8"
                       value={newPin}
-                      onChangeText={(t) => setNewPin(t.replace(/[^0-9]/g, '').slice(0, 5))}
+                      onChangeText={(t) => setNewPin(t.replace(/[^0-9]/g, '').slice(0, 6))}
                       secureTextEntry={!showPin}
                       keyboardType="number-pad"
-                      maxLength={5}
+                      maxLength={6}
                     />
                     <TouchableOpacity onPress={() => setShowPin(!showPin)} style={s.eyeBtn}>
                       <Icon name={showPin ? 'visibility-off' : 'visibility'} size={20} color="#94A3B8" />
@@ -243,10 +243,10 @@ export const ForgotPinScreen = ({ onNavigate }: ForgotPinScreenProps) => {
                       placeholder="Confirm PIN"
                       placeholderTextColor="#94A3B8"
                       value={confirmPin}
-                      onChangeText={(t) => setConfirmPin(t.replace(/[^0-9]/g, '').slice(0, 5))}
+                      onChangeText={(t) => setConfirmPin(t.replace(/[^0-9]/g, '').slice(0, 6))}
                       secureTextEntry={!showPin}
                       keyboardType="number-pad"
-                      maxLength={5}
+                      maxLength={6}
                     />
                   </View>
                 </View>

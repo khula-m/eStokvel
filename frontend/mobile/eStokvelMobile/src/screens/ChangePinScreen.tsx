@@ -94,13 +94,13 @@ export const ChangePinScreen = ({ auth, onNavigate }: ChangePinScreenProps) => {
               </View>
               <TextInput
                 style={cs.pinInput}
-                placeholder="• • • • •"
+                placeholder="• • • • • •"
                 placeholderTextColor="#CBD5E1"
                 value={currentPin}
-                onChangeText={(t) => setCurrentPin(t.replace(/[^0-9]/g, '').slice(0, 5))}
+                onChangeText={(t) => setCurrentPin(t.replace(/[^0-9]/g, '').slice(0, 6))}
                 keyboardType="number-pad"
                 secureTextEntry
-                maxLength={5}
+                maxLength={6}
               />
             </View>
 
@@ -114,13 +114,13 @@ export const ChangePinScreen = ({ auth, onNavigate }: ChangePinScreenProps) => {
               </View>
               <TextInput
                 style={cs.pinInput}
-                placeholder="• • • • •"
+                placeholder="• • • • • •"
                 placeholderTextColor="#CBD5E1"
                 value={newPin}
-                onChangeText={(t) => setNewPin(t.replace(/[^0-9]/g, '').slice(0, 5))}
+                onChangeText={(t) => setNewPin(t.replace(/[^0-9]/g, '').slice(0, 6))}
                 keyboardType="number-pad"
                 secureTextEntry
-                maxLength={5}
+                maxLength={6}
               />
             </View>
 
@@ -134,13 +134,13 @@ export const ChangePinScreen = ({ auth, onNavigate }: ChangePinScreenProps) => {
               </View>
               <TextInput
                 style={[cs.pinInput, pinsMatch && newPin !== confirmPin && { borderColor: COLORS.error }]}
-                placeholder="• • • • •"
+                placeholder="• • • • • •"
                 placeholderTextColor="#CBD5E1"
                 value={confirmPin}
-                onChangeText={(t) => setConfirmPin(t.replace(/[^0-9]/g, '').slice(0, 5))}
+                onChangeText={(t) => setConfirmPin(t.replace(/[^0-9]/g, '').slice(0, 6))}
                 keyboardType="number-pad"
                 secureTextEntry
-                maxLength={5}
+                maxLength={6}
               />
               {pinsMatch && (
                 <View style={cs.matchRow}>
