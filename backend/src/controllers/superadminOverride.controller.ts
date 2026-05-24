@@ -232,6 +232,50 @@ export class SuperAdminOverrideController {
   }
 
   /**
+   * POST /api/superadmin/override/group/:groupId/assign-admin
+   * Promote any existing group member to admin.
+   * Use when a group has no admin (e.g. admin was deleted).
+   */
+  async assignGroupAdmin(req: Request, res: Response) {
+    try {
+      const groupId = req.params.groupId as string;
+      const memberId = String(req.body.memberId || '');
+      const reason = String(req.body.reason || '');
+      const superadminId = (req as any).user?.id;
+
+      if (!memberId || !reason || reason.trim().length < 5) {
+        return res.status(400).json({ success: false, message: 'memberId and reason (min 5 chars) are required.' });
+      }
+
+      const member = await prisma.member.findFirst({
+        where: { id: memberId, stokvelGroupId: groupId },
+        include: { user: { select: { fullName: true } }, group: { select: { name: true } } },
+      });
+
+      if (!member) {
+        return res.status(404).json({ success: false, message: 'Member not found in this group.' });
+      }
+
+      if (member.role === 'ADMIN') {
+        return res.status(400).json({ success: false, message: `${member.user.fullName} is already the group admin.` });
+      }
+
+      await prisma.member.update({ where: { id: memberId }, data: { role: 'ADMIN' } });
+
+      logger.warn(`[AUDIT][SUPERADMIN_ASSIGN_ADMIN] ${member.user.fullName} assigned as admin of "${member.group.name}" (${groupId}). Reason: ${reason}. By: ${superadminId}`);
+
+      return res.json({
+        success: true,
+        message: `${member.user.fullName} is now admin of ${member.group.name}`,
+        data: { groupId, memberId, name: member.user.fullName },
+      });
+    } catch (error: any) {
+      logger.error('SuperAdmin assignGroupAdmin error:', error);
+      return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+  }
+
+  /**
    * POST /api/superadmin/override/payout/retry/:transactionId
    * Retry a failed payout transaction
    */

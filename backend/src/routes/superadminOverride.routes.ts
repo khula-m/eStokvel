@@ -53,4 +53,10 @@ router.post(
   superAdminOverrideController.transferGroupAdmin.bind(superAdminOverrideController)
 );
 
+router.post(
+  '/group/:groupId/assign-admin',
+  auditLog('SUPERADMIN_ASSIGN_ADMIN'),
+  superAdminOverrideController.assignGroupAdmin.bind(superAdminOverrideController)
+);
+
 export default router;
