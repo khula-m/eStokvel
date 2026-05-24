@@ -10,6 +10,7 @@ import { COLORS, SPACING, RADIUS } from '../constants/theme';
 import { scaleFontSize } from '../utils/responsive';
 import { shadow } from '../utils/shadow';
 import { formatCurrency } from '../utils/format';
+import { isAdminOfAnyGroup } from '../utils/roles';
 import { AuthState } from '../types';
 
 export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState; onLogout: () => void; onNavigate?: (screen: string) => void }) => {
@@ -52,7 +53,9 @@ export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState;
   };
   const getInitials = (name: string) => name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
   const getRoleLabel = (role: string) => ({ SUPERADMIN: 'System Administrator', ADMIN: 'Group Administrator', MEMBER: 'Member' }[role] || role);
-  const displayRole = auth.user?.role === 'SUPERADMIN' ? 'SUPERADMIN' : (auth.user?.effectiveRole || auth.user?.role || 'MEMBER');
+  // Profile shows a summary label only. It is NOT used for permission checks
+  // anywhere — those happen per-group via getGroupRole(user, groupId).
+  const displayRole = isSuperAdmin ? 'SUPERADMIN' : (isAdminOfAnyGroup(auth.user) ? 'ADMIN' : 'MEMBER');
 
   if (loading) {
     return <View style={ps.centered}><ActivityIndicator size="large" color={COLORS.primary} /></View>;

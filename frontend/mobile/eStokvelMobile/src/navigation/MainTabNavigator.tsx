@@ -9,6 +9,7 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 import { BottomTabBar } from '../components/BottomTabBar';
 import { GuidedTour, hasTourCompleted, ADMIN_TOUR_STEPS, MEMBER_TOUR_STEPS } from '../components/GuidedTour';
 import { styles } from '../styles';
+import { isAdminOfAnyGroup, isSuperAdmin } from '../utils/roles';
 import { AuthState } from '../types';
 
 interface MainTabNavigatorProps {
@@ -23,10 +24,12 @@ export const MainTabNavigator = ({ auth, onLogout, onNavigate, onAuthRefresh }: 
   const [chatGroupId, setChatGroupId] = useState<string | null>(null);
   const [showTour, setShowTour] = useState(false);
 
-  const userRole = auth.user?.role === 'SUPERADMIN' ? 'ADMIN' : (auth.user?.effectiveRole || auth.user?.role || 'MEMBER');
-  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPERADMIN';
-  const tourKey = isAdmin ? 'admin' : 'member';
-  const tourSteps = isAdmin ? ADMIN_TOUR_STEPS : MEMBER_TOUR_STEPS;
+  // Tour selection is the only place a "global" role view makes sense — show the
+  // admin tour if the user runs at least one group, otherwise the member tour.
+  // Real permission checks happen per-group inside each screen.
+  const showAdminTour = isSuperAdmin(auth.user) || isAdminOfAnyGroup(auth.user);
+  const tourKey = showAdminTour ? 'admin' : 'member';
+  const tourSteps = showAdminTour ? ADMIN_TOUR_STEPS : MEMBER_TOUR_STEPS;
 
   useEffect(() => {
     const checkTour = async () => {

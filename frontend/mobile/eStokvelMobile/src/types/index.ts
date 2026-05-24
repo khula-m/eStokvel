@@ -15,12 +15,14 @@ export interface User {
   lastName?: string;
   phoneNumber: string;
   email?: string;
-  role: string; // Global role: 'SUPERADMIN' | 'MEMBER'
-  effectiveRole?: string; // Derived: 'ADMIN' if admin of any group, else 'MEMBER'
+  // System-wide role only. 'SUPERADMIN' (web portal admin) or 'MEMBER'.
+  // Group-admin status is NOT stored here — read it from `memberships[].role`
+  // for the specific group you are acting on.
+  role: 'SUPERADMIN' | 'MEMBER' | string;
   mustChangePin?: boolean;
   needsIdVerification?: boolean;
   verificationStatus?: string;
-  memberships?: UserMembership[]; // Per-group roles
+  memberships?: UserMembership[]; // Per-group roles — the source of truth for ADMIN status
   managedGroups?: any[]; // Backward compat: groups where user is admin
 }
 
@@ -40,13 +42,25 @@ export interface Group {
   createdAt: string;
 }
 
+export type TransactionTypeName = 'CONTRIBUTION' | 'PAYOUT' | 'EXPENSE' | 'ADJUSTMENT';
+export type TransactionSourceName =
+  | 'MEMBER_PAYMENT'
+  | 'GATEWAY_WEBHOOK'
+  | 'ADMIN_MANUAL_RECORD'
+  | 'SUPERADMIN_ADJUSTMENT'
+  | 'SYSTEM';
+
 export interface Transaction {
   id: string;
   stokvelGroupId: string;
-  transactionType: string;
+  transactionType: TransactionTypeName | string;
+  // Origin of this row. Optional because old API responses may not include it
+  // and the field only lands after the source migration is applied.
+  source?: TransactionSourceName;
   amount: number | string;
   status: string;
   description?: string;
+  notes?: string;
   transactionDate: string;
   paymentMethod?: string;
   referenceNumber?: string;
