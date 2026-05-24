@@ -31,7 +31,7 @@ export const LoginScreen = ({ onNavigate, onLogin }: LoginScreenProps) => {
 
   const handleLogin = async () => {
     if (!phone || !pin) { showAlert('Error', 'Please enter phone number and PIN'); return; }
-    if (pin.length !== 5) { showAlert('Error', 'PIN must be 5 digits'); return; }
+    if (pin.length !== 6) { showAlert('Error', 'PIN must be 6 digits'); return; }
     setLoading(true);
     try {
       const response = await axios.post(`${API_URL}/api/auth/login`, { phoneNumber: phone, pin });

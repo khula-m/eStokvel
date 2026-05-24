@@ -139,8 +139,8 @@ export class SuperAdminOverrideController {
       const newPin = String(req.body.newPin || '');
       const superadminId = (req as any).user?.id;
 
-      if (!newPin || newPin.length !== 5 || !/^\d{5}$/.test(newPin)) {
-        return res.status(400).json({ success: false, message: 'New PIN must be exactly 5 digits.' });
+      if (!newPin || newPin.length !== 6 || !/^\d{6}$/.test(newPin)) {
+        return res.status(400).json({ success: false, message: 'New PIN must be exactly 6 digits.' });
       }
 
       const user = await prisma.user.findUnique({

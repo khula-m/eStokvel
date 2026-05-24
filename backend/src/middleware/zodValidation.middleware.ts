@@ -48,11 +48,11 @@ const phoneNumber = z
   .min(1, 'Phone number is required')
   .regex(/^(\+?[1-9]\d{6,14}|0\d{9})$/, 'Invalid phone number format');
 
-/** 5-digit numeric PIN */
+/** 6-digit numeric PIN */
 const pin = z
   .string({ error: 'PIN is required' })
-  .length(5, 'PIN must be exactly 5 digits')
-  .regex(/^\d{5}$/, 'PIN must contain only digits');
+  .length(6, 'PIN must be exactly 6 digits')
+  .regex(/^\d{6}$/, 'PIN must contain only digits');
 
 const firstName = z
   .string({ error: 'First name is required' })

@@ -282,8 +282,8 @@ export class AuthService {
   // ============ LOGIN (Phone + PIN) — ADMIN & MEMBER ONLY ============
   async login(data: LoginInput) {
     // Accept 5-digit PINs during the migration window (existing users who haven't changed yet)
-    if (!data.pin || data.pin.length < 5 || data.pin.length > 6) {
-      return { success: false, message: 'PIN must be 5 or 6 digits' };
+    if (!data.pin || data.pin.length !== 6) {
+      return { success: false, message: 'PIN must be 6 digits' };
     }
 
     const phoneNumber = this.normalizePhone(data.phoneNumber);
