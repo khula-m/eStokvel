@@ -10,6 +10,7 @@ import { validateSAId } from '../utils/saIdValidation';
 import { cacheGetOrSet } from '../utils/redis';
 import smsService from './sms.service';
 import verificationService from './verification.service';
+import { notificationService } from './notification.service';
 
 // ============ CONSTANTS ============
 const MAX_FAILED_ATTEMPTS = 5;
@@ -262,6 +263,10 @@ export class AuthService {
     // Fire SMS in background — never block the response waiting for SMS
     smsService.sendSMS(phoneNumber, `Welcome to eStokvel, ${firstName}! You've been added to "${group.name}". Login with your phone number. Your temp PIN is: ${tempPin}. Please change it on first login.`)
       .catch(smsError => console.warn('Failed to send SMS to new member:', smsError));
+
+    // Fire push notification in background
+    notificationService.notifyMemberAdded(user.id, group.name, tempPin)
+      .catch((e: any) => console.warn('Failed to send push to new member:', e));
 
     return {
       success: true,
