@@ -57,12 +57,12 @@ interface ChangePinInput {
 export class AuthService {
 
   /**
-   * Generate a random 5-digit temp PIN (avoids common/sequential PINs)
+   * Generate a random 6-digit temp PIN (avoids common/sequential PINs)
    */
   private generateTempPin(): string {
     let pin: string;
     do {
-      pin = Math.floor(10000 + Math.random() * 90000).toString();
+      pin = Math.floor(100000 + Math.random() * 900000).toString();
     } while (!validatePin(pin).isValid); // Regenerate if it fails complexity rules
     return pin;
   }
