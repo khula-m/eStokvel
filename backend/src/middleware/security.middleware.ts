@@ -166,19 +166,19 @@ const getAllowedOrigins = (): string[] => {
 
 export const corsOptions: CorsOptions = {
   origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, Postman, server-to-server)
+    if (!origin) return callback(null, true);
+
     const allowedOrigins = getAllowedOrigins();
-    
-    // Allow requests with no origin (mobile apps, Postman, etc.)
-    if (!origin) {
-      return callback(null, true);
-    }
-    
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      logger.warn(`CORS blocked request from origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
+
+    // Exact match against explicit list
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+
+    // Allow any Railway subdomain we own (covers URL changes without redeploy)
+    if (origin.endsWith('.up.railway.app')) return callback(null, true);
+
+    logger.warn(`CORS blocked request from origin: ${origin}`);
+    callback(new Error('Not allowed by CORS'));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
