@@ -89,8 +89,8 @@ export const ForgotPinScreen = ({ onNavigate }: ForgotPinScreenProps) => {
 
   // Step 3: Set new PIN
   const handleResetPin = async () => {
-    if (!newPin || newPin.length !== 5) {
-      showAlert('Error', 'Please enter a 5-digit PIN');
+    if (!newPin || newPin.length !== 6) {
+      showAlert('Error', 'Please enter a 6-digit PIN');
       return;
     }
     if (newPin !== confirmPin) {
@@ -124,7 +124,7 @@ export const ForgotPinScreen = ({ onNavigate }: ForgotPinScreenProps) => {
     ? 'Enter your phone number to receive a verification code.'
     : step === 'otp'
     ? 'Enter the 6-digit code sent to your phone.'
-    : 'Choose a new 5-digit PIN for your account.';
+    : 'Choose a new 6-digit PIN for your account.';
 
   return (
     <View style={s.root}>

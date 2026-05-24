@@ -32,8 +32,8 @@ export const ChangePinScreen = ({ auth, onNavigate }: ChangePinScreenProps) => {
   }, []);
 
   const handleChangePin = async () => {
-    if (!currentPin || currentPin.length !== 5) { showAlert('Error', 'Please enter your current 5-digit PIN'); return; }
-    if (!newPin || newPin.length !== 5) { showAlert('Error', 'Please enter a new 5-digit PIN'); return; }
+    if (!currentPin || currentPin.length !== 6) { showAlert('Error', 'Please enter your current 6-digit PIN'); return; }
+    if (!newPin || newPin.length !== 6) { showAlert('Error', 'Please enter a new 6-digit PIN'); return; }
     if (newPin !== confirmPin) { showAlert('Error', 'New PINs do not match'); return; }
     if (newPin === currentPin) { showAlert('Error', 'New PIN must be different from your current PIN'); return; }
     setLoading(true);
@@ -49,7 +49,7 @@ export const ChangePinScreen = ({ auth, onNavigate }: ChangePinScreenProps) => {
   };
 
   const backTarget = auth.user?.mustChangePin ? 'landing' : 'main';
-  const pinsMatch = newPin.length === 5 && confirmPin.length === 5;
+  const pinsMatch = newPin.length === 6 && confirmPin.length === 6;
 
   return (
     <View style={cs.root}>
