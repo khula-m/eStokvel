@@ -10,7 +10,6 @@ import { COLORS, SPACING, RADIUS } from '../constants/theme';
 import { scaleFontSize } from '../utils/responsive';
 import { shadow } from '../utils/shadow';
 import { formatCurrency } from '../utils/format';
-import { isAdminOfAnyGroup } from '../utils/roles';
 import { AuthState } from '../types';
 
 export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState; onLogout: () => void; onNavigate?: (screen: string) => void }) => {
@@ -52,10 +51,17 @@ export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState;
     return phone;
   };
   const getInitials = (name: string) => name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
-  const getRoleLabel = (role: string) => ({ SUPERADMIN: 'System Administrator', ADMIN: 'Group Administrator', MEMBER: 'Member' }[role] || role);
-  // Profile shows a summary label only. It is NOT used for permission checks
-  // anywhere — those happen per-group via getGroupRole(user, groupId).
-  const displayRole = isSuperAdmin ? 'SUPERADMIN' : (isAdminOfAnyGroup(auth.user) ? 'ADMIN' : 'MEMBER');
+
+  // Per-group role summary. There IS no global account type in this model —
+  // a user can be admin in some groups, member in others. The header badge
+  // shows "Stokvel Member" for everyone non-superadmin; the per-group counts
+  // below tell the real story.
+  const memberships = auth.user?.memberships || [];
+  const adminCount = memberships.filter(m => m.role === 'ADMIN').length;
+  const memberCount = memberships.filter(m => m.role === 'MEMBER').length;
+  const headerRoleLabel = isSuperAdmin
+    ? 'System Administrator'
+    : 'Stokvel Member';
 
   if (loading) {
     return <View style={ps.centered}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
@@ -75,7 +81,7 @@ export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState;
         </View>
         <Text style={ps.fullName}>{auth.user?.fullName}</Text>
         <View style={ps.roleBadge}>
-          <Text style={ps.roleBadgeText}>{getRoleLabel(displayRole)}</Text>
+          <Text style={ps.roleBadgeText}>{headerRoleLabel}</Text>
         </View>
 
         {/* Verification Status Badge */}
@@ -170,13 +176,33 @@ export const ProfileScreen = ({ auth, onLogout, onNavigate }: { auth: AuthState;
             <Text style={ps.infoValue}>{auth.user?.fullName || 'Not set'}</Text>
           </View>
         </View>
-        <View style={[ps.infoRow, { borderBottomWidth: 0 }]}>
-          <View style={[ps.infoIcon, { backgroundColor: COLORS.warningSoft }]}><Icon name="person" size={18} color={COLORS.accent} /></View>
-          <View style={{ flex: 1 }}>
-            <Text style={ps.infoLabel}>Account Type</Text>
-            <Text style={ps.infoValue}>{getRoleLabel(displayRole)}</Text>
+        {/* SUPERADMINs only get the System Administrator label; for everyone
+            else, the "Account Type" row is replaced with a per-group summary
+            since there isn't a global account type in the new model. */}
+        {isSuperAdmin ? (
+          <View style={[ps.infoRow, { borderBottomWidth: 0 }]}>
+            <View style={[ps.infoIcon, { backgroundColor: COLORS.warningSoft }]}><Icon name="person" size={18} color={COLORS.accent} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={ps.infoLabel}>Account Type</Text>
+              <Text style={ps.infoValue}>System Administrator</Text>
+            </View>
           </View>
-        </View>
+        ) : (
+          <View style={[ps.infoRow, { borderBottomWidth: 0 }]}>
+            <View style={[ps.infoIcon, { backgroundColor: COLORS.primarySoft }]}><Icon name="groups" size={18} color={COLORS.primary} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={ps.infoLabel}>Group Roles</Text>
+              <Text style={ps.infoValue}>
+                {adminCount === 0 && memberCount === 0
+                  ? 'Not in any groups yet'
+                  : [
+                      adminCount > 0 ? `Admin of ${adminCount} ${adminCount === 1 ? 'group' : 'groups'}` : null,
+                      memberCount > 0 ? `Member of ${memberCount} ${memberCount === 1 ? 'group' : 'groups'}` : null,
+                    ].filter(Boolean).join(' · ')}
+              </Text>
+            </View>
+          </View>
+        )}
       </View>
 
       {/* Settings */}

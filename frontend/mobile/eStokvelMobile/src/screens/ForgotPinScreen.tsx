@@ -214,7 +214,7 @@ export const ForgotPinScreen = ({ onNavigate }: ForgotPinScreenProps) => {
                 <View style={s.fieldGroup}>
                   <View style={s.labelRow}>
                     <View style={s.labelIconBg}><Icon name="lock" size={14} color={COLORS.primary} /></View>
-                    <Text style={s.label}>New 5-Digit PIN</Text>
+                    <Text style={s.label}>New 6-Digit PIN</Text>
                   </View>
                   <View style={s.inputWrap}>
                     <TextInput

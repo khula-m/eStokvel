@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, FlatList, ScrollView,
-  ActivityIndicator, RefreshControl, StyleSheet, Platform,
+  ActivityIndicator, RefreshControl, StyleSheet,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -139,8 +139,8 @@ export const ChatScreen = ({ auth, initialGroupId }: { auth: AuthState; initialG
           ) : messages.length === 0 ? (
             <View style={cs.emptyWrap}>
               <View style={cs.emptyIcon}><Icon name="chat" size={48} color={COLORS.textMuted} /></View>
-              <Text style={cs.emptyTitle}>No Messages Yet</Text>
-              <Text style={cs.emptyText}>Be the first to say hello!</Text>
+              <Text style={cs.emptyTitle}>No messages yet</Text>
+              <Text style={cs.emptyText}>Start the conversation.</Text>
             </View>
           ) : (
             <FlatList
@@ -181,14 +181,27 @@ export const ChatScreen = ({ auth, initialGroupId }: { auth: AuthState; initialG
                 placeholder="Type a message..." placeholderTextColor={COLORS.textMuted} multiline maxLength={500}
                 onSubmitEditing={handleSend} accessibilityLabel="Message input" />
             </View>
-            <TouchableOpacity
-              style={[cs.sendBtn, (!newMessage.trim() || sending) && { opacity: 0.4 }]}
-              onPress={handleSend} disabled={!newMessage.trim() || sending}
-              accessibilityLabel="Send message" accessibilityRole="button">
-              <LinearGradient colors={['#0A2463', '#1A43A8']} style={cs.sendGradient}>
-                {sending ? <ActivityIndicator color="#fff" size="small" /> : <Icon name="send" size={18} color="#fff" />}
-              </LinearGradient>
-            </TouchableOpacity>
+            {(() => {
+              const disabled = !newMessage.trim() || sending;
+              return (
+                <TouchableOpacity
+                  style={cs.sendBtn}
+                  onPress={handleSend} disabled={disabled}
+                  accessibilityLabel="Send message" accessibilityRole="button"
+                  accessibilityState={{ disabled }}
+                >
+                  {disabled ? (
+                    <View style={[cs.sendGradient, cs.sendGradientDisabled]}>
+                      <Icon name="send" size={18} color="#94A3B8" />
+                    </View>
+                  ) : (
+                    <LinearGradient colors={['#0A2463', '#1A43A8']} style={cs.sendGradient}>
+                      {sending ? <ActivityIndicator color="#fff" size="small" /> : <Icon name="send" size={18} color="#fff" />}
+                    </LinearGradient>
+                  )}
+                </TouchableOpacity>
+              );
+            })()}
           </View>
         </>
       )}
@@ -222,13 +235,15 @@ const cs = StyleSheet.create({
   chipText: { color: COLORS.textSecondary, fontWeight: '600', fontSize: scaleFontSize(13) },
   chipTextActive: { color: '#fff' },
 
-  emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xl },
+  emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: SPACING.xl, paddingVertical: SPACING.xl },
   emptyIcon: {
     width: 88, height: 88, borderRadius: RADIUS.xl,
     backgroundColor: COLORS.borderLight, justifyContent: 'center', alignItems: 'center', marginBottom: SPACING.lg,
   },
-  emptyTitle: { fontSize: scaleFontSize(18), fontWeight: '700', color: COLORS.text, marginBottom: SPACING.sm },
-  emptyText: { fontSize: scaleFontSize(14), color: COLORS.textMuted, textAlign: 'center' },
+  emptyTitle: { fontSize: scaleFontSize(18), fontWeight: '700', color: COLORS.text, marginBottom: SPACING.sm, textAlign: 'center' },
+  // alignSelf:'stretch' so the centered alignItems on the parent doesn't
+  // shrink-wrap the Text and clip "Start the conversation." on the wrap break.
+  emptyText: { alignSelf: 'stretch', fontSize: scaleFontSize(14), color: COLORS.textMuted, textAlign: 'center', lineHeight: 22 },
 
   dateSep: { flexDirection: 'row', alignItems: 'center', marginVertical: SPACING.md },
   dateLine: { flex: 1, height: 1, backgroundColor: COLORS.borderLight },
@@ -269,5 +284,10 @@ const cs = StyleSheet.create({
     width: 46, height: 46, borderRadius: 23,
     justifyContent: 'center', alignItems: 'center',
     ...shadow(2, 8, 0.15),
+  },
+  sendGradientDisabled: {
+    backgroundColor: '#E2E8F0',
+    // No shadow on the disabled state — flat = clearly inactive.
+    shadowOpacity: 0, elevation: 0,
   },
 });

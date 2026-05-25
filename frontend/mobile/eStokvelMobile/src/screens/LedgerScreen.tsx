@@ -46,7 +46,11 @@ interface GroupMemberSummary {
 // Stokvel transparency rule: ledger visibility is per-GROUP, not per-ROLE.
 // Every member of a group reads the same ledger. The only switch is scope —
 // the whole group, or just my own contributions.
-export const LedgerScreen = ({ auth }: { auth: AuthState }) => {
+//
+// initialGroupId: when the screen is opened from a group-home Ledger tile,
+// the parent passes the group id so we land scoped to that group instead of
+// defaulting to the first one in the list.
+export const LedgerScreen = ({ auth, initialGroupId, onBack }: { auth: AuthState; initialGroupId?: string | null; onBack?: () => void }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<LedgerTab>('group');
@@ -55,7 +59,7 @@ export const LedgerScreen = ({ auth }: { auth: AuthState }) => {
   const [stats, setStats] = useState<GroupStats | null>(null);
   const [members, setMembers] = useState<GroupMemberSummary[]>([]);
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(initialGroupId || null);
   const [filter, setFilter] = useState<'ALL' | 'CONTRIBUTION' | 'PAYOUT'>('ALL');
 
   // Bottom-sheet state for the "what does this mean?" tap. Holds just the
@@ -65,6 +69,17 @@ export const LedgerScreen = ({ auth }: { auth: AuthState }) => {
     source?: TransactionSourceName;
     notes?: string;
   } | null>(null);
+
+  // When the parent re-routes us to a different group (e.g. user opens
+  // another group's Ledger tile), pick that group up. We don't clobber the
+  // user's manual selection — only react when `initialGroupId` actually
+  // changes to something new.
+  useEffect(() => {
+    if (initialGroupId && initialGroupId !== selectedGroupId) {
+      setSelectedGroupId(initialGroupId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialGroupId]);
 
   // Load the user's groups once. The selected group drives every fetch below.
   useEffect(() => {
@@ -152,24 +167,32 @@ export const LedgerScreen = ({ auth }: { auth: AuthState }) => {
       {/* Gradient Header */}
       <LinearGradient colors={['#0A2463', '#0F3285', '#1A43A8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
         style={ls.header}>
+        {onBack && (
+          <TouchableOpacity
+            onPress={onBack}
+            style={ls.backBtnRow}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Back to group"
+            accessibilityRole="button"
+          >
+            <Icon name="arrow-back" size={22} color="#fff" />
+            <Text style={ls.backBtnText}>Back to group</Text>
+          </TouchableOpacity>
+        )}
         <View style={ls.headerRow}>
           <View style={ls.headerIconCircle}>
             <Icon name="menu-book" size={22} color="#fff" />
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={ls.headerTitle} numberOfLines={1} ellipsizeMode="tail">{selectedGroupName}</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-              <Text style={ls.headerSubtitle}>
-                {tab === 'group' ? 'Group ledger' : tab === 'mine' ? 'My contributions' : 'Group summary'}
-              </Text>
-              {myGroupRole === 'ADMIN' && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                  <Text style={ls.headerSubtitle}> · </Text>
-                  <Icon name="star" size={11} color="rgba(255,255,255,0.8)" />
-                  <Text style={ls.headerSubtitle}> Admin</Text>
-                </View>
-              )}
-            </View>
+            {/* One Text node for the whole subtitle. The previous row layout
+                wrapped each child independently, so "Group ledger" was getting
+                broken across lines and "ledger" was clipped — leaving "Group"
+                / "My" alone, which read like a bug. */}
+            <Text style={ls.headerSubtitle} numberOfLines={1} ellipsizeMode="tail">
+              {tab === 'group' ? 'Group ledger' : tab === 'mine' ? 'My contributions' : 'Group summary'}
+              {myGroupRole === 'ADMIN' ? '  ·  ★ Admin' : ''}
+            </Text>
           </View>
         </View>
 
@@ -464,6 +487,13 @@ const ls = StyleSheet.create({
     borderBottomLeftRadius: RADIUS.xxl, borderBottomRightRadius: RADIUS.xxl,
   },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
+  backBtn: { marginRight: -SPACING.sm },
+  backBtnRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginBottom: SPACING.md, alignSelf: 'flex-start',
+    paddingVertical: 4,
+  },
+  backBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
   headerIconCircle: {
     width: 44, height: 44, borderRadius: RADIUS.md,
     backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center',

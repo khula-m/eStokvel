@@ -98,14 +98,19 @@ export class NotificationService {
   /**
    * Notify a member when they are added to a group
    */
-  async notifyMemberAdded(userId: string, groupName: string, tempPin: string) {
+  async notifyMemberAdded(userId: string, groupName: string, tempPin?: string) {
     try {
       const user = await prisma.user.findUnique({ where: { id: userId }, select: { expoPushToken: true } });
       if (!user?.expoPushToken) return;
+      // Existing users (no tempPin) already have credentials — don't tell them
+      // about a PIN they don't need.
+      const body = tempPin
+        ? `You have been added to ${groupName}. Your temporary PIN is: ${tempPin}`
+        : `You have been added to ${groupName}. Log in with your existing PIN to see it.`;
       await this.sendPushNotifications([{
         to: user.expoPushToken,
         title: 'Added to Group',
-        body: `You have been added to ${groupName}. Your temporary PIN is: ${tempPin}`,
+        body,
         data: { type: 'member_added', screen: 'dashboard' },
         sound: 'default',
         channelId: 'default',

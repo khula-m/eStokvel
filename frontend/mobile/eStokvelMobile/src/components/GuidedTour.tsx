@@ -175,79 +175,60 @@ export const GuidedTour = ({ steps, tourKey, onComplete, visible }: GuidedTourPr
   );
 };
 
-/* ── Tour step presets ── */
+/* ── Tour step presets ──
+ *
+ * One tour, used for every non-superadmin user. The old admin/member split
+ * implied a global role, which is exactly the model we removed: roles are
+ * per-group now. The tour explains the navigation pattern that supports that
+ * — open a group to see what you can do as admin or member of THAT group.
+ *
+ * The two exports below are kept as the same array for backward compatibility
+ * with MainTabNavigator's tourSteps selection; whichever tourKey is active,
+ * the user sees the same neutral content.
+ */
 
-export const ADMIN_TOUR_STEPS: TourStep[] = [
+const TOUR_STEPS: TourStep[] = [
   {
-    icon: 'dashboard',
-    title: 'Welcome, Admin!',
-    description: 'This is your command center. View your group\'s finances, manage members, and track contributions all from one place.',
+    icon: 'groups',
+    title: 'Welcome to eStokvel',
+    description: 'Every stokvel group you belong to lives on the Home tab. Tap a group to enter it — your role inside that group decides what you can do.',
   },
   {
-    icon: 'group-add',
-    title: 'Create & Manage Groups',
-    description: 'Create savings groups, set contribution amounts and frequencies. You\'ll get a unique group code members can use to join.',
+    icon: 'star',
+    title: 'Roles Are Per Group',
+    description: 'You might be admin of one group and a member of another. Each group card shows your role for that specific group with a badge.',
+  },
+  {
+    icon: 'account-balance',
+    title: 'Inside a Group',
+    description: 'After tapping a group, you\'ll see its tools: Analytics, Members, Announcements, Meetings, Chat, and the Ledger. Admin-only tools appear only if you\'re an admin of that group.',
+  },
+  {
+    icon: 'payments',
+    title: 'Make Contributions',
+    description: 'Open any group and tap the big Pay button to send your contribution. Every payment is recorded in the group\'s shared ledger.',
   },
   {
     icon: 'person-add',
-    title: 'Add Members',
-    description: 'Add members by their phone number. They\'ll receive a temporary PIN to login. You can manage their membership anytime.',
+    title: 'Adding Members',
+    description: 'Admins can add members by name and phone number. If the person already uses eStokvel, they\'ll just see the new group on their dashboard — no new PIN needed. New users get a temporary PIN via SMS.',
   },
   {
-    icon: 'attach-money',
-    title: 'Track Contributions',
-    description: 'Monitor every contribution in the Ledger tab. See who\'s paid, pending amounts, and generate transaction references.',
+    icon: 'menu-book',
+    title: 'Activity Tab',
+    description: 'The Activity tab shows the full ledger of any group you belong to — the same book every member of that group sees. Switch to "My Contributions" to filter to your own.',
     highlight: 'ledger',
-  },
-  {
-    icon: 'chat',
-    title: 'Group Chat',
-    description: 'Communicate with your group members in real-time. Share announcements, reminders, and coordinate meetings.',
-    highlight: 'chat',
-  },
-  {
-    icon: 'campaign',
-    title: 'Announcements & Meetings',
-    description: 'Post important announcements and schedule meetings. Members get notified and can RSVP directly in the app.',
-  },
-];
-
-export const MEMBER_TOUR_STEPS: TourStep[] = [
-  {
-    icon: 'account-balance-wallet',
-    title: 'Welcome to eStokvel!',
-    description: 'Your digital savings companion. View your groups, make contributions, and track your savings progress here.',
-  },
-  {
-    icon: 'groups',
-    title: 'Your Groups',
-    description: 'You\'ll see all stokvel groups you belong to on the Dashboard. Each shows your role, contribution amount, and group details.',
-  },
-  {
-    icon: 'attach-money',
-    title: 'Make Contributions',
-    description: 'Tap "Pay Now" on any group to make a contribution via EFT or other payment methods. Every payment is tracked with a reference.',
-    highlight: 'ledger',
-  },
-  {
-    icon: 'receipt-long',
-    title: 'Your Ledger',
-    description: 'The Ledger tab shows your complete transaction history. Filter by type and see your total contributions at a glance.',
-    highlight: 'ledger',
-  },
-  {
-    icon: 'chat',
-    title: 'Group Chat',
-    description: 'Chat with your group members in the Chat tab. Stay connected, ask questions, and coordinate with your savings community.',
-    highlight: 'chat',
   },
   {
     icon: 'notifications',
     title: 'Stay Updated',
-    description: 'The Alerts tab shows payment confirmations, meeting reminders, and group announcements. Never miss an important update.',
+    description: 'The Alerts tab gathers payment confirmations, meeting reminders, and group announcements across all your groups.',
     highlight: 'notifications',
   },
 ];
+
+export const ADMIN_TOUR_STEPS: TourStep[] = TOUR_STEPS;
+export const MEMBER_TOUR_STEPS: TourStep[] = TOUR_STEPS;
 
 const s = StyleSheet.create({
   overlay: {

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, TextInput,
+  View, Text, TouchableOpacity, TextInput, Pressable,
   ActivityIndicator, ScrollView, Platform, Animated, StyleSheet,
   KeyboardAvoidingView,
 } from 'react-native';
@@ -19,6 +19,50 @@ interface ChangePinScreenProps {
   auth: AuthState;
   onNavigate: (screen: string) => void;
 }
+
+/**
+ * 6-cell PIN entry. A row of boxes shows the typed state; a hidden TextInput
+ * receives keystrokes when any cell is tapped. iOS-style entry — the user sees
+ * one box per digit instead of a single wide text field with weirdly-spaced
+ * placeholder dots.
+ */
+const PinBoxes = ({
+  value, onChange, hasError,
+}: { value: string; onChange: (v: string) => void; hasError?: boolean }) => {
+  const inputRef = useRef<TextInput>(null);
+  const focus = () => inputRef.current?.focus();
+  return (
+    <Pressable onPress={focus} style={cs.pinBoxRow} accessibilityRole="button" accessibilityLabel="Tap to enter PIN">
+      {[0, 1, 2, 3, 4, 5].map(i => {
+        const filled = i < value.length;
+        const isActive = i === value.length;
+        return (
+          <View
+            key={i}
+            style={[
+              cs.pinBox,
+              isActive && cs.pinBoxActive,
+              hasError && cs.pinBoxError,
+            ]}
+          >
+            {filled && <View style={cs.pinDot} />}
+          </View>
+        );
+      })}
+      <TextInput
+        ref={inputRef}
+        style={cs.hiddenInput}
+        value={value}
+        onChangeText={(t) => onChange(t.replace(/[^0-9]/g, '').slice(0, 6))}
+        keyboardType="number-pad"
+        maxLength={6}
+        autoComplete="off"
+        textContentType="oneTimeCode"
+        caretHidden
+      />
+    </Pressable>
+  );
+};
 
 export const ChangePinScreen = ({ auth, onNavigate }: ChangePinScreenProps) => {
   const [currentPin, setCurrentPin] = useState('');
@@ -92,16 +136,7 @@ export const ChangePinScreen = ({ auth, onNavigate }: ChangePinScreenProps) => {
                 </View>
                 <Text style={cs.label}>Current PIN</Text>
               </View>
-              <TextInput
-                style={cs.pinInput}
-                placeholder="• • • • • •"
-                placeholderTextColor="#CBD5E1"
-                value={currentPin}
-                onChangeText={(t) => setCurrentPin(t.replace(/[^0-9]/g, '').slice(0, 6))}
-                keyboardType="number-pad"
-                secureTextEntry
-                maxLength={6}
-              />
+              <PinBoxes value={currentPin} onChange={setCurrentPin} />
             </View>
 
             {/* New PIN */}
@@ -112,16 +147,7 @@ export const ChangePinScreen = ({ auth, onNavigate }: ChangePinScreenProps) => {
                 </View>
                 <Text style={cs.label}>New PIN</Text>
               </View>
-              <TextInput
-                style={cs.pinInput}
-                placeholder="• • • • • •"
-                placeholderTextColor="#CBD5E1"
-                value={newPin}
-                onChangeText={(t) => setNewPin(t.replace(/[^0-9]/g, '').slice(0, 6))}
-                keyboardType="number-pad"
-                secureTextEntry
-                maxLength={6}
-              />
+              <PinBoxes value={newPin} onChange={setNewPin} />
             </View>
 
             {/* Confirm PIN */}
@@ -132,16 +158,7 @@ export const ChangePinScreen = ({ auth, onNavigate }: ChangePinScreenProps) => {
                 </View>
                 <Text style={cs.label}>Confirm New PIN</Text>
               </View>
-              <TextInput
-                style={[cs.pinInput, pinsMatch && newPin !== confirmPin && { borderColor: COLORS.error }]}
-                placeholder="• • • • • •"
-                placeholderTextColor="#CBD5E1"
-                value={confirmPin}
-                onChangeText={(t) => setConfirmPin(t.replace(/[^0-9]/g, '').slice(0, 6))}
-                keyboardType="number-pad"
-                secureTextEntry
-                maxLength={6}
-              />
+              <PinBoxes value={confirmPin} onChange={setConfirmPin} hasError={pinsMatch && newPin !== confirmPin} />
               {pinsMatch && (
                 <View style={cs.matchRow}>
                   <Icon name={newPin === confirmPin ? 'check-circle' : 'cancel'} size={16}
@@ -215,12 +232,27 @@ const cs = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   label: { fontSize: 13, fontWeight: '600', color: '#475569' },
-  pinInput: {
-    backgroundColor: '#F8FAFC', borderRadius: RADIUS.md,
+  pinBoxRow: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    position: 'relative',
+  },
+  pinBox: {
+    width: 48, height: 56, borderRadius: RADIUS.md,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1.5, borderColor: '#E2E8F0',
-    paddingVertical: 18, paddingHorizontal: SPACING.md,
-    textAlign: 'center', fontSize: 24, letterSpacing: 14,
-    color: '#1E293B', fontWeight: '700',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  pinBoxActive: { borderColor: COLORS.primary, borderWidth: 2 },
+  pinBoxError: { borderColor: COLORS.error },
+  pinDot: {
+    width: 14, height: 14, borderRadius: 7,
+    backgroundColor: '#1E293B',
+  },
+  hiddenInput: {
+    position: 'absolute', opacity: 0,
+    top: 0, left: 0, right: 0, bottom: 0,
+    // Required on Android — opacity:0 alone keeps the cursor visible without these.
+    color: 'transparent', fontSize: 1,
   },
   matchRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
   matchText: { fontSize: 12, fontWeight: '600' },

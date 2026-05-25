@@ -22,7 +22,10 @@ interface MainTabNavigatorProps {
 
 export const MainTabNavigator = ({ auth, onLogout, onNavigate, onAuthRefresh, initialTab }: MainTabNavigatorProps) => {
   const [currentTab, setCurrentTab] = useState(initialTab || 'dashboard');
+  // Chat and Ledger can both be entered with a group already in mind (from a
+  // group-home tile). The screens read these as their initial selection.
   const [chatGroupId, setChatGroupId] = useState<string | null>(null);
+  const [ledgerGroupId, setLedgerGroupId] = useState<string | null>(null);
   const [showTour, setShowTour] = useState(false);
 
   // Tour selection is the only place a "global" role view makes sense — show the
@@ -41,7 +44,12 @@ export const MainTabNavigator = ({ auth, onLogout, onNavigate, onAuthRefresh, in
   }, [tourKey]);
 
   const navigateTab = (tab: string, groupId?: string) => {
-    if (groupId) setChatGroupId(groupId);
+    if (groupId) {
+      // Route the groupId to whichever screen is being opened so it lands
+      // pre-scoped instead of forcing the user to pick a group again.
+      if (tab === 'chat') setChatGroupId(groupId);
+      if (tab === 'ledger') setLedgerGroupId(groupId);
+    }
     setCurrentTab(tab);
   };
 
@@ -49,7 +57,7 @@ export const MainTabNavigator = ({ auth, onLogout, onNavigate, onAuthRefresh, in
     <SafeAreaView style={styles.container}>
       <View style={styles.tabContent}>
         {currentTab === 'dashboard' && <DashboardScreen auth={auth} onLogout={onLogout} onNavigateTab={navigateTab} onAuthRefresh={onAuthRefresh} />}
-        {currentTab === 'ledger' && <LedgerScreen auth={auth} />}
+        {currentTab === 'ledger' && <LedgerScreen auth={auth} initialGroupId={ledgerGroupId} />}
         {currentTab === 'chat' && <ChatScreen auth={auth} initialGroupId={chatGroupId} />}
         {currentTab === 'notifications' && <NotificationsScreen auth={auth} />}
         {currentTab === 'profile' && <ProfileScreen auth={auth} onLogout={onLogout} onNavigate={onNavigate} />}

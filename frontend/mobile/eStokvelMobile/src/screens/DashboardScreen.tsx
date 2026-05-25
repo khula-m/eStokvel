@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView,
-  Modal, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform, StyleSheet,
+  Modal, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform, StyleSheet, PanResponder,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import axios from 'axios';
-import { Icon } from '../components/Icon';
+import { Icon, IconName } from '../components/Icon';
 import { ProgressBar } from '../components/ProgressBar';
 import { showAlert } from '../utils/alert';
 import { API_URL } from '../constants/config';
@@ -16,10 +16,11 @@ import { scaleFontSize } from '../utils/responsive';
 import { shadow } from '../utils/shadow';
 import { formatCurrency, formatDateShort as formatDate, formatDateTime } from '../utils/format';
 import { styles } from '../styles';
-import { getGroupRole, isSuperAdmin, isAdminOfAnyGroup } from '../utils/roles';
+import { getGroupRole, isSuperAdmin } from '../utils/roles';
 import { AuthState, Group, Transaction, GroupMember, Announcement, Meeting } from '../types';
 import OzowPaymentWebView from '../components/OzowPaymentWebView';
 import { PaymentModal } from '../components/PaymentModal';
+import { LedgerScreen } from './LedgerScreen';
 
 interface DashboardScreenProps {
   auth: AuthState;
@@ -32,11 +33,6 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const superAdmin = isSuperAdmin(auth.user);
-  // Convenience: true iff the user holds ADMIN in any group. Used ONLY to
-  // pick top-level chrome (e.g. the small "Group Admin" hint on the header).
-  // Never call this to authorize a group-specific action — use the per-group
-  // helper below for that.
-  const hasAnyAdminRole = isAdminOfAnyGroup(auth.user);
 
   // Per-group role lookup. ALL permission decisions for a specific group
   // (showing admin buttons, allowing delete, etc.) must go through this.
@@ -44,9 +40,24 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
     getGroupRole(auth.user, groupId);
   const headers = { Authorization: `Bearer ${auth.token}` };
 
-  // ---- ADMIN STATE ----
+  // ---- NAVIGATION STATE ----
+  //
+  // Three-level nav: list → group-home → feature sub-screen.
+  //
+  //   'list'              The dashboard. All groups the user belongs to, with
+  //                       per-group role badges. Tapping a card enters that
+  //                       group's context.
+  //   'home'              The selected group's home — feature tile grid.
+  //                       Role-aware: ADMIN sees admin tiles, MEMBER doesn't.
+  //                       The role badge on this screen is the user's role in
+  //                       THIS specific group, not a global flag.
+  //   '<feature>'         A specific feature inside the selected group.
+  //
+  // selectedGroup is null only when groupView === 'list'.
   const [groups, setGroups] = useState<Group[]>([]);
-  const [adminView, setAdminView] = useState<'main' | 'analytics' | 'announcements' | 'meetings' | 'members' | 'payments'>('main');
+  const [groupView, setGroupView] = useState<
+    'list' | 'home' | 'analytics' | 'announcements' | 'meetings' | 'members' | 'payments' | 'ledger'
+  >('list');
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -86,6 +97,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
   const [newMemberPhone, setNewMemberPhone] = useState('');
   const [addingMember, setAddingMember] = useState(false);
   const [addedMemberPin, setAddedMemberPin] = useState('');
+  const [addedMemberSuccess, setAddedMemberSuccess] = useState(false);
 
   // ---- MEMBER STATE ----
   const [memberGroups, setMemberGroups] = useState<Group[]>([]);
@@ -157,9 +169,41 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
 
 
 
-  // ========== ADMIN HANDLERS ==========
-  const openAdminSubScreen = async (view: typeof adminView, group: Group) => {
-    setSelectedGroup(group); setAdminView(view);
+  // ========== GROUP NAVIGATION ==========
+
+  type FeatureView = 'analytics' | 'announcements' | 'meetings' | 'members' | 'payments';
+
+  // Enter the group-home (the new role-aware feature grid). Called when the
+  // user taps a card on the dashboard list. The home screen itself doesn't
+  // hit the network — it just renders tiles. Sub-screen data is loaded only
+  // when the user actually opens a feature.
+  const openGroupHome = (group: Group) => {
+    setSelectedGroup(group);
+    setGroupView('home');
+  };
+
+  // Swipe-right-to-go-back for group sub-screens and group home.
+  // Uses a callback ref so the handler always closes over the current groupView.
+  const swipeBackFn = useRef<() => void>(() => {});
+  swipeBackFn.current = () => {
+    if (groupView === 'home') { setGroupView('list'); setSelectedGroup(null); }
+    else if (groupView !== 'list') { setGroupView('home'); }
+  };
+  const swipeBack = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gs) =>
+        gs.dx > 15 && Math.abs(gs.dy) < 50 && gs.x0 < 60,
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dx > 80) swipeBackFn.current();
+      },
+    })
+  ).current;
+
+  // Open a feature sub-screen inside the currently-selected group's context.
+  // Called from the group-home tiles. Loads only the data needed by that
+  // feature so we don't pay the cost up-front for tiles the user never taps.
+  const openFeature = async (view: FeatureView, group: Group) => {
+    setSelectedGroup(group); setGroupView(view);
     // Reset sub-screen data to prevent showing stale data from previous group
     if (view === 'members') setGroupMembers([]);
     else if (view === 'announcements') setAnnouncements([]);
@@ -262,13 +306,14 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
     if (!newMemberFirstName.trim() || !newMemberLastName.trim() || !newMemberPhone.trim()) { showAlert('Error', 'Please enter first name, last name, and phone number'); return; }
     if (!/^0\d{9}$/.test(newMemberPhone.trim())) { showAlert('Error', 'Phone must be 10 digits starting with 0'); return; }
     if (!selectedGroup) { showAlert('Error', 'No group selected'); return; }
-    setAddingMember(true); setAddedMemberPin('');
+    setAddingMember(true); setAddedMemberPin(''); setAddedMemberSuccess(false);
     try {
       const res = await axios.post(`${API_URL}/api/auth/member/add`, {
         firstName: newMemberFirstName.trim(), lastName: newMemberLastName.trim(), phoneNumber: newMemberPhone.trim(), groupId: selectedGroup.id,
       }, { headers, timeout: 15000 });
       if (res.data.success) {
         setAddedMemberPin(res.data.data?.tempPin || '');
+        setAddedMemberSuccess(true);
         setNewMemberFirstName(''); setNewMemberLastName(''); setNewMemberPhone('');
         // Refresh members list
         const membersRes = await axios.get(`${API_URL}/api/groups/${selectedGroup.id}/members`, { headers });
@@ -299,17 +344,23 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
 
   const handleDeleteGroup = async (group: Group) => {
     const memberCount = group._count?.members || group.memberCount || 0;
-    const msg = memberCount > 1
-      ? `"${group.name}" has ${memberCount} members. Are you sure you want to deactivate it? This cannot be undone.`
-      : `Are you sure you want to delete "${group.name}"? This cannot be undone.`;
-    showAlert('Delete Group', msg, [
+    const txCount = group._count?.transactions || 0;
+    if (memberCount > 1 || txCount > 0) {
+      showAlert(
+        'Cannot Delete Group',
+        `"${group.name}" has ${memberCount > 1 ? `${memberCount} members` : ''}${memberCount > 1 && txCount > 0 ? ' and ' : ''}${txCount > 0 ? `${txCount} transaction${txCount === 1 ? '' : 's'}` : ''}. Groups with members or contributions can only be removed by the system administrator.`,
+      );
+      return;
+    }
+    showAlert('Delete Group', `Are you sure you want to delete "${group.name}"? This cannot be undone.`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
         try {
           const res = await axios.delete(`${API_URL}/api/groups/${group.id}`, { headers });
           if (res.data.success) {
             showAlert('Success', res.data.message || 'Group deleted');
-            setAdminView('main'); setSelectedGroup(null);
+            // Group is gone; nothing to go back into. Bounce to the dashboard.
+            setGroupView('list'); setSelectedGroup(null);
             fetchDashboardData();
           } else { showAlert('Error', res.data.message || 'Failed to delete group'); }
         } catch (e: any) { showAlert('Error', e.response?.data?.message || 'Failed to delete group'); }
@@ -465,14 +516,25 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
   // ╚══════════════════════════════════════════════════════════════╝
   {
     // ---------- GROUP SUB-SCREENS (analytics, members, etc.) ----------
-    if (adminView !== 'main' && selectedGroup) {
+    if (groupView === 'ledger' && selectedGroup) {
       return (
+        <View style={{ flex: 1 }} {...swipeBack.panHandlers}>
+          <LedgerScreen auth={auth} initialGroupId={selectedGroup.id} onBack={() => setGroupView('home')} />
+        </View>
+      );
+    }
+
+    if (groupView !== 'list' && groupView !== 'home' && selectedGroup) {
+      // The runtime guard above already narrows out 'list', 'home', and 'ledger'.
+      const featureView = groupView as FeatureView;
+      return (
+        <View style={{ flex: 1 }} {...swipeBack.panHandlers}>
         <ScrollView style={styles.screenContainer}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); openAdminSubScreen(adminView, selectedGroup); }} colors={[COLORS.primary]} />}>
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); openFeature(featureView, selectedGroup); }} colors={[COLORS.primary]} />}>
           {/* Sub-screen Header */}
           <LinearGradient colors={['#0A2463', '#0F3285']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
             style={[styles.subScreenHeader, { paddingVertical: SPACING.md, paddingHorizontal: SPACING.md }]}>
-            <TouchableOpacity onPress={() => setAdminView('main')} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TouchableOpacity onPress={() => setGroupView('home')} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Icon name="arrow-back" size={24} color="#fff" />
               <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Back</Text>
             </TouchableOpacity>
@@ -481,7 +543,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
           </LinearGradient>
 
           {/* Analytics Sub-screen */}
-          {adminView === 'analytics' && (
+          {groupView === 'analytics' && (
             <View style={{ padding: 16 }}>
               {subScreenLoading ? (
                 <View style={{ paddingVertical: 40, alignItems: 'center' }}>
@@ -528,9 +590,9 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
                   const rate = expected > 0 ? (collected / expected) * 100 : 0;
                   return (
                     <View>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <Text style={{ fontSize: 14, color: COLORS.textLight }}>This Period</Text>
-                        <Text style={{ fontSize: 14, fontWeight: '700', color: rate >= 80 ? COLORS.success : COLORS.warning }}>{Math.round(rate)}%</Text>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <Text allowFontScaling={false} style={{ fontSize: 14, color: COLORS.textLight, flexShrink: 0 }}>This Period</Text>
+                        <Text allowFontScaling={false} style={{ fontSize: 14, fontWeight: '700', color: rate >= 80 ? COLORS.success : COLORS.warning, flexShrink: 0 }}>{Math.round(rate)}%</Text>
                       </View>
                       <ProgressBar progress={rate} color={rate >= 80 ? COLORS.success : COLORS.warning} />
                       <Text style={{ fontSize: 12, color: COLORS.textLight, marginTop: 8 }}>
@@ -573,7 +635,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
           )}
 
           {/* Announcements Sub-screen */}
-          {adminView === 'announcements' && (
+          {groupView === 'announcements' && (
             <View style={{ padding: 16 }}>
               {subScreenLoading ? (
                 <View style={{ paddingVertical: 40, alignItems: 'center' }}>
@@ -586,10 +648,15 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
                 <View style={styles.sectionHeaderRow}>
                   <Icon name="announcement" size={20} color={COLORS.primary} />
                   <Text style={styles.sectionTitle}>Announcements</Text>
-                  <TouchableOpacity onPress={() => setShowAnnouncementForm(true)} style={styles.addBtnSmall}>
-                    <Icon name="add" size={18} color="#fff" />
-                    <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>New</Text>
-                  </TouchableOpacity>
+                  {/* Create-announcement is admin-only. Backend rejects too
+                      (announcement.service.ts:35-40) but we don't want
+                      members tapping a button they can't use. */}
+                  {selectedGroup && roleForGroup(selectedGroup.id) === 'ADMIN' && (
+                    <TouchableOpacity onPress={() => setShowAnnouncementForm(true)} style={styles.addBtnSmall}>
+                      <Icon name="add" size={18} color="#fff" />
+                      <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>New</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
                 {announcements.length === 0 ? (
                   <View style={styles.emptyStateCard}>
@@ -602,9 +669,12 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
                   <View key={ann.id} style={[styles.listItem, { flexDirection: 'column', alignItems: 'flex-start' }]}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
                       <Text style={[styles.listItemTitle, { flex: 1 }]}>{ann.pinned ? '📌 ' : ''}{ann.title}</Text>
-                      <TouchableOpacity onPress={() => handleDeleteAnnouncement(ann.id)} disabled={deletingAnnouncementId === ann.id}>
-                        {deletingAnnouncementId === ann.id ? <ActivityIndicator size="small" color={COLORS.error} /> : <Icon name="delete" size={18} color={COLORS.error} />}
-                      </TouchableOpacity>
+                      {/* Delete is also admin-only. */}
+                      {selectedGroup && roleForGroup(selectedGroup.id) === 'ADMIN' && (
+                        <TouchableOpacity onPress={() => handleDeleteAnnouncement(ann.id)} disabled={deletingAnnouncementId === ann.id}>
+                          {deletingAnnouncementId === ann.id ? <ActivityIndicator size="small" color={COLORS.error} /> : <Icon name="delete" size={18} color={COLORS.error} />}
+                        </TouchableOpacity>
+                      )}
                     </View>
                     <Text style={{ fontSize: 13, color: COLORS.textLight, marginTop: 4 }}>{ann.content}</Text>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 8 }}>
@@ -649,7 +719,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
           )}
 
           {/* Meetings Sub-screen */}
-          {adminView === 'meetings' && (
+          {groupView === 'meetings' && (
             <View style={{ padding: 16 }}>
               {subScreenLoading ? (
                 <View style={{ paddingVertical: 40, alignItems: 'center' }}>
@@ -662,10 +732,14 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
                 <View style={styles.sectionHeaderRow}>
                   <Icon name="event" size={20} color={COLORS.primary} />
                   <Text style={styles.sectionTitle}>Meetings</Text>
-                  <TouchableOpacity onPress={() => setShowMeetingForm(true)} style={styles.addBtnSmall}>
-                    <Icon name="add" size={18} color="#fff" />
-                    <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>Schedule</Text>
-                  </TouchableOpacity>
+                  {/* Only group admins can schedule meetings; backend gates
+                      this too (meeting.service.ts:18). */}
+                  {selectedGroup && roleForGroup(selectedGroup.id) === 'ADMIN' && (
+                    <TouchableOpacity onPress={() => setShowMeetingForm(true)} style={styles.addBtnSmall}>
+                      <Icon name="add" size={18} color="#fff" />
+                      <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>Schedule</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
                 {meetings.length === 0 ? (
                   <View style={styles.emptyStateCard}>
@@ -821,7 +895,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
           )}
 
           {/* Members Sub-screen */}
-          {adminView === 'members' && (
+          {groupView === 'members' && (
             <View style={{ padding: 16 }}>
               {subScreenLoading ? (
                 <View style={{ paddingVertical: 40, alignItems: 'center' }}>
@@ -876,7 +950,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
           )}
 
           {/* ====== PAYMENT GATEWAY SUB-SCREEN ====== */}
-          {adminView === 'payments' && (
+          {groupView === 'payments' && (
             <ScrollView style={{ padding: 16 }}>
               {subScreenLoading ? (
                 <View style={{ paddingVertical: 40, alignItems: 'center' }}>
@@ -938,16 +1012,24 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
                     <Text style={{ fontSize: 14, color: COLORS.primary, fontWeight: '600' }}>Group: {selectedGroup.name}</Text>
                   </View>
                 )}
-                {addedMemberPin ? (
+                {addedMemberSuccess ? (
                   <View style={{ alignItems: 'center', padding: 20 }}>
                     <Icon name="check-circle" size={48} color={COLORS.success} />
                     <Text style={{ fontSize: 18, fontWeight: '700', marginTop: 12, color: COLORS.text }}>Member Added!</Text>
-                    <Text style={{ fontSize: 14, color: COLORS.textLight, marginTop: 4, textAlign: 'center' }}>Share this temporary PIN with the member</Text>
-                    <View style={{ backgroundColor: COLORS.warningSoft, padding: 16, borderRadius: 12, marginTop: 16 }}>
-                      <Text style={{ fontSize: 32, fontWeight: '800', color: COLORS.warning, letterSpacing: 8, textAlign: 'center' }}>{addedMemberPin}</Text>
-                    </View>
-                    <Text style={{ fontSize: 12, color: COLORS.error, marginTop: 8 }}>Member must change PIN on first login</Text>
-                    <TouchableOpacity style={[styles.button, { marginTop: 20, width: '100%' }]} onPress={() => { setShowAddMemberModal(false); setAddedMemberPin(''); }}>
+                    {addedMemberPin ? (
+                      <>
+                        <Text style={{ fontSize: 14, color: COLORS.textLight, marginTop: 4, textAlign: 'center' }}>Share this temporary PIN with the new member</Text>
+                        <View style={{ backgroundColor: COLORS.warningSoft, padding: 16, borderRadius: 12, marginTop: 16, width: '100%' }}>
+                          <Text style={{ fontSize: 32, fontWeight: '800', color: COLORS.warning, letterSpacing: 8, textAlign: 'center' }}>{addedMemberPin}</Text>
+                        </View>
+                        <Text style={{ fontSize: 12, color: COLORS.error, marginTop: 8 }}>They must change this PIN on first login</Text>
+                      </>
+                    ) : (
+                      <Text style={{ fontSize: 14, color: COLORS.textLight, marginTop: 8, textAlign: 'center', lineHeight: 22 }}>
+                        This person already has an eStokvel account — they can log in with their existing PIN.
+                      </Text>
+                    )}
+                    <TouchableOpacity style={[styles.button, { marginTop: 20, width: '100%' }]} onPress={() => { setShowAddMemberModal(false); setAddedMemberPin(''); setAddedMemberSuccess(false); }}>
                       <Text style={styles.buttonText}>Done</Text>
                     </TouchableOpacity>
                   </View>
@@ -975,10 +1057,236 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
             </KeyboardAvoidingView>
           </Modal>
         </ScrollView>
+        </View>
       );
     }
 
-    // ---------- ADMIN MAIN VIEW ----------
+    // ---------- GROUP HOME ----------
+    // The middle level of the navigation. User has entered a specific group's
+    // context. Everything on this screen — the role badge, the tile grid, the
+    // admin-only tools — is keyed off THIS group, never a global flag.
+    if (groupView === 'home' && selectedGroup) {
+      const homeRole = roleForGroup(selectedGroup.id);
+      const homeIsAdmin = homeRole === 'ADMIN';
+      const homeMemberCount = selectedGroup._count?.members || selectedGroup.memberCount || 0;
+
+      // Tile definition kept inline so adding/removing/reordering features is
+      // a single-spot edit. `adminOnly: true` hides the tile from members —
+      // the backend will also reject if it's bypassed, but we don't tease
+      // members with buttons they can't use.
+      // Tile order is deliberate. Common (visible to all members) → admin-only.
+      // 6 tiles for a member, 7 for an admin. Both fit a 2-column grid cleanly
+      // (6 = 3 rows, neat; 7 = 3 rows + 1 admin-only tile, also acceptable).
+      const tiles: { key: string; icon: IconName; label: string; sub: string; adminOnly?: boolean; onPress: () => void }[] = [
+        {
+          key: 'analytics', icon: 'bar-chart', label: 'Analytics', sub: 'Group financials',
+          onPress: () => openFeature('analytics', selectedGroup),
+        },
+        {
+          key: 'ledger', icon: 'menu-book', label: 'Ledger', sub: 'Every transaction',
+          onPress: () => setGroupView('ledger'),
+        },
+        {
+          key: 'members', icon: 'people', label: 'Members', sub: `${homeMemberCount} ${homeMemberCount === 1 ? 'person' : 'people'}`,
+          onPress: () => openFeature('members', selectedGroup),
+        },
+        {
+          key: 'announcements', icon: 'announcement', label: 'Announcements', sub: 'Group updates',
+          onPress: () => openFeature('announcements', selectedGroup),
+        },
+        {
+          key: 'meetings', icon: 'event', label: 'Meetings', sub: 'Schedule + RSVP',
+          onPress: () => openFeature('meetings', selectedGroup),
+        },
+        {
+          key: 'chat', icon: 'chat-bubble', label: 'Chat', sub: 'Group discussion',
+          onPress: () => onNavigateTab('chat', selectedGroup.id),
+        },
+        {
+          key: 'payments', icon: 'payments', label: 'Bank Details', sub: 'Where payments go',
+          adminOnly: true,
+          onPress: () => openFeature('payments', selectedGroup),
+        },
+      ];
+      const visibleTiles = tiles.filter(t => !t.adminOnly || homeIsAdmin);
+
+      return (
+        <View style={{ flex: 1 }} {...swipeBack.panHandlers}>
+        <ScrollView
+          style={styles.screenContainer}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
+        >
+          {/* Header with back arrow, group name, role banner */}
+          <LinearGradient colors={['#0A2463', '#0F3285', '#1A43A8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={{ paddingTop: SPACING.md, paddingBottom: SPACING.xl, paddingHorizontal: SPACING.lg, borderBottomLeftRadius: RADIUS.xxl, borderBottomRightRadius: RADIUS.xxl }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.lg }}>
+              <TouchableOpacity
+                onPress={() => { setGroupView('list'); setSelectedGroup(null); }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                accessibilityLabel="Back to all groups"
+                accessibilityRole="button"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Icon name="arrow-back" size={24} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>All groups</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ color: '#fff', fontSize: scaleFontSize(24), fontWeight: '800' }} numberOfLines={2}>
+              {selectedGroup.name}
+            </Text>
+            {selectedGroup.description ? (
+              <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, marginTop: 4 }} numberOfLines={2}>
+                {selectedGroup.description}
+              </Text>
+            ) : null}
+
+            {/* Per-group role banner. The whole point of the redesign — the
+                user sees clearly that they hold a SPECIFIC role in this
+                SPECIFIC group, separate from anywhere else. */}
+            <View style={{
+              flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start',
+              backgroundColor: homeIsAdmin ? 'rgba(255,255,255,0.2)' : 'rgba(74,222,128,0.25)',
+              paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
+              marginTop: 12, gap: 6,
+            }}>
+              <Icon name={homeIsAdmin ? 'star' : 'person'} size={14} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700', letterSpacing: 0.3 }}>
+                You are {homeIsAdmin ? 'ADMIN' : 'a MEMBER'} of this group
+              </Text>
+            </View>
+
+            {/* Quick stats. Same as on the card but bigger — sets context. */}
+            <View style={{ flexDirection: 'row', gap: SPACING.md, marginTop: SPACING.lg }}>
+              <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: RADIUS.md, padding: SPACING.sm }}>
+                <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: '500' }}>Contribution</Text>
+                <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800', marginTop: 2 }}>
+                  {formatCurrency(selectedGroup.contributionAmount)}
+                </Text>
+                <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 10, marginTop: 1 }}>
+                  /{selectedGroup.contributionFrequency === 'MONTHLY' ? 'month' : 'week'}
+                </Text>
+              </View>
+              <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: RADIUS.md, padding: SPACING.sm }}>
+                <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: '500' }}>Members</Text>
+                <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800', marginTop: 2 }}>{homeMemberCount}</Text>
+              </View>
+              <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: RADIUS.md, padding: SPACING.sm }}>
+                <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: '500' }}>Plan</Text>
+                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700', marginTop: 4 }}>
+                  {(selectedGroup as any).payoutModel === 'END_OF_TERM' ? 'Savings' : 'Rotating'}
+                </Text>
+              </View>
+            </View>
+          </LinearGradient>
+
+          {/* Pay CTA — admin and member both contribute. This is intentionally
+              the most prominent action on the screen because for the typical
+              user, "pay my monthly" is the #1 reason they opened the group. */}
+          <View style={{ paddingHorizontal: SPACING.md, paddingTop: SPACING.md }}>
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                gap: 8, backgroundColor: COLORS.primary, borderRadius: RADIUS.md,
+                paddingVertical: 14, ...shadow(2, 8, 0.12),
+              }}
+              onPress={() => {
+                setPaymentGroup(selectedGroup);
+                setPaymentMethod('EFT');
+                setPaymentNotes('');
+                setShowPaymentModal(true);
+              }}
+              accessibilityLabel={`Pay ${formatCurrency(selectedGroup.contributionAmount)}`}
+              accessibilityRole="button"
+            >
+              <Icon name="payments" size={20} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>
+                Pay {formatCurrency(selectedGroup.contributionAmount)}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Feature tile grid — 2 columns. Tiles filtered by role before
+              render, so a member literally cannot tap admin-only tiles. If
+              the visible count is odd, the last tile spans full-width so we
+              don't leave an awkward half-width orphan on the bottom row. */}
+          <View style={{ paddingHorizontal: SPACING.md, paddingTop: SPACING.lg }}>
+            <Text style={{
+              fontSize: 12, fontWeight: '700', color: COLORS.textLight,
+              letterSpacing: 0.5, marginBottom: SPACING.sm, marginLeft: 4,
+            }}>
+              FEATURES
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm }}>
+              {visibleTiles.map((tile, idx) => {
+                const isOrphan = idx === visibleTiles.length - 1 && visibleTiles.length % 2 === 1;
+                return (
+                <TouchableOpacity
+                  key={tile.key}
+                  onPress={tile.onPress}
+                  style={{
+                    flexBasis: isOrphan ? '100%' : '48%',
+                    flexGrow: 1,
+                    backgroundColor: '#fff',
+                    borderRadius: RADIUS.lg,
+                    padding: SPACING.md,
+                    ...shadow(1, 6, 0.04),
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={tile.label}
+                >
+                  <View style={{
+                    width: 36, height: 36, borderRadius: RADIUS.sm,
+                    backgroundColor: COLORS.primarySoft,
+                    justifyContent: 'center', alignItems: 'center',
+                    marginBottom: SPACING.sm,
+                  }}>
+                    <Icon name={tile.icon} size={20} color={COLORS.primary} />
+                  </View>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.text }}>{tile.label}</Text>
+                  <Text style={{ fontSize: 11, color: COLORS.textLight, marginTop: 2 }} numberOfLines={1}>
+                    {tile.sub}
+                  </Text>
+                </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Admin-only danger zone — destructive action lives at the bottom,
+              never as a tile. Members never see this section at all. */}
+          {homeIsAdmin && (
+            <View style={{ paddingHorizontal: SPACING.md, paddingTop: SPACING.xl, paddingBottom: SPACING.lg }}>
+              <Text style={{
+                fontSize: 12, fontWeight: '700', color: COLORS.textLight,
+                letterSpacing: 0.5, marginBottom: SPACING.sm, marginLeft: 4,
+              }}>
+                ADMIN TOOLS
+              </Text>
+              <TouchableOpacity
+                onPress={() => handleDeleteGroup(selectedGroup)}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                  gap: 8, backgroundColor: COLORS.errorSoft,
+                  borderRadius: RADIUS.md, paddingVertical: 12,
+                  borderWidth: 1, borderColor: COLORS.errorSoft,
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Delete this group"
+              >
+                <Icon name="delete" size={16} color={COLORS.error} />
+                <Text style={{ color: COLORS.error, fontSize: 13, fontWeight: '700' }}>Delete Group</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <View style={{ height: SPACING.xxl }} />
+        </ScrollView>
+        </View>
+      );
+    }
+
+    // ---------- DASHBOARD LIST (default) ----------
     return (
       <>
         <ScrollView style={styles.screenContainer}
@@ -996,11 +1304,15 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
                   <Text style={styles.userName}>{auth.user?.firstName || auth.user?.fullName?.split(' ')[0] || 'There'}</Text>
                 </View>
               </View>
+              {/* Header summary — a neutral count, not a global role. Role
+                  is per-group; the badge on each card is the source of truth.
+                  Showing "GROUP ADMIN" here was misleading for users who are
+                  admin in one group and member in another. */}
               <View style={{ alignItems: 'flex-end', flexShrink: 0 }}>
                 <View style={[styles.roleBadge, { backgroundColor: 'rgba(255,255,255,0.2)', flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
-                  <Icon name={hasAnyAdminRole ? 'star' : 'person'} size={11} color="#fff" />
+                  <Icon name="groups" size={11} color="#fff" />
                   <Text style={styles.roleBadgeText} numberOfLines={1}>
-                    {hasAnyAdminRole ? 'GROUP ADMIN' : 'MEMBER'}
+                    {groups.length} {groups.length === 1 ? 'GROUP' : 'GROUPS'}
                   </Text>
                 </View>
               </View>
@@ -1033,7 +1345,17 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
             const cardRole = roleForGroup(group.id);
             const cardIsAdmin = cardRole === 'ADMIN';
             return (
-              <View key={group.id} style={styles.groupCardAdmin}>
+              // Whole card is the tap target. Tapping enters group context.
+              // What the user can do INSIDE that group is decided there, not
+              // by which buttons we render on the card.
+              <TouchableOpacity
+                key={group.id}
+                activeOpacity={0.7}
+                style={styles.groupCardAdmin}
+                onPress={() => openGroupHome(group)}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${group.name}. You are ${cardRole.toLowerCase()} of this group.`}
+              >
                 <View style={styles.groupCardHeader}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
                     <View style={[styles.groupIconBg, { backgroundColor: COLORS.primarySoft }]}>
@@ -1059,6 +1381,7 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
                     </Text>
                   </View>
                 </View>
+
                 {/* Payout Model Badge */}
                 <View style={{ flexDirection: 'row', marginBottom: 4 }}>
                   <View style={{ backgroundColor: (group as any).payoutModel === 'END_OF_TERM' ? COLORS.warningSoft : COLORS.successSoft, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
@@ -1068,86 +1391,35 @@ export const DashboardScreen = ({ auth, onLogout, onNavigateTab, onAuthRefresh }
                   </View>
                 </View>
 
-                {/* Stats Row */}
-                <View style={{ flexDirection: 'row', marginVertical: 12, gap: 16 }}>
+                {/* Stats Row. Two stats, not three — the third "Since" column
+                    was forcing the date value to fight for width against the
+                    "Members" / "Transactions" labels, which clipped on narrow
+                    phones ("Member" / "Sinc"). The creation date isn't
+                    load-bearing on a card; the group-home shows it if needed. */}
+                {/* Stats: count + short label. allowFontScaling={false} and a
+                    relative fontSize stop OS-level "Larger Text" settings from
+                    blowing the label past the column width and clipping it. */}
+                <View style={{ flexDirection: 'row', marginVertical: 12 }}>
                   <View style={{ alignItems: 'center', flex: 1 }}>
-                    <Text style={{ fontSize: 20, fontWeight: '700', color: COLORS.primary }}>{memberCount}</Text>
-                    <Text style={{ fontSize: 11, color: COLORS.textLight }}>Members</Text>
-                  </View>
-                  <View style={{ alignItems: 'center', flex: 1 }}>
-                    <Text style={{ fontSize: 20, fontWeight: '700', color: COLORS.success }}>{txCount}</Text>
-                    <Text style={{ fontSize: 11, color: COLORS.textLight }}>Transactions</Text>
-                  </View>
-                  <View style={{ alignItems: 'center', flex: 1 }}>
-                    <Text style={{ fontSize: 20, fontWeight: '700', color: COLORS.secondary }}>
-                      {new Date(group.createdAt).toLocaleDateString('en-ZA', { month: 'short', year: '2-digit' })}
+                    <Text style={{ fontSize: 22, fontWeight: '700', color: COLORS.primary }}>{memberCount}</Text>
+                    <Text allowFontScaling={false} style={{ fontSize: 11, color: COLORS.textLight, textAlign: 'center' }}>
+                      {memberCount === 1 ? 'Member' : 'Members'}
                     </Text>
-                    <Text style={{ fontSize: 11, color: COLORS.textLight }}>Since</Text>
+                  </View>
+                  <View style={{ alignItems: 'center', flex: 1 }}>
+                    <Text style={{ fontSize: 22, fontWeight: '700', color: COLORS.success }}>{txCount}</Text>
+                    <Text allowFontScaling={false} style={{ fontSize: 11, color: COLORS.textLight, textAlign: 'center' }}>
+                      {txCount === 1 ? 'Transaction' : 'Transactions'}
+                    </Text>
                   </View>
                 </View>
 
-                {/* Action Buttons — admin-only actions gated by per-group role */}
-                {(() => {
-                  const myGroupRole = roleForGroup(group.id);
-                  const isGroupAdmin = myGroupRole === 'ADMIN';
-                  return (
-                    <>
-                      <View style={styles.groupActionRow}>
-                        <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('analytics', group)}>
-                          <Icon name="bar-chart" size={16} color={COLORS.primary} />
-                          <Text style={styles.groupActionText}>Analytics</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('members', group)}>
-                          <Icon name="people" size={16} color={COLORS.primary} />
-                          <Text style={styles.groupActionText}>Members</Text>
-                        </TouchableOpacity>
-                        {isGroupAdmin ? (
-                          <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('payments', group)}>
-                            <Icon name="payments" size={16} color={COLORS.primary} />
-                            <Text style={styles.groupActionText}>Payments</Text>
-                          </TouchableOpacity>
-                        ) : (
-                          <View style={[styles.groupActionBtn, { opacity: 0.35 }]}>
-                            <Icon name="payments" size={16} color={COLORS.textLight} />
-                            <Text style={[styles.groupActionText, { color: COLORS.textLight }]}>Payments</Text>
-                          </View>
-                        )}
-                      </View>
-                      <View style={styles.groupActionRow}>
-                        <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('announcements', group)}>
-                          <Icon name="announcement" size={16} color={COLORS.primary} />
-                          <Text style={styles.groupActionText}>Announce</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.groupActionBtn} onPress={() => openAdminSubScreen('meetings', group)}>
-                          <Icon name="event" size={16} color={COLORS.primary} />
-                          <Text style={styles.groupActionText}>Meetings</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.groupActionBtn} onPress={() => onNavigateTab('chat', group.id)}>
-                          <Icon name="chat-bubble" size={16} color={COLORS.primary} />
-                          <Text style={styles.groupActionText}>Chat</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </>
-                  );
-                })()}
-
-                {/* Quick Pay Button */}
-                <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingVertical: 12, marginTop: 10 }}
-                  onPress={() => { setPaymentGroup(group); setPaymentMethod('EFT'); setPaymentNotes(''); setShowPaymentModal(true); }}>
-                  <Icon name="payments" size={18} color="#fff" />
-                  <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>Pay {formatCurrency(group.contributionAmount)}</Text>
-                </TouchableOpacity>
-
-                {roleForGroup(group.id) === 'ADMIN' && (
-                  <TouchableOpacity
-                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, marginTop: 8, borderTopWidth: 1, borderTopColor: COLORS.border }}
-                    onPress={() => handleDeleteGroup(group)}>
-                    <Icon name="delete" size={16} color={COLORS.error} />
-                    <Text style={{ color: COLORS.error, fontSize: 13, fontWeight: '600', marginLeft: 6 }}>Delete Group</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+                {/* Tap hint — tells the user the card itself is interactive */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginTop: 4 }}>
+                  <Text style={{ fontSize: 12, color: COLORS.textLight, fontWeight: '500' }}>Open group</Text>
+                  <Icon name="chevron-right" size={16} color={COLORS.textLight} />
+                </View>
+              </TouchableOpacity>
             );
           })}
           <View style={{ height: 20 }} />

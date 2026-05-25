@@ -97,7 +97,7 @@ export const LoginScreen = ({ onNavigate, onLogin }: LoginScreenProps) => {
                 <View style={ls.labelIconBg}>
                   <Icon name="lock" size={14} color={COLORS.primary} />
                 </View>
-                <Text style={ls.label}>5-Digit PIN</Text>
+                <Text style={ls.label}>6-Digit PIN</Text>
               </View>
               <View style={ls.inputWrap}>
                 <TextInput

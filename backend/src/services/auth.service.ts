@@ -220,10 +220,12 @@ export class AuthService {
       return { success: false, message: 'Only the group admin can add members' };
     }
 
-    const tempPin = this.generateTempPin();
-    const hashedPin = await bcrypt.hash(tempPin, 10);
-
     let user = await prisma.user.findUnique({ where: { phoneNumber } });
+    const isNewUser = !user;
+    // Only generate a temp PIN if we're creating a new user. Existing users
+    // already have credentials — adding them to a new group must NOT reset
+    // their PIN or imply they need one.
+    let tempPin: string | null = null;
 
     if (user) {
       const existingMember = await prisma.member.findUnique({
@@ -233,6 +235,8 @@ export class AuthService {
         return { success: false, message: `${user.fullName} is already a member of this group` };
       }
     } else {
+      tempPin = this.generateTempPin();
+      const hashedPin = await bcrypt.hash(tempPin, 10);
       user = await prisma.user.create({
         data: {
           phoneNumber,
@@ -260,12 +264,16 @@ export class AuthService {
       }
     });
 
-    // Fire SMS in background — never block the response waiting for SMS
-    smsService.sendSMS(phoneNumber, `Welcome to eStokvel, ${firstName}! You've been added to "${group.name}". Login with your phone number. Your temp PIN is: ${tempPin}. Please change it on first login.`)
+    // Fire SMS in background — wording differs depending on whether the
+    // member is new (needs the temp PIN) or already had an account.
+    const smsBody = isNewUser
+      ? `Welcome to eStokvel, ${firstName}! You've been added to "${group.name}". Login with your phone number. Your temp PIN is: ${tempPin}. Please change it on first login.`
+      : `Hi ${firstName}, you've been added to "${group.name}" on eStokvel. Log in with your existing PIN to see it.`;
+    smsService.sendSMS(phoneNumber, smsBody)
       .catch(smsError => console.warn('Failed to send SMS to new member:', smsError));
 
-    // Fire push notification in background
-    notificationService.notifyMemberAdded(user.id, group.name, tempPin)
+    // Fire push notification in background — only pass the PIN if there is one.
+    notificationService.notifyMemberAdded(user.id, group.name, tempPin ?? undefined)
       .catch((e: any) => console.warn('Failed to send push to new member:', e));
 
     return {
@@ -273,9 +281,14 @@ export class AuthService {
       data: {
         member: membership,
         tempPin,
-        smsMessage: `You've been added to \"${group.name}\". Download the app and login with your phone number. Your temp PIN is: ${tempPin}`,
+        isNewUser,
+        smsMessage: isNewUser
+          ? `You've been added to "${group.name}". Download the app and login with your phone number. Your temp PIN is: ${tempPin}`
+          : `You've been added to "${group.name}". Log in with your existing PIN.`,
       },
-      message: `Member \"${fullName}\" added to \"${group.name}\". Temp PIN: ${tempPin}. An SMS has been sent to ${phoneNumber}.`
+      message: isNewUser
+        ? `Member "${fullName}" added to "${group.name}". Temp PIN: ${tempPin}. An SMS has been sent to ${phoneNumber}.`
+        : `${user.fullName} added to "${group.name}". They already have an account — no new PIN needed.`
     };
   }
 

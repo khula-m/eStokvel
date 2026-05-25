@@ -10,10 +10,13 @@ interface BottomTabBarProps {
   userRole: string;
 }
 
+// Chat lives INSIDE a group (per-group context), so it isn't a bottom tab —
+// users reach it from the Chat tile on each group's home screen. Having it
+// in the bottom bar created a "pick a group first" detour that didn't fit
+// the per-group model.
 const allTabs = [
   { key: 'dashboard', label: 'Home' },
-  { key: 'ledger', label: 'Ledger' },
-  { key: 'chat', label: 'Chat' },
+  { key: 'ledger', label: 'Activity' },
   { key: 'notifications', label: 'Alerts' },
   { key: 'profile', label: 'Profile' },
 ];

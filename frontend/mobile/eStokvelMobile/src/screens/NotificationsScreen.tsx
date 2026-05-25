@@ -112,7 +112,7 @@ export const NotificationsScreen = ({ auth }: NotificationsScreenProps) => {
         {notifications.length === 0 ? (
           <View style={ns.emptyWrap}>
             <View style={ns.emptyIconCircle}>
-              <Icon name="notifications-off" size={44} color={COLORS.textMuted} />
+              <Icon name="notifications" size={44} color={COLORS.textMuted} />
             </View>
             <Text style={ns.emptyTitle}>No notifications yet</Text>
             <Text style={ns.emptyText}>
@@ -157,12 +157,21 @@ export const NotificationsScreen = ({ auth }: NotificationsScreenProps) => {
                     <Text style={ns.groupName} numberOfLines={1}>{group}</Text>
                   ) : null}
 
-                  {amount !== null ? (
-                    <Text style={[ns.amount, { color: cfg.color }]}>
-                      {item.type === 'CONTRIBUTION' ? '-' : '+'}
-                      {formatCurrency(amount)}
-                    </Text>
-                  ) : (
+                  {amount !== null ? (() => {
+                    // Sign + colour reflect the MEMBER's money flow.
+                    //   CONTRIBUTION → money out of my pocket → red minus
+                    //   PAYOUT       → money into my pocket  → green plus
+                    //   REVERSED     → flips the sign; money came back / went back
+                    const baseOutflow = item.type === 'CONTRIBUTION';
+                    const outflow = item.status === 'REVERSED' ? !baseOutflow : baseOutflow;
+                    const sign = outflow ? '-' : '+';
+                    const amountColor = outflow ? COLORS.error : COLORS.success;
+                    return (
+                      <Text style={[ns.amount, { color: amountColor }]}>
+                        {sign}{formatCurrency(amount)}
+                      </Text>
+                    );
+                  })() : (
                     <Text style={ns.messageText} numberOfLines={2}>{item.message}</Text>
                   )}
 
